@@ -74,7 +74,8 @@ fn handle_session(app: &AppHandle, shared: &Shared, data: serde_json::Value) {
         }
     };
 
-    let state = draft::from_session(&shared.repo, &session);
+    let repo = shared.repo.lock().unwrap().clone();
+    let state = draft::from_session(repo.as_ref(), &session);
 
     // Phase 1 deliverable: log champ-select state changes to the console.
     tracing::info!(
@@ -87,7 +88,7 @@ fn handle_session(app: &AppHandle, shared: &Shared, data: serde_json::Value) {
 
     let recs = {
         let weights = shared.weights.lock().unwrap();
-        engine::recommend(&shared.repo, &state, &weights)
+        engine::recommend(repo.as_ref(), &state, &weights)
     };
 
     *shared.latest_draft.lock().unwrap() = Some(state.clone());

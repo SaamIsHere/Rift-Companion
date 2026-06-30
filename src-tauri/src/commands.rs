@@ -33,7 +33,10 @@ pub fn set_weights(state: State<Shared>, weights: Weights, app: AppHandle) -> Ve
 fn compute(state: &Shared) -> Vec<Recommendation> {
     let draft = state.latest_draft.lock().unwrap().clone();
     match draft {
-        Some(d) => engine::recommend(&state.repo, &d, &state.weights.lock().unwrap()),
+        Some(d) => {
+            let repo = state.repo.lock().unwrap().clone();
+            engine::recommend(repo.as_ref(), &d, &state.weights.lock().unwrap())
+        }
         None => Vec::new(),
     }
 }

@@ -11,6 +11,7 @@ mod data;
 mod draft;
 mod engine;
 mod lcu;
+mod opgg;
 
 use std::sync::{Arc, Mutex};
 
@@ -32,10 +33,25 @@ pub enum ConnectionStatus {
 /// background LCU watcher task.
 #[derive(Clone)]
 pub struct Shared {
-    pub repo: Arc<Repository>,
+    /// Behind a Mutex so the background refresher can hot-swap the dataset.
+    pub repo: Arc<Mutex<Arc<Repository>>>,
     pub weights: Arc<Mutex<Weights>>,
     pub latest_draft: Arc<Mutex<Option<DraftState>>>,
     pub connection: Arc<Mutex<ConnectionStatus>>,
+}
+
+/// CLI entry point: install a normalized champion-stats JSON (the `Champion[]`
+/// schema) as the active dataset. Invoked as `rift-companion ingest <json> [out]`.
+pub fn run_ingest(json_path: Option<&str>, out_path: Option<&str>) -> anyhow::Result<()> {
+    let json_path = json_path
+        .ok_or_else(|| anyhow::anyhow!("usage: rift-companion ingest <normalized.json> [out_path]"))?;
+    let default_out = data::store::default_data_path();
+    let out = out_path
+        .map(str::to_string)
+        .unwrap_or_else(|| default_out.to_string_lossy().into_owned());
+    let n = data::ingest::build_file(json_path, &out)?;
+    println!("Installed {n} champions as the active dataset: {out}");
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -47,8 +63,18 @@ pub fn run() {
         )
         .init();
 
-    // Static + dynamic stats are loaded once at startup (embedded for the prototype).
-    let repo = Arc::new(Repository::load_embedded().expect("failed to load champion dataset"));
+    // Champion stats are loaded from a runtime JSON dataset (seeded from the
+    // embedded demo data on first run, replaceable per-patch via `ingest`). Fall
+    // back to the embedded JSON if the file is ever unusable so the app starts.
+    let data_path = data::store::default_data_path();
+    let repo = Repository::open_or_seed(&data_path.to_string_lossy())
+        .inspect(|r| tracing::info!(path = %data_path.display(), champions = r.len(), "loaded champion stats dataset"))
+        .or_else(|e| {
+            tracing::warn!("dataset load failed ({e:#}); using embedded dataset");
+            Repository::load_embedded()
+        })
+        .expect("failed to load champion dataset");
+    let repo = Arc::new(Mutex::new(Arc::new(repo)));
 
     let shared = Shared {
         repo,
@@ -66,12 +92,22 @@ pub fn run() {
             commands::set_weights,
         ])
         .setup(move |app| {
-            let handle = app.handle().clone();
-            let shared = shared.clone();
-            // Long-running watcher on Tauri's async (tokio) runtime.
-            tauri::async_runtime::spawn(async move {
-                lcu::run_watcher(handle, shared).await;
-            });
+            // Long-running LCU watcher on Tauri's async (tokio) runtime.
+            {
+                let handle = app.handle().clone();
+                let shared = shared.clone();
+                tauri::async_runtime::spawn(async move {
+                    lcu::run_watcher(handle, shared).await;
+                });
+            }
+            // Background champion-data refresher (OP.GG → dataset; daily / on patch change).
+            {
+                let handle = app.handle().clone();
+                let shared = shared.clone();
+                tauri::async_runtime::spawn(async move {
+                    opgg::refresh::run_refresher(handle, shared).await;
+                });
+            }
             Ok(())
         })
         .run(tauri::generate_context!())
