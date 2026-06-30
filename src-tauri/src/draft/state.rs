@@ -1,0 +1,96 @@
+//! Converts a raw LCU `ChampSelectSession` into a clean, UI-friendly `DraftState`.
+//!
+//! Important real-world caveat: in solo/duo queue the enemy team's
+//! `assignedPosition` is almost always an empty string. We therefore *infer*
+//! enemy roles from each champion's primary role in our dataset.
+
+use serde::Serialize;
+
+use crate::data::models::Role;
+use crate::data::repository::Repository;
+use crate::lcu::models::ChampSelectSession;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DraftState {
+    pub local_role: Option<Role>,
+    pub local_champion_id: Option<u32>,
+    pub bans: Vec<u32>,
+    pub allies: Vec<DraftPick>,
+    pub enemies: Vec<DraftPick>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DraftPick {
+    pub champion_id: u32,
+    pub role: Option<Role>,
+    pub is_local: bool,
+}
+
+pub fn from_session(repo: &Repository, s: &ChampSelectSession) -> DraftState {
+    let local_cell = s.local_player_cell_id;
+    let local_slot = s.my_team.iter().find(|p| p.cell_id == local_cell);
+
+    let local_role = local_slot.and_then(|p| Role::from_lcu(&p.assigned_position));
+    let local_champion_id = local_slot
+        .map(|p| p.champion_id)
+        .filter(|id| *id > 0)
+        .map(|id| id as u32);
+
+    let allies = s
+        .my_team
+        .iter()
+        .filter(|p| p.champion_id > 0)
+        .map(|p| DraftPick {
+            champion_id: p.champion_id as u32,
+            role: Role::from_lcu(&p.assigned_position),
+            is_local: p.cell_id == local_cell,
+        })
+        .collect();
+
+    // Enemy positions are usually hidden → fall back to the champion's primary role.
+    let enemies = s
+        .their_team
+        .iter()
+        .filter(|p| p.champion_id > 0)
+        .map(|p| {
+            let id = p.champion_id as u32;
+            DraftPick {
+                champion_id: id,
+                role: Role::from_lcu(&p.assigned_position).or_else(|| repo.primary_role(id)),
+                is_local: false,
+            }
+        })
+        .collect();
+
+    DraftState {
+        local_role,
+        local_champion_id,
+        bans: collect_bans(s),
+        allies,
+        enemies,
+    }
+}
+
+/// Union of declared bans and completed ban actions, de-duplicated.
+fn collect_bans(s: &ChampSelectSession) -> Vec<u32> {
+    let mut bans: Vec<u32> = s
+        .bans
+        .my_team_bans
+        .iter()
+        .chain(s.bans.their_team_bans.iter())
+        .filter(|id| **id > 0)
+        .map(|id| *id as u32)
+        .collect();
+
+    for round in &s.actions {
+        for a in round {
+            if a.action_type == "ban" && a.completed && a.champion_id > 0 {
+                bans.push(a.champion_id as u32);
+            }
+        }
+    }
+
+    bans.sort_unstable();
+    bans.dedup();
+    bans
+}

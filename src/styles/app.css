@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  color: #e2e8f0;
+  /* Deep Hextech gradient backdrop. For true desktop acrylic, make this
+     transparent and enable the `window-vibrancy` crate (see README). */
+  background:
+    radial-gradient(1200px 800px at 18% -12%, rgba(10, 200, 185, 0.10), transparent 60%),
+    radial-gradient(1000px 700px at 112% 8%, rgba(3, 151, 171, 0.12), transparent 55%),
+    #060a14;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@layer components {
+  /* Primary frosted-glass panel */
+  .glass {
+    @apply bg-white/[0.04] backdrop-blur-xl border border-white/10;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
+  }
+  /* Lighter nested surface */
+  .glass-soft {
+    @apply bg-white/[0.03] border border-white/[0.06] backdrop-blur-md;
+  }
+}
+
+/* Theme-matched slim scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.14);
+}

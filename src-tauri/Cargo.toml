@@ -1,0 +1,42 @@
+[package]
+name = "rift-companion"
+version = "0.1.0"
+description = "League of Legends champion-select companion"
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "rift_companion_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Async runtime (trimmed feature set to stay lightweight)
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync"] }
+
+# LCU transport: self-signed TLS websocket + REST
+tokio-tungstenite = { version = "0.24", features = ["native-tls"] }
+native-tls = "0.2"
+reqwest = { version = "0.12", default-features = false, features = ["native-tls", "json"] }
+futures-util = "0.3"
+
+# Process discovery for the League client lockfile
+sysinfo = "0.32"
+
+base64 = "0.22"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[profile.release]
+opt-level = "s"   # optimise for size — keeps the binary lean
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

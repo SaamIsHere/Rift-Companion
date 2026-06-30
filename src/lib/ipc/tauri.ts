@@ -1,0 +1,42 @@
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { connection } from "../stores/connection";
+import { draft } from "../stores/draft";
+import { recommendations } from "../stores/recommendations";
+import type {
+  ConnectionStatus,
+  DraftState,
+  Recommendation,
+  Weights,
+} from "../types";
+
+/**
+ * Wire backend events into the Svelte stores and prime initial state.
+ * Call once on app mount.
+ */
+export async function initIpc(): Promise<void> {
+  // Subscribe first so we never miss an update that fires during priming.
+  await listen<ConnectionStatus>("lcu://connection", (e) =>
+    connection.set(e.payload),
+  );
+  await listen<DraftState>("champ-select://update", (e) =>
+    draft.set(e.payload),
+  );
+  await listen<Recommendation[]>("recommendations://update", (e) =>
+    recommendations.set(e.payload),
+  );
+
+  // Prime with whatever the backend already knows (e.g. app opened mid-draft).
+  try {
+    connection.set(await invoke<ConnectionStatus>("get_connection_status"));
+    draft.set(await invoke<DraftState | null>("get_draft_state"));
+    recommendations.set(await invoke<Recommendation[]>("get_recommendations"));
+  } catch (err) {
+    console.error("Failed to prime state from backend", err);
+  }
+}
+
+/** Push new algorithm weights and receive a freshly ranked list. */
+export async function setWeights(weights: Weights): Promise<Recommendation[]> {
+  return invoke<Recommendation[]>("set_weights", { weights });
+}

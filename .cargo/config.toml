@@ -1,0 +1,11 @@
+# Build artifacts go to a SPACE-FREE path.
+#
+# This project's path contains a space ("Rift Companion"). With the GNU Rust
+# toolchain, Tauri's `windres` step passes the unquoted build OUT_DIR (under
+# target/) to cc1.exe, the space splits the path, and the build fails with
+# `cc1.exe: fatal error: Companion\...\out: No such file or directory`.
+#
+# Redirecting target-dir to a space-free location keeps windres's include paths
+# space-free, so the build succeeds while the source stays in place.
+[build]
+target-dir = "C:/Users/Sam/AppData/Local/rift-companion-target"
