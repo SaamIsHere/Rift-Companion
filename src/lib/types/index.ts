@@ -35,9 +35,8 @@ export interface Recommendation {
   reasons: string[];
 }
 
+// matchup/synergy/counter are no longer scalar weights — they're driven by
+// the static ALLY_WEIGHTS/ENEMY_WEIGHTS role matrices in weights.rs.
 export interface Weights {
-  matchup: number;
-  synergy: number;
-  counter: number;
   comp: number;
 }

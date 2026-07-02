@@ -13,7 +13,7 @@ To understand or extend the application, refer to the following documents:
 3. **[Frontend Development (Svelte)](frontend-svelte.md)**
    Details Svelte components, reactivity stores, frameless window control handles, and the Tailwind CSS glassmorphism theme design system.
 4. **[Scoring Engine & Algorithm](scoring-engine.md)**
-   Explores the mathematics and code behind champion pick scoring: Bayesian smoothing, lane counter detection, role-proximity ally synergy weighting, and team-composition balancing.
+   Explores the mathematics and code behind champion pick scoring: Bayesian smoothing, the role-specific ally/enemy weight matrices, and team-composition balancing.
 5. **[Data Management & Ingestion](data-management.md)**
    Explains how Champion datasets are loaded, stored, crawled in the background, ingested through the CLI tool, and mapped to League of Legends Data Dragon resources.
 6. **[Project Issues & Feature Backlog](issues-backlog.md)**

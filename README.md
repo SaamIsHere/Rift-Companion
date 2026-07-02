@@ -83,17 +83,23 @@ rift-companion/
 
 ## The scoring algorithm
 
-For each eligible champion in your role:
+For each eligible champion in your role, its base role win rate is refined by
+every locked ally and revealed enemy, using a 5x5 weight matrix keyed by
+**(your role, their role)** — an ADC leans hard on its Support's synergy,
+a Top laner leans hard on the enemy Top's matchup:
 
 ```
-net  = 0.40 · matchupAdv   // vs the direct laner   (highest priority)
-     + 0.25 · synergyAdv   // ally synergy, weighted by role proximity
-     + 0.20 · counterAdv   // vs the rest of the enemy team
-     + 0.15 · compBonus    // fills a missing AP / AD / frontline gap
-     + 0.15 · globalAdv    // overall role strength (tie-breaker)
+refined = clamp(wrBase + (Σ allyWeight·allyDelta + Σ enemyWeight·enemyDelta)
+                         / (Σ allyWeight + Σ enemyWeight), 0.02, 0.98)
 
-score = clamp(50 + net · 300, 0, 100)     // shown as a % match
+net   = (refined - 0.50) + 0.15 · compBonus   // fills a missing AP/AD/frontline gap
+score = clamp(50 + net · 300, 0, 100)         // shown as a % match
 ```
+
+Deltas are combined as a **weighted average, not a weighted sum** — every term
+is divided by the total matrix weight actually present, so the score's
+magnitude stays stable regardless of how many picks have been revealed
+(1 enemy locked vs. 9 other picks locked).
 
 Every win rate is **centred on 0.50** (advantage = distance from a coin-flip)
 and **Bayesian-smoothed** toward a 50% prior:
@@ -109,16 +115,21 @@ adjusted = (winrate · games + 0.50 · C) / (games + C)        // C = 100
 
 **Data-integrity filtering** combines two mechanisms:
 
-1. **Hard threshold** — a matchup/synergy cell with `< 100` games is treated as
-   *invalid*: the matchup component falls back to overall role strength, and
-   sub-threshold synergy/counter cells are skipped entirely.
+1. **Hard threshold** — a matchup/synergy cell with `< 100` games is
+   *excluded entirely* from the weighted average (not down-weighted).
 2. **Bayesian smoothing** — tames the remaining noise above the threshold.
 
 Together they neutralise outliers. Example (validated): Teemo's *85% win rate
 over 18 games vs Darius* is ignored; smoothing alone would still report 55.3%.
 
-**Role-proximity matrix** (synergy weighting): ADC↔Support `1.00`, Jungle↔Mid
-`0.70`, Jungle↔Support `0.60`, … , Top↔ADC `0.20`. See `engine/synergy.rs`.
+**Ally/enemy weight matrices**: Top/Mid weight the enemy matchup far above
+ally synergy (a solo laner lives/dies by its matchup); Jungle leans
+matchup-ward more mildly; ADC/Support are close to balanced since bot-lane
+synergy is nearly as decisive as the 2v2 matchup — with ADC's dependence on
+Support weighted higher than the reverse, since Support can still roam to
+impact the game if lane synergy is bad. See `engine/weights.rs` and
+[project-docs/scoring-engine.md](project-docs/scoring-engine.md) for the full
+tables and rationale.
 
 ---
 

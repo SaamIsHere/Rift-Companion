@@ -1,26 +1,35 @@
 //! Composes the weighted Pick Recommendation Score.
 //!
-//! For each eligible champion `c` in the user's role:
+//! For each eligible champion `c` in the user's role, the base win rate for
+//! that role is refined by every locked ally and revealed enemy, each
+//! contributing a `matrix_weight * (their_winrate_delta)` term. The matrix
+//! cell depends on the *local player's role* and the *other pick's role*
+//! (`weights::ALLY_WEIGHTS` / `weights::ENEMY_WEIGHTS`), so e.g. an ADC
+//! leans much harder on its Support's synergy than a Top laner leans on
+//! its Jungler's.
 //!
 //! ```text
-//! net = w_matchup * matchupAdv(c)      // vs the direct laner
-//!     + w_synergy * synergyAdv(c)      // proximity-weighted ally synergy
-//!     + w_counter * counterAdv(c)      // vs the rest of the enemy team
-//!     + w_comp    * compBonus(c)       // fills AP/AD/frontline gap
-//!     + baseline  * globalAdv(c)       // overall role strength (tie-breaker)
-//!
-//! score = clamp(50 + net * DISPLAY_SCALE, 0, 100)
+//! wr_refined = wr_base(c) + weighted_avg(ally deltas, enemy deltas)
+//! net        = (wr_refined - 0.50) + w_comp * compBonus(c)
+//! score      = clamp(50 + net * DISPLAY_SCALE, 0, 100)
 //! ```
 //!
+//! Critically this is a weighted *average*, not a weighted *sum*: every
+//! delta is divided by the total matrix weight actually present, so the
+//! score's magnitude doesn't drift as more picks get revealed over the
+//! course of a draft — only the *relative* weighting of who matters shifts.
+//!
 //! Every win-rate input is Bayesian-smoothed and centred on 0.50 (so an
-//! "advantage" is the signed distance from a coin-flip).
+//! "advantage" is the signed distance from a coin-flip). A matchup/synergy
+//! cell below `MIN_MATCHES` games is excluded entirely rather than merely
+//! down-weighted, so a 2-game 100%/0% outlier can't skew a pick.
 
 use serde::Serialize;
 
 use crate::data::models::{Champion, Role};
 use crate::data::repository::Repository;
 use crate::draft::DraftState;
-use crate::engine::{bayesian, comp, synergy, weights};
+use crate::engine::{bayesian, comp, weights};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Recommendation {
@@ -49,20 +58,13 @@ pub fn recommend(repo: &Repository, draft: &DraftState, w: &weights::Weights) ->
 
     let needs = comp::needs(repo, draft);
 
-    // Direct lane opponent: the enemy whose (inferred) role matches ours.
-    let lane_opponent = draft
-        .enemies
-        .iter()
-        .find(|e| e.role == Some(role))
-        .map(|e| e.champion_id);
-
     let mut out: Vec<Recommendation> = repo
         .playable_in(role)
         // Exclude banned and already-taken champions.
         .filter(|c| !draft.bans.contains(&c.champion_id))
         .filter(|c| !draft.allies.iter().any(|a| a.champion_id == c.champion_id))
         .filter(|c| !draft.enemies.iter().any(|e| e.champion_id == c.champion_id))
-        .map(|c| score_one(repo, draft, w, role, c, lane_opponent, &needs))
+        .map(|c| score_one(repo, draft, w, role, c, &needs))
         .collect();
 
     out.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
@@ -70,67 +72,33 @@ pub fn recommend(repo: &Repository, draft: &DraftState, w: &weights::Weights) ->
     out
 }
 
-#[allow(clippy::too_many_arguments)]
 fn score_one(
     repo: &Repository,
     draft: &DraftState,
     w: &weights::Weights,
     role: Role,
     c: &Champion,
-    lane_opponent: Option<u32>,
     needs: &comp::CompNeeds,
 ) -> Recommendation {
     let prior = repo.global_avg();
     let role_stats = c.role_stats(role);
     let mut reasons: Vec<String> = Vec::new();
 
-    // Overall role strength (centred on 0.50).
-    let global_adv = role_stats
-        .map(|s| bayesian::smooth(s.global_winrate, s.games, prior, weights::SMOOTH_C) - 0.5)
-        .unwrap_or(0.0);
+    // Base win rate for the role, Bayesian-smoothed over every game the
+    // champion has played there (not just its strongest single matchup).
+    let wr_base = role_stats
+        .map(|s| bayesian::smooth(s.global_winrate, s.games, prior, weights::SMOOTH_C))
+        .unwrap_or(prior);
 
-    // --- 1. Lane matchup vs the direct opponent (highest priority) ---
-    // The hard sample-size threshold gates the *value*, not just the badge: a
-    // sub-threshold cell is treated as invalid and we fall back to overall
-    // strength, so a 2-game outlier can never skew the score.
-    let matchup_adv = match (role_stats, lane_opponent) {
-        (Some(s), Some(opp)) => match s.matchups.get(&opp) {
-            Some(cell) if cell.games >= weights::MIN_MATCHES => {
-                let adj = bayesian::smooth(cell.winrate, cell.games, prior, weights::SMOOTH_C);
-                if adj > 0.52 {
-                    if let Some(o) = repo.get(opp) {
-                        reasons.push(format!("Strong lane counter to {}", o.name));
-                    }
-                }
-                adj - 0.5
-            }
-            // Missing or below threshold → lean on overall role strength.
-            _ => global_adv,
-        },
-        // Unknown laner → lean on overall strength.
-        _ => global_adv,
-    };
+    let refined = refined_advantage(repo, draft, role, role_stats, prior, &mut reasons);
 
-    // --- 2. Ally synergy, weighted by role proximity ---
-    let (synergy_adv, best_synergy) = synergy_advantage(repo, draft, role, role_stats);
-    if let Some(name) = best_synergy {
-        reasons.push(format!("High synergy with {name}"));
-    }
+    let wr_refined = (wr_base + refined.avg_delta).clamp(0.02, 0.98);
 
-    // --- 3. Counter vs the rest of the revealed enemy team ---
-    let counter_adv = counter_advantage(draft, role_stats, lane_opponent, prior);
-
-    // --- 4. Team-comp balance ---
+    // --- Team-comp balance (structural bonus, not a win-rate delta) ---
     let (comp_bonus, comp_reasons) = comp::bonus(c, needs);
     reasons.extend(comp_reasons.into_iter().map(String::from));
 
-    // Weighted composition.
-    let net = w.matchup * matchup_adv
-        + w.synergy * synergy_adv
-        + w.counter * counter_adv
-        + w.comp * comp_bonus
-        + weights::BASELINE_WEIGHT * global_adv;
-
+    let net = (wr_refined - 0.5) + w.comp * comp_bonus;
     let score = (50.0 + net * weights::DISPLAY_SCALE).clamp(0.0, 100.0);
 
     if reasons.is_empty() {
@@ -144,30 +112,51 @@ fn score_one(
         image: c.image.clone(),
         score,
         components: Components {
-            matchup: matchup_adv,
-            synergy: synergy_adv,
-            counter: counter_adv,
+            matchup: refined.matchup,
+            synergy: refined.synergy,
+            counter: refined.counter,
             comp: comp_bonus,
         },
         reasons,
     }
 }
 
-/// Proximity-weighted mean synergy advantage, plus the strongest ally (for the badge).
-fn synergy_advantage(
+struct RefinedAdvantage {
+    /// Combined weighted-average delta across every present ally + enemy
+    /// relationship. `matchup + synergy + counter == avg_delta`.
+    avg_delta: f64,
+    /// This role's weighted share of the direct lane opponent's delta.
+    matchup: f64,
+    /// This role's weighted share of ally synergy deltas.
+    synergy: f64,
+    /// This role's weighted share of non-lane-opponent enemy deltas.
+    counter: f64,
+}
+
+/// Blends every locked ally and revealed enemy into a single weighted
+/// average win-rate delta, using the local player's role to pick the right
+/// row of `ALLY_WEIGHTS` / `ENEMY_WEIGHTS`. Also pushes "why" badges for the
+/// strongest qualifying synergy/matchup found along the way.
+fn refined_advantage(
     repo: &Repository,
     draft: &DraftState,
     role: Role,
     role_stats: Option<&crate::data::models::RoleStats>,
-) -> (f64, Option<String>) {
+    prior: f64,
+    reasons: &mut Vec<String>,
+) -> RefinedAdvantage {
     let stats = match role_stats {
         Some(s) => s,
-        None => return (0.0, None),
+        None => {
+            return RefinedAdvantage { avg_delta: 0.0, matchup: 0.0, synergy: 0.0, counter: 0.0 };
+        }
     };
 
-    let prior = repo.global_avg();
-    let (mut num, mut den) = (0.0, 0.0);
-    let mut best: Option<(f64, String)> = None;
+    let mut total_weight = 0.0;
+    let mut weighted_matchup = 0.0; // direct lane opponent only
+    let mut weighted_synergy = 0.0; // allies
+    let mut weighted_counter = 0.0; // enemies other than the direct opponent
+    let mut best_synergy: Option<(f64, String)> = None;
 
     for ally in &draft.allies {
         if ally.is_local {
@@ -175,67 +164,74 @@ fn synergy_advantage(
         }
         let ally_role = match ally.role {
             Some(r) => r,
+            None => continue, // empty role slot → delta is 0.0 (skip entirely)
+        };
+        let weight = weights::ALLY_WEIGHTS[role.index()][ally_role.index()];
+        if weight <= 0.0 {
+            continue;
+        }
+        let Some(cell) = stats.synergies.get(&ally.champion_id) else { continue };
+        if cell.games < weights::MIN_MATCHES {
+            continue; // too few games to trust — excluded, not just down-weighted
+        }
+        let adj = bayesian::smooth(cell.winrate, cell.games, prior, weights::SMOOTH_C);
+        let delta = adj - 0.5;
+        let contribution = weight * delta;
+
+        total_weight += weight;
+        weighted_synergy += contribution;
+
+        if adj > 0.52 && best_synergy.as_ref().map_or(true, |(b, _)| contribution > *b) {
+            if let Some(a) = repo.get(ally.champion_id) {
+                best_synergy = Some((contribution, a.name.clone()));
+            }
+        }
+    }
+
+    for enemy in &draft.enemies {
+        let enemy_role = match enemy.role {
+            Some(r) => r,
             None => continue,
         };
-        let prox = synergy::proximity(role, ally_role);
-        if prox <= 0.0 {
+        let weight = weights::ENEMY_WEIGHTS[role.index()][enemy_role.index()];
+        if weight <= 0.0 {
             continue;
         }
-        if let Some(cell) = stats.synergies.get(&ally.champion_id) {
-            // Honour the hard sample-size threshold here too.
-            if cell.games < weights::MIN_MATCHES {
-                continue;
-            }
-            let adj = bayesian::smooth(cell.winrate, cell.games, prior, weights::SMOOTH_C);
-            let weighted = prox * (adj - 0.5);
-            num += weighted;
-            den += prox;
+        let Some(cell) = stats.matchups.get(&enemy.champion_id) else { continue };
+        if cell.games < weights::MIN_MATCHES {
+            continue;
+        }
+        let adj = bayesian::smooth(cell.winrate, cell.games, prior, weights::SMOOTH_C);
+        let delta = adj - 0.5;
+        let contribution = weight * delta;
 
+        total_weight += weight;
+        let is_direct = enemy_role == role;
+        if is_direct {
+            weighted_matchup += contribution;
             if adj > 0.52 {
-                if best.as_ref().map_or(true, |(b, _)| weighted > *b) {
-                    if let Some(a) = repo.get(ally.champion_id) {
-                        best = Some((weighted, a.name.clone()));
-                    }
+                if let Some(o) = repo.get(enemy.champion_id) {
+                    reasons.push(format!("Strong lane counter to {}", o.name));
                 }
             }
+        } else {
+            weighted_counter += contribution;
         }
     }
 
-    let adv = if den > 0.0 { num / den } else { 0.0 };
-    (adv, best.map(|(_, name)| name))
-}
-
-/// Mean matchup advantage vs every revealed enemy except the direct laner.
-fn counter_advantage(
-    draft: &DraftState,
-    role_stats: Option<&crate::data::models::RoleStats>,
-    lane_opponent: Option<u32>,
-    prior: f64,
-) -> f64 {
-    let stats = match role_stats {
-        Some(s) => s,
-        None => return 0.0,
-    };
-
-    let (mut sum, mut n) = (0.0, 0.0);
-    for enemy in &draft.enemies {
-        if Some(enemy.champion_id) == lane_opponent {
-            continue;
-        }
-        if let Some(cell) = stats.matchups.get(&enemy.champion_id) {
-            if cell.games < weights::MIN_MATCHES {
-                continue;
-            }
-            let adj = bayesian::smooth(cell.winrate, cell.games, prior, weights::SMOOTH_C);
-            sum += adj - 0.5;
-            n += 1.0;
-        }
+    if let Some(name) = best_synergy.map(|(_, name)| name) {
+        reasons.push(format!("High synergy with {name}"));
     }
 
-    if n > 0.0 {
-        sum / n
-    } else {
-        0.0
+    if total_weight <= 0.0 {
+        return RefinedAdvantage { avg_delta: 0.0, matchup: 0.0, synergy: 0.0, counter: 0.0 };
+    }
+
+    RefinedAdvantage {
+        avg_delta: (weighted_matchup + weighted_synergy + weighted_counter) / total_weight,
+        matchup: weighted_matchup / total_weight,
+        synergy: weighted_synergy / total_weight,
+        counter: weighted_counter / total_weight,
     }
 }
 

@@ -1,6 +1,6 @@
 # Scoring Engine & Algorithm
 
-The Rift Companion scoring engine evaluates eligible champions to recommend the top 5 picks for the local player's role. It ranks picks using a weighted sum of lane matchups, team synergy, enemy counters, and composition balance.
+The Rift Companion scoring engine evaluates eligible champions to recommend the top 5 picks for the local player's role. It ranks picks by refining the champion's base role win rate with role-specific ally/enemy weight matrices, plus a small composition-balance bonus.
 
 The core scoring implementation resides in [src-tauri/src/engine/scoring.rs](../src-tauri/src/engine/scoring.rs).
 
@@ -10,17 +10,17 @@ The core scoring implementation resides in [src-tauri/src/engine/scoring.rs](../
 
 For each candidate champion $c$ eligible for the local player's role:
 
-$$\text{Net} = w_{\text{matchup}} \cdot A_{\text{matchup}}(c) + w_{\text{synergy}} \cdot A_{\text{synergy}}(c) + w_{\text{counter}} \cdot A_{\text{counter}}(c) + w_{\text{comp}} \cdot B_{\text{comp}}(c) + w_{\text{baseline}} \cdot A_{\text{global}}(c)$$
+$$\text{WR}_{\text{refined}}(c) = \text{clamp}\Big(\text{WR}_{\text{base}}(c) + \frac{\sum_{\text{Allies}} w_{\text{ally}} \cdot \Delta\text{WR}_{\text{with\_ally}} + \sum_{\text{Enemies}} w_{\text{enemy}} \cdot \Delta\text{WR}_{\text{vs\_enemy}}}{\sum_{\text{Allies}} w_{\text{ally}} + \sum_{\text{Enemies}} w_{\text{enemy}}}, \; 0.02, \; 0.98\Big)$$
+
+$$\text{Net} = (\text{WR}_{\text{refined}}(c) - 0.50) + w_{\text{comp}} \cdot B_{\text{comp}}(c)$$
 
 $$\text{Score} = \text{clamp}(50.0 + \text{Net} \cdot \text{DISPLAY\_SCALE}, 0.0, 100.0)$$
 
-### Weight Coefficients
+The key design choice is that ally/enemy deltas are combined into a **weighted average**, not a weighted sum — every term is divided by the total matrix weight actually present in the draft. This keeps the score's magnitude stable regardless of how many picks have been revealed (1 enemy locked vs. 9 other picks locked), so only the *relative* importance of who's revealed shifts, not the overall scale.
+
+### Coefficients
 Defined in [src-tauri/src/engine/weights.rs](../src-tauri/src/engine/weights.rs):
-* $w_{\text{matchup}} = 0.40$ (Laning phase matchup vs. the direct opponent)
-* $w_{\text{synergy}} = 0.25$ (Ally synergy, weighted by role proximity)
-* $w_{\text{counter}} = 0.20$ (General advantage vs. the rest of the enemy team)
-* $w_{\text{comp}} = 0.15$ (Team balance bonus filling composition gaps)
-* $w_{\text{baseline}} = 0.15$ (Overall champion strength in the role as a tie-breaker)
+* $w_{\text{comp}} = 0.15$ (Team balance bonus filling composition gaps — the only remaining scalar weight; matchup/synergy/counter are now driven entirely by the matrices below)
 * $\text{DISPLAY\_SCALE} = 300.0$ (Converts advantage deviations of ~$\pm 0.10$ to a $0\text{--}100$ scale)
 
 ---
@@ -32,57 +32,64 @@ To prevent small sample sizes (e.g. a niche champion winning $2/2$ matches) from
 $$WR_{\text{smoothed}} = \frac{WR_{\text{observed}} \cdot N_{\text{games}} + prior \cdot C}{N_{\text{games}} + C}$$
 
 * **Prior baseline ($prior$)**: $0.50$ (calculated by construction of overall win-rate datasets).
-* **Smoothing strength ($C$)**: $100.0$ pseudo-games (defined as `SMOOTH_C` in [weights.rs](../src-tauri/src/engine/weights.rs#L31)).
+* **Smoothing strength ($C$)**: $100.0$ pseudo-games (defined as `SMOOTH_C` in [weights.rs](../src-tauri/src/engine/weights.rs#L27)).
 * **Behavior**: As $N_{\text{games}} \to 0$, $WR_{\text{smoothed}} \to prior$ ($0.50$). As $N_{\text{games}} \to \infty$, $WR_{\text{smoothed}} \to WR_{\text{observed}}$.
 
----
-
-## 2. Lane Matchup Advantage ($A_{\text{matchup}}$)
-
-Evaluates the champion vs. the direct laner in the same role (e.g. Mid vs. Mid).
-
-1. **Direct Opponent Inference**: Since solo/duo draft info hides enemy position tags, the engine infers roles based on each champion's most-played position: `Repository::primary_role()`.
-2. **Threshold Gate**: If a matchup cell has $N_{\text{games}} < 100$ (defined as `MIN_MATCHES`), the matchup cell is treated as *invalid* to block unreliable outliers. The matchup score then falls back to overall role strength $A_{\text{global}}$.
-3. **Calculation**: If $N_{\text{games}} \geq 100$, $A_{\text{matchup}} = WR_{\text{smoothed}} - 0.50$.
-4. **badge triggers**: If $WR_{\text{smoothed}} > 0.52$, a "Strong lane counter to [Champion Name]" badge is added.
+This applies to every win-rate input: the champion's base role win rate, every ally synergy cell, and every enemy matchup cell.
 
 ---
 
-## 3. Ally Synergy Advantage ($A_{\text{synergy}}$)
+## 2. Base Win Rate ($WR_{\text{base}}$)
 
-Computes the synergy score using a weighted average of win rates with locked allies, adjusted by their proximity on the map.
-
-$$A_{\text{synergy}} = \frac{\sum_{a} P(\text{role}, \text{role}_a) \cdot (WR_{\text{smoothed}}(c, a) - 0.50)}{\sum_{a} P(\text{role}, \text{role}_a)}$$
-
-### Role Proximity Weight Matrix ($P$)
-Defined in [src-tauri/src/engine/synergy.rs](../src-tauri/src/engine/synergy.rs#L9-L28):
-* ADC $\leftrightarrow$ Support: $1.00$
-* Jungle $\leftrightarrow$ Mid: $0.70$
-* Jungle $\leftrightarrow$ Support: $0.60$
-* Jungle $\leftrightarrow$ ADC: $0.55$
-* Mid $\leftrightarrow$ Support: $0.50$
-* Top $\leftrightarrow$ Jungle: $0.45$
-* Mid $\leftrightarrow$ ADC: $0.40$
-* Top $\leftrightarrow$ Mid: $0.30$
-* Top $\leftrightarrow$ Support: $0.30$
-* Top $\leftrightarrow$ ADC: $0.20$
-* Unmapped relationships: $0.25$
-
-Synergies with $N_{\text{games}} < 100$ are skipped. If a high synergy ally is found ($WR_{\text{smoothed}} > 0.52$), a "High synergy with [Ally Name]" badge is generated.
+The champion's overall (Bayesian-smoothed) win rate for the target role — aggregated across *every* game it has been played there, not just its single best matchup. This anchors the score before any ally/enemy refinement is applied, so a champion with a strong overall role win rate still ranks well even against an unrevealed or sparse draft.
 
 ---
 
-## 4. General Enemy Counter Advantage ($A_{\text{counter}}$)
+## 3. Ally/Enemy Weight Matrices
 
-Measures the champion's advantage vs. the rest of the revealed enemy team (excluding the direct lane opponent).
+Every locked ally and revealed enemy contributes one term to the combined weighted average above. The weight for each relationship comes from a 5x5 matrix indexed by **(local player's role, other pick's role)** — so an ADC leans heavily on its Support's synergy, while a Top laner leans heavily on the enemy Top's matchup. If a pick's role is unknown (empty slot, or an unrevealed enemy), its delta is `0.0` (it's excluded from both the numerator and denominator).
 
-$$A_{\text{counter}} = \frac{1}{N_{\text{enemies}}} \sum_{e \neq \text{opp}} (WR_{\text{smoothed}}(c, e) - 0.50)$$
+### Threshold Gate + Bayesian Smoothing (two-layer protection)
+Sample-size safety uses two layers, matching the philosophy of §1:
+1. **Hard gate**: If a matchup/synergy cell has $N_{\text{games}} < 100$ (`MIN_MATCHES`), the cell is **excluded entirely** from the weighted average — not down-weighted, not smoothed, just dropped. A 2-game 100%/0% record contributes nothing.
+2. **Soft smoothing**: Cells that clear the threshold still get Bayesian-smoothed (§1), so a 110-game cell sitting right above the gate doesn't swing the score as hard as a 5,000-game cell would.
 
-Cells with $N_{\text{games}} < 100$ are skipped.
+### Ally Weight Matrix ($w_{\text{ally}}$)
+Defined as `ALLY_WEIGHTS` in [weights.rs](../src-tauri/src/engine/weights.rs). Row = local player's role, column = ally's role:
+
+| If Player is... | Ally Top | Ally Jg | Ally Mid | Ally ADC | Ally Sup |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Top** | — | 0.4 | 0.3 | 0.1 | 0.1 |
+| **Jungle** | 0.5 | — | 0.5 | 0.3 | 0.3 |
+| **Mid** | 0.2 | 0.5 | — | 0.1 | 0.2 |
+| **ADC** | 0.1 | 0.2 | 0.1 | — | **1.8** |
+| **Support** | 0.2 | 0.3 | 0.2 | **1.3** | — |
+
+### Enemy Weight Matrix ($w_{\text{enemy}}$)
+Defined as `ENEMY_WEIGHTS` in [weights.rs](../src-tauri/src/engine/weights.rs). Row = local player's role, column = enemy's (inferred) role. The diagonal is the direct lane opponent:
+
+| If Player is... | Enemy Top | Enemy Jg | Enemy Mid | Enemy ADC | Enemy Sup |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Top** | **1.5** | 0.3 | 0.2 | 0.1 | 0.1 |
+| **Jungle** | 0.4 | **1.0** | 0.4 | 0.2 | 0.2 |
+| **Mid** | 0.2 | 0.4 | **1.4** | 0.1 | 0.1 |
+| **ADC** | 0.1 | 0.3 | 0.1 | **1.0** | **1.0** |
+| **Support** | 0.1 | 0.3 | 0.1 | **0.9** | **0.9** |
+
+### Design Rationale
+* **Top/Mid**: their ally-row weight total (0.9 / 1.0) is much smaller than their enemy-row total (2.2 / 2.2), so the direct lane matchup dominates the average — a solo laner lives and dies by its matchup.
+* **Jungle**: ally/enemy totals (1.6 / 2.2) are closer, reflecting that matchups matter a bit more than synergy, but not as lopsidedly as Top/Mid.
+* **ADC/Support**: ally/enemy totals (2.2 / 2.5 and 2.0 / 2.3) are close to balanced — bot lane's own synergy is nearly as decisive as the 2v2 lane matchup itself.
+* **ADC → Support (1.8) vs. Support → ADC (1.3)**: intentionally asymmetric. An ADC is more dependent on its Support than vice versa, since a Support can still contribute heavily by roaming if bot-lane synergy is bad, giving it more independence from its ADC partner than the reverse.
+* Because the ally and enemy sums are normalized together into one weighted average (not summed as raw scalars), each role's row totals only need to be *internally* consistent with that role's own matchup-vs-synergy philosophy — they don't need to match in absolute magnitude across roles.
+
+### Badge triggers
+* If the direct lane opponent's $WR_{\text{smoothed}} > 0.52$, a "Strong lane counter to [Champion Name]" badge is added.
+* If an ally synergy cell has $WR_{\text{smoothed}} > 0.52$, the strongest-contributing ally produces a "High synergy with [Ally Name]" badge.
 
 ---
 
-## 5. Team Composition Balance ($B_{\text{comp}}$)
+## 4. Team Composition Balance ($B_{\text{comp}}$)
 
 Rewards champion picks that fill structural gaps in the ally team composition. Calculated in [src-tauri/src/engine/comp.rs](../src-tauri/src/engine/comp.rs).
 

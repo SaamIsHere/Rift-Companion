@@ -41,6 +41,18 @@ impl Role {
             Role::Support => "support",
         }
     }
+
+    /// Row/column index into the 5x5 ally/enemy weight matrices (`weights::ALLY_WEIGHTS`,
+    /// `weights::ENEMY_WEIGHTS`). Order: Top, Jungle, Mid, Adc, Support.
+    pub fn index(self) -> usize {
+        match self {
+            Role::Top => 0,
+            Role::Jungle => 1,
+            Role::Mid => 2,
+            Role::Adc => 3,
+            Role::Support => 4,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

@@ -16,18 +16,21 @@ This backlog structures and analyzes the open GitHub issues for the Rift Compani
 ## Epic 1: Algorithmic & Engine Improvements
 
 ### Issue 2: Weight Distribution Matrix & Formula Refinement
-* **Status**: Open
+* **Status**: Implemented
 * **Priority**: High
 * **Technical Summary**: Transition the scoring algorithm from the baseline flat scoring model (uniform weights) to a role-specific, matrix-based win rate delta model.
-* **Implementation Plan**:
-  * Update [src-tauri/src/engine/weights.rs](../src-tauri/src/engine/weights.rs) to include 5x5 matrix tables for Ally and Enemy multipliers.
-  * Update the scoring loops in [src-tauri/src/engine/scoring.rs](../src-tauri/src/engine/scoring.rs) to apply matrix multipliers relative to the local player's role and the position of each locked ally/revealed enemy.
+* **Implementation**:
+  * `ALLY_WEIGHTS`/`ENEMY_WEIGHTS` 5x5 matrix tables live in [src-tauri/src/engine/weights.rs](../src-tauri/src/engine/weights.rs).
+  * The combined scoring loop lives in `refined_advantage` in [src-tauri/src/engine/scoring.rs](../src-tauri/src/engine/scoring.rs), applying matrix multipliers relative to the local player's role and the position of each locked ally/revealed enemy.
+  * Full formula and design rationale documented in [Scoring Engine §1–3](scoring-engine.md).
 * **Resolved Design Decisions**:
-  * *UI Compatibility*: **No UI matrix customizer is required.** The application will use a static predefined weight matrix hardcoded in the codebase during development.
-  * *Formula Refinement & Normalization*: The formula takes the base win rate of the champion for the target role $WR_{\text{base}}(C)$ and refines it using the delta multipliers:
-    $$\text{WR}_{\text{refined}}(C) = \text{WR}_{\text{base}}(C) + \sum_{\text{Allies}} (w_{\text{ally}} \cdot \Delta\text{WR}_{\text{with\_ally}}) + \sum_{\text{Enemies}} (w_{\text{enemy}} \cdot \Delta\text{WR}_{\text{vs\_enemy}})$$
-    To prevent the score from exceeding bounds, the deltas/final refined win rates should be constrained. The final display score is scaled relative to the 50% baseline:
-    $$\text{Score} = \text{clamp}(50.0 + (\text{WR}_{\text{refined}} - 0.50) \cdot 300.0, 0.0, 100.0)$$
+  * *UI Compatibility*: **No UI matrix customizer is required.** The application uses a static predefined weight matrix hardcoded in the codebase.
+  * *Weighted average, not weighted sum*: the original draft formula summed weighted deltas directly, which meant the score's magnitude drifted with how many picks were revealed (early vs. late draft) and could blow past the `DISPLAY_SCALE` calibration. The implemented formula normalizes by the total matrix weight present instead:
+    $$\text{WR}_{\text{refined}}(C) = \text{clamp}\Big(\text{WR}_{\text{base}}(C) + \frac{\sum_{\text{Allies}} w_{\text{ally}} \cdot \Delta\text{WR}_{\text{with\_ally}} + \sum_{\text{Enemies}} w_{\text{enemy}} \cdot \Delta\text{WR}_{\text{vs\_enemy}}}{\sum w_{\text{ally}} + \sum w_{\text{enemy}}}, \; 0.02, \; 0.98\Big)$$
+    $$\text{Score} = \text{clamp}(50.0 + \big[(\text{WR}_{\text{refined}} - 0.50) + w_{\text{comp}} \cdot B_{\text{comp}}\big] \cdot 300.0, 0.0, 100.0)$$
+  * *WR_base definition*: the champion's Bayesian-smoothed win rate aggregated across every game played in the role, not a cherry-picked best matchup.
+  * *Sample-size gate*: matchup/synergy cells below `MIN_MATCHES` (100 games) are excluded entirely from the average (not down-weighted), plus Bayesian smoothing on top — so a 2-game 100%/0% record can't overinflate or ruin a candidate's score.
+  * *Matrix philosophy*: enemy matchup weight dominates ally synergy weight for Top/Mid (solo lanes live/die by their matchup), Jungle leans matchup-ward but less sharply, and ADC/Support are close to balanced since bot-lane synergy is nearly as decisive as the 2v2 matchup. ADC's dependence on Support (1.8) is weighted higher than Support's dependence on ADC (1.3), since a Support can still impact the game by roaming if lane synergy is poor.
 
 ### Issue 6: Live Monitor for Lane Swaps in Champion Select
 * **Status**: Open
