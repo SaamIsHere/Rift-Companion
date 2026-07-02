@@ -14,10 +14,17 @@
 //! score      = clamp(50 + net * DISPLAY_SCALE, 0, 100)
 //! ```
 //!
-//! Critically this is a weighted *average*, not a weighted *sum*: every
-//! delta is divided by the total matrix weight actually present, so the
-//! score's magnitude doesn't drift as more picks get revealed over the
-//! course of a draft — only the *relative* weighting of who matters shifts.
+//! Critically this is a weighted *average*, not a weighted *sum* — every
+//! delta is divided by the **fixed full matrix row total** for the role
+//! (all 4 ally weights + all 4 enemy weights), not just the weight of picks
+//! revealed so far. That fixed denominator matters: dividing by only the
+//! *present* weight would let a single revealed relationship pass through
+//! at near-full raw magnitude (the weight cancels out when it's the only
+//! term), producing wildly overconfident scores early in a draft. Dividing
+//! by the full row instead means an unrevealed pick contributes weight but
+//! a delta of 0.0, so the score's confidence — and swing — grows as the
+//! draft actually fills in, mirroring how the old fixed coefficients
+//! (`w_matchup = 0.40`, etc.) used to cap any single relationship's pull.
 //!
 //! Every win-rate input is Bayesian-smoothed and centred on 0.50 (so an
 //! "advantage" is the signed distance from a coin-flip). A matchup/synergy
@@ -98,8 +105,14 @@ fn score_one(
     let (comp_bonus, comp_reasons) = comp::bonus(c, needs);
     reasons.extend(comp_reasons.into_iter().map(String::from));
 
-    let net = (wr_refined - 0.5) + w.comp * comp_bonus;
-    let score = (50.0 + net * weights::DISPLAY_SCALE).clamp(0.0, 100.0);
+    // The base win rate maps to the score 1:1 — with nothing else revealed
+    // (a true first pick), the score should read as exactly the champion's
+    // real win rate, not an amplified version of it. Only the *refinement*
+    // on top of that base (ally/enemy deltas + the comp bonus) gets the
+    // DISPLAY_SCALE treatment, since those deltas are naturally small
+    // (a few percentage points) and need amplifying to read clearly.
+    let refinement = (wr_refined - wr_base) + w.comp * comp_bonus;
+    let score = (wr_base * 100.0 + refinement * weights::DISPLAY_SCALE).clamp(0.0, 100.0);
 
     if reasons.is_empty() {
         reasons.push("Solid blind pick for your role".to_string());
@@ -152,7 +165,15 @@ fn refined_advantage(
         }
     };
 
-    let mut total_weight = 0.0;
+    // Fixed denominator: the *entire* matrix row for this role, not just the
+    // weight of picks revealed so far. A pick that hasn't been locked yet
+    // still occupies its slice of the row (contributing weight but a delta
+    // of 0.0), so a single strong matchup can't pass through at near-full
+    // magnitude just because it happens to be the only thing revealed early
+    // in the draft — confidence grows as the draft actually fills in.
+    let row_total: f64 = weights::ALLY_WEIGHTS[role.index()].iter().sum::<f64>()
+        + weights::ENEMY_WEIGHTS[role.index()].iter().sum::<f64>();
+
     let mut weighted_matchup = 0.0; // direct lane opponent only
     let mut weighted_synergy = 0.0; // allies
     let mut weighted_counter = 0.0; // enemies other than the direct opponent
@@ -178,7 +199,6 @@ fn refined_advantage(
         let delta = adj - 0.5;
         let contribution = weight * delta;
 
-        total_weight += weight;
         weighted_synergy += contribution;
 
         if adj > 0.52 && best_synergy.as_ref().map_or(true, |(b, _)| contribution > *b) {
@@ -205,7 +225,6 @@ fn refined_advantage(
         let delta = adj - 0.5;
         let contribution = weight * delta;
 
-        total_weight += weight;
         let is_direct = enemy_role == role;
         if is_direct {
             weighted_matchup += contribution;
@@ -223,15 +242,12 @@ fn refined_advantage(
         reasons.push(format!("High synergy with {name}"));
     }
 
-    if total_weight <= 0.0 {
-        return RefinedAdvantage { avg_delta: 0.0, matchup: 0.0, synergy: 0.0, counter: 0.0 };
-    }
-
+    // row_total is always > 0 by construction (every matrix row has a positive sum).
     RefinedAdvantage {
-        avg_delta: (weighted_matchup + weighted_synergy + weighted_counter) / total_weight,
-        matchup: weighted_matchup / total_weight,
-        synergy: weighted_synergy / total_weight,
-        counter: weighted_counter / total_weight,
+        avg_delta: (weighted_matchup + weighted_synergy + weighted_counter) / row_total,
+        matchup: weighted_matchup / row_total,
+        synergy: weighted_synergy / row_total,
+        counter: weighted_counter / row_total,
     }
 }
 

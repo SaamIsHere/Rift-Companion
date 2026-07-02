@@ -89,17 +89,31 @@ every locked ally and revealed enemy, using a 5x5 weight matrix keyed by
 a Top laner leans hard on the enemy Top's matchup:
 
 ```
-refined = clamp(wrBase + (Σ allyWeight·allyDelta + Σ enemyWeight·enemyDelta)
-                         / (Σ allyWeight + Σ enemyWeight), 0.02, 0.98)
+refined     = clamp(wrBase + (Σ allyWeight·allyDelta + Σ enemyWeight·enemyDelta)
+                             / rowTotal(role), 0.02, 0.98)
 
-net   = (refined - 0.50) + 0.15 · compBonus   // fills a missing AP/AD/frontline gap
-score = clamp(50 + net · 300, 0, 100)         // shown as a % match
+refinement  = (refined - wrBase) + 0.15 · compBonus   // fills a missing AP/AD/frontline gap
+score       = clamp(wrBase · 100 + refinement · 300, 0, 100)   // shown as a % match
 ```
 
-Deltas are combined as a **weighted average, not a weighted sum** — every term
-is divided by the total matrix weight actually present, so the score's
-magnitude stays stable regardless of how many picks have been revealed
-(1 enemy locked vs. 9 other picks locked).
+Deltas are combined as a **weighted average, not a weighted sum** — but the
+denominator (`rowTotal`) is the *entire* matrix row for that role (all 4 ally
+weights + all 4 enemy weights), **not** just the weight of picks revealed so
+far. That matters: dividing by only the present weight would let a single
+revealed relationship pass through at close to its full raw magnitude (the
+weight cancels out when it's the only term), so one strong matchup found
+early in a draft could swing the score as hard as a full 8-relationship read.
+Dividing by the fixed row total instead means an unrevealed pick still
+occupies its slice of the denominator (weight, but delta `0.0`), so
+confidence — and score movement — grows as the draft actually fills in.
+
+**`wrBase` maps to the score 1:1** — only the refinement on top of it (ally/
+enemy deltas + the comp bonus) gets the `× 300` amplification. With nothing
+revealed yet (a true first pick), `score == wrBase · 100`: a champion with a
+53% real win rate reads as `53`, not an amplified `59+`. The comp bonus is
+also gated to require at least one locked ally — with zero allies picked,
+"every damage type/frontline is missing" is trivially true and would
+otherwise hand every candidate a free bonus.
 
 Every win rate is **centred on 0.50** (advantage = distance from a coin-flip)
 and **Bayesian-smoothed** toward a 50% prior:

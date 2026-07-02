@@ -10,13 +10,17 @@ The core scoring implementation resides in [src-tauri/src/engine/scoring.rs](../
 
 For each candidate champion $c$ eligible for the local player's role:
 
-$$\text{WR}_{\text{refined}}(c) = \text{clamp}\Big(\text{WR}_{\text{base}}(c) + \frac{\sum_{\text{Allies}} w_{\text{ally}} \cdot \Delta\text{WR}_{\text{with\_ally}} + \sum_{\text{Enemies}} w_{\text{enemy}} \cdot \Delta\text{WR}_{\text{vs\_enemy}}}{\sum_{\text{Allies}} w_{\text{ally}} + \sum_{\text{Enemies}} w_{\text{enemy}}}, \; 0.02, \; 0.98\Big)$$
+$$\text{WR}_{\text{refined}}(c) = \text{clamp}\Big(\text{WR}_{\text{base}}(c) + \frac{\sum_{\text{Allies}} w_{\text{ally}} \cdot \Delta\text{WR}_{\text{with\_ally}} + \sum_{\text{Enemies}} w_{\text{enemy}} \cdot \Delta\text{WR}_{\text{vs\_enemy}}}{\text{RowTotal}(\text{role})}, \; 0.02, \; 0.98\Big)$$
 
-$$\text{Net} = (\text{WR}_{\text{refined}}(c) - 0.50) + w_{\text{comp}} \cdot B_{\text{comp}}(c)$$
+$$\text{Refinement} = \big(\text{WR}_{\text{refined}}(c) - \text{WR}_{\text{base}}(c)\big) + w_{\text{comp}} \cdot B_{\text{comp}}(c)$$
 
-$$\text{Score} = \text{clamp}(50.0 + \text{Net} \cdot \text{DISPLAY\_SCALE}, 0.0, 100.0)$$
+$$\text{Score} = \text{clamp}\big(\text{WR}_{\text{base}}(c) \cdot 100.0 + \text{Refinement} \cdot \text{DISPLAY\_SCALE}, \; 0.0, \; 100.0\big)$$
 
-The key design choice is that ally/enemy deltas are combined into a **weighted average**, not a weighted sum — every term is divided by the total matrix weight actually present in the draft. This keeps the score's magnitude stable regardless of how many picks have been revealed (1 enemy locked vs. 9 other picks locked), so only the *relative* importance of who's revealed shifts, not the overall scale.
+The key design choice is that ally/enemy deltas are combined into a **weighted average**, not a weighted sum. Critically, the denominator, $\text{RowTotal}(\text{role})$, is the **fixed sum of the entire matrix row** for that role (all 4 ally weights + all 4 enemy weights) — not just the weight of picks revealed so far.
+
+This distinction matters more than it looks. An earlier version divided by only the *present* weight, which meant a single revealed relationship passed through at close to its full raw magnitude — the weight cancels out of the division when it's the only term present (`weight · delta / weight = delta`), regardless of how large or small that weight was. That let one strong early-draft matchup swing the score as hard as a full 8-relationship read would. Dividing by the fixed row total instead means an unrevealed pick still occupies its slice of the denominator (contributing weight but a delta of `0.0`), so confidence — and score movement — grows as the draft actually fills in, the same way the old fixed coefficients (`w_matchup = 0.40`, etc.) used to cap how far any single relationship could pull the score.
+
+**`WR_base` maps to the score 1:1; `DISPLAY_SCALE` only amplifies the refinement on top of it.** An earlier version applied `50 + (WR_refined - 0.50) × 300` to the *whole* refined win rate, base included — so a champion with an ordinary 53% win rate and zero other information read as a 59+ score, because the base win rate's small offset from 50% got the same 300x amplification meant for small matchup/synergy deltas. With nothing else revealed (a true first pick), the score should read as exactly the champion's real win rate. Splitting the formula so `WR_base` passes straight through as a percentage, and only the ally/enemy/comp refinement gets amplified, fixes that — a first-pick Nasus in Jungle (53% base win rate, no data revealed) now scores `53.0`, not 64.
 
 ### Coefficients
 Defined in [src-tauri/src/engine/weights.rs](../src-tauri/src/engine/weights.rs):
@@ -94,9 +98,10 @@ Defined as `ENEMY_WEIGHTS` in [weights.rs](../src-tauri/src/engine/weights.rs). 
 Rewards champion picks that fill structural gaps in the ally team composition. Calculated in [src-tauri/src/engine/comp.rs](../src-tauri/src/engine/comp.rs).
 
 1. **Composition Needs Detection**: Scans locked allies (excluding the local player) to check for:
-   * **Magic Damage (AP)**: Count of allies with magic or mixed damage. If $0$, `needs_ap = true`.
-   * **Physical Damage (AD)**: Count of allies with physical or mixed damage. If $0$, `needs_ad = true`.
-   * **Frontline/Tank**: Count of allies tagged as `Tank` in Data Dragon. If $0$, `needs_frontline = true`.
+   * **Zero allies locked**: if no ally has been picked yet (e.g. a true first pick), *no* gap is flagged at all — with no team data, "every category is missing" is trivially true and would otherwise hand every candidate a free bonus for no real reason.
+   * **Magic Damage (AP)**: Count of allies with magic or mixed damage. If $0$ (and at least one ally is locked), `needs_ap = true`.
+   * **Physical Damage (AD)**: Count of allies with physical or mixed damage. If $0$ (and at least one ally is locked), `needs_ad = true`.
+   * **Frontline/Tank**: Count of allies tagged as `Tank` in Data Dragon. If $0$ (and at least one ally is locked), `needs_frontline = true`.
 2. **Score Calculation**:
    * If `needs_ap` and candidate is AP $\to$ $+0.06$ score bonus ("Adds missing magic damage").
    * If `needs_ad` and candidate is AD $\to$ $+0.06$ score bonus ("Adds missing physical damage").

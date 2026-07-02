@@ -13,13 +13,14 @@ pub struct CompNeeds {
 
 /// Inspect already-locked allies (excluding the local player) to find gaps.
 pub fn needs(repo: &Repository, draft: &DraftState) -> CompNeeds {
-    let (mut ap, mut ad, mut frontline) = (0u32, 0u32, 0u32);
+    let (mut ap, mut ad, mut frontline, mut locked) = (0u32, 0u32, 0u32, 0u32);
 
     for ally in &draft.allies {
         if ally.is_local {
             continue;
         }
         if let Some(c) = repo.get(ally.champion_id) {
+            locked += 1;
             match c.damage {
                 DamageType::Magic => ap += 1,
                 DamageType::Physical => ad += 1,
@@ -32,6 +33,13 @@ pub fn needs(repo: &Repository, draft: &DraftState) -> CompNeeds {
                 frontline += 1;
             }
         }
+    }
+
+    // With zero allies locked in yet (e.g. a true first pick), there's no
+    // team data to indicate a real gap — "every category is missing" is
+    // trivially true and would hand every candidate a bonus for no reason.
+    if locked == 0 {
+        return CompNeeds::default();
     }
 
     CompNeeds {
