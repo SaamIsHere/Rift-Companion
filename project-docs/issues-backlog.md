@@ -33,12 +33,15 @@ This backlog structures and analyzes the open GitHub issues for the Rift Compani
   * *Matrix philosophy*: enemy matchup weight dominates ally synergy weight for Top/Mid (solo lanes live/die by their matchup), Jungle leans matchup-ward but less sharply, and ADC/Support are close to balanced since bot-lane synergy is nearly as decisive as the 2v2 matchup. ADC's dependence on Support (1.8) is weighted higher than Support's dependence on ADC (1.3), since a Support can still impact the game by roaming if lane synergy is poor.
 
 ### Issue 6: Live Monitor for Lane Swaps in Champion Select
-* **Status**: Open
+* **Status**: Verified — already working, no code change required.
 * **Priority**: High
 * **Technical Summary**: Verify whether the LCU session watcher dynamically detects when players swap roles/positions during champion select.
-* **Implementation Plan**:
-  * Inspect the WebSocket session updates (`/lol-champ-select/v1/session`) when role trades or slot swaps occur.
-  * Map the trade actions to ensure [draft::from_session](../src-tauri/src/draft/state.rs) updates the `assignedPosition` dynamically and triggers recommendations recalculation.
+* **Verification (2026-07-02)**: Confirmed by tracing the pipeline end to end:
+  * [lcu/mod.rs::run_watcher](../src-tauri/src/lcu/mod.rs) subscribes to the full `OnJsonApiEvent_lol-champ-select_v1_session` topic. The LCU broadcasts the **entire** session object (not a diff) on every state change, including a completed position trade.
+  * [lcu/mod.rs::handle_session](../src-tauri/src/lcu/mod.rs) runs unconditionally on **every** websocket message — no caching/diffing that could suppress a role-only change. It always calls [draft::from_session](../src-tauri/src/draft/state.rs), which re-reads `assignedPosition` fresh off the just-received payload every time (never trusts stale state).
+  * Every call to `handle_session` unconditionally recomputes recommendations (`engine::recommend`) and re-emits both `champ-select://update` and `recommendations://update`.
+  * The frontend ([tauri.ts::initIpc](../src/lib/ipc/tauri.ts)) subscribes to both events and writes straight into Svelte stores, which reactively re-render the draft board and recommendation list — so a role swap flows through to the UI with no manual refresh.
+  * Because the app reacts to `assignedPosition` changes (not to in-flight trade *request* actions), it correctly waits until a trade is actually accepted/finalized before re-tagging lanes — matching the resolved design decision below.
 * **Resolved Design Decisions**:
   * *Trade vs Swap*: The app monitors player **role swaps** (assigned position cell modifications in draft) to adjust who is tagged in which lane, rather than trading selected champions at the end of the draft.
 
