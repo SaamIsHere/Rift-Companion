@@ -65,12 +65,15 @@ This backlog structures and analyzes the open GitHub issues for the Rift Compani
 ## Epic 2: Core UX & Client Integrations
 
 ### Issue 9: Display Summoner Name & Profile Icon
-* **Status**: Open
+* **Status**: Implemented
 * **Priority**: High
 * **Technical Summary**: Read the active account's profile name and level/icon and render them in the frameless title bar.
-* **Implementation Plan**:
-  * Add a Tauri command fetching `/lol-summoner/v1/current-summoner` on client detection.
-  * Wire the response payload to a Svelte profile store and display the icon (rendered via Data Dragon) next to the Connection Orb.
+* **Implementation**:
+  * [lcu/client.rs::get_current_summoner](../src-tauri/src/lcu/client.rs) fetches `/lol-summoner/v1/current-summoner` and returns a `Summoner { display_name, level, profile_icon_id }`. `display_name` prefers the modern Riot ID (`gameName#tagLine`) and falls back to the legacy `displayName` field for accounts/clients that don't populate `gameName`.
+  * [lcu/mod.rs::run_watcher](../src-tauri/src/lcu/mod.rs) fetches the profile right after the lockfile is found (alongside the existing rank-tier auto-detection) and stores it on `Shared::profile`, emitting `"lcu://profile"`. `set_status` clears `Shared::profile` and re-emits `null` whenever the connection drops back to `Searching`, so a disconnect can't leave a stale name/icon on screen.
+  * A new `get_profile` command ([commands.rs](../src-tauri/src/commands.rs)) primes the frontend on launch, mirroring `get_connection_status`.
+  * [stores/profile.ts](../src/lib/stores/profile.ts) holds the `Summoner | null` state; [ipc/tauri.ts](../src/lib/ipc/tauri.ts) listens for `"lcu://profile"` and primes via `get_profile`. [ddragon.ts::profileIconUrl](../src/lib/utils/ddragon.ts) mirrors the existing `squareIconUrl` helper for the `/img/profileicon/<id>.png` Data Dragon path.
+  * [ConnectionStatus.svelte](../src/lib/components/ConnectionStatus.svelte) renders the profile icon, Riot ID, and level once connected *and* the profile has arrived; otherwise it falls back to the original dot + "Client connected"/"Waiting for League client…" text — covering both the disconnected case and the brief window after connecting but before the profile fetch resolves.
 * **Resolved Design Decisions**:
   * *Offline Fallback*: Display a greyed-out placeholder or "Searching..." user card when the LCU is disconnected.
 

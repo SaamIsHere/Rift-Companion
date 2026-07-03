@@ -15,6 +15,13 @@ pub fn get_connection_status(state: State<Shared>) -> ConnectionStatus {
     state.connection.lock().unwrap().clone()
 }
 
+/// Active account's summoner profile, primed on app launch (Issue #9); live
+/// updates arrive via the "lcu://profile" event instead.
+#[tauri::command]
+pub fn get_profile(state: State<Shared>) -> Option<crate::lcu::client::Summoner> {
+    state.profile.lock().unwrap().clone()
+}
+
 #[tauri::command]
 pub fn get_draft_state(state: State<Shared>) -> Option<DraftState> {
     state.latest_draft.lock().unwrap().clone()

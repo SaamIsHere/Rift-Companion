@@ -16,6 +16,11 @@ To build and run Rift Companion, the host machine requires:
    ```
 4. **Platform Dependencies**: On Windows, WebView2 is preinstalled on Windows 11. On older machines, it can be obtained via Microsoft's installer.
 
+### Windows Build Notes
+
+* Use the **MSVC** Rust toolchain (`x86_64-pc-windows-msvc`) — this is `rustup`'s default on Windows and what Tauri itself recommends. Nothing in `.cargo/config.toml` needs to be touched for this.
+* If you deliberately use the **GNU** toolchain (`x86_64-pc-windows-gnu`) instead, and your checkout path contains a space (e.g. under `OneDrive` or a folder named with spaces), the build may fail with `cc1.exe: fatal error: ...: No such file or directory` — a known `windres` quoting bug. Work around it locally by setting the `CARGO_TARGET_DIR` environment variable to a space-free directory before building; don't commit a fixed path to `.cargo/config.toml`, since that ties the repo to one machine/user account and breaks every other clone.
+
 ---
 
 ## Running the Application

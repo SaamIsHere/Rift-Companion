@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { connection } from "../stores/connection";
 import { draft } from "../stores/draft";
+import { profile } from "../stores/profile";
 import { rankRefreshing, rankRefreshProgress, rankTier } from "../stores/rank";
 import { recommendations } from "../stores/recommendations";
 import { settings } from "../stores/settings";
@@ -13,6 +14,7 @@ import type {
   Recommendation,
   Role,
   Settings,
+  Summoner,
   Weights,
 } from "../types";
 
@@ -25,6 +27,7 @@ export async function initIpc(): Promise<void> {
   await listen<ConnectionStatus>("lcu://connection", (e) =>
     connection.set(e.payload),
   );
+  await listen<Summoner | null>("lcu://profile", (e) => profile.set(e.payload));
   await listen<DraftState>("champ-select://update", (e) =>
     draft.set(e.payload),
   );
@@ -43,6 +46,7 @@ export async function initIpc(): Promise<void> {
   // Prime with whatever the backend already knows (e.g. app opened mid-draft).
   try {
     connection.set(await invoke<ConnectionStatus>("get_connection_status"));
+    profile.set(await invoke<Summoner | null>("get_profile"));
     draft.set(await invoke<DraftState | null>("get_draft_state"));
     recommendations.set(await invoke<Recommendation[]>("get_recommendations"));
     rankTier.set(await invoke<RankTier>("get_rank_tier"));

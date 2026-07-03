@@ -43,6 +43,8 @@ pub struct Shared {
     pub weights: Arc<Mutex<Weights>>,
     pub latest_draft: Arc<Mutex<Option<DraftState>>>,
     pub connection: Arc<Mutex<ConnectionStatus>>,
+    /// Active account's summoner profile, fetched on LCU connect (Issue #9).
+    pub profile: Arc<Mutex<Option<lcu::client::Summoner>>>,
     /// Manual enemy-role reassignments from the draft board, keyed by champion id.
     /// Re-applied on every LCU session push so they survive the next websocket frame.
     pub enemy_role_overrides: Arc<Mutex<HashMap<u32, Role>>>,
@@ -109,6 +111,7 @@ pub fn run() {
         weights: Arc::new(Mutex::new(Weights { comp: settings.comp_weight })),
         latest_draft: Arc::new(Mutex::new(None)),
         connection: Arc::new(Mutex::new(ConnectionStatus::Searching)),
+        profile: Arc::new(Mutex::new(None)),
         enemy_role_overrides: Arc::new(Mutex::new(HashMap::new())),
         rank_tier: Arc::new(Mutex::new(rank_tier)),
         rank_manual: Arc::new(Mutex::new(rank_manual)),
@@ -120,6 +123,7 @@ pub fn run() {
         .manage(shared.clone())
         .invoke_handler(tauri::generate_handler![
             commands::get_connection_status,
+            commands::get_profile,
             commands::get_draft_state,
             commands::get_recommendations,
             commands::set_weights,

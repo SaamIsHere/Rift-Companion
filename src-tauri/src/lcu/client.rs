@@ -40,6 +40,60 @@ pub async fn get_session(lock: &Lockfile) -> Result<Option<serde_json::Value>> {
     }
 }
 
+/// Active account's summoner profile, fetched on client connect (Issue #9).
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Summoner {
+    /// Riot ID ("Name#TAG") when available, falling back to the legacy `displayName`.
+    pub display_name: String,
+    pub level: u32,
+    pub profile_icon_id: u32,
+}
+
+#[derive(serde::Deserialize)]
+struct CurrentSummonerResponse {
+    #[serde(default, rename = "gameName")]
+    game_name: String,
+    #[serde(default, rename = "tagLine")]
+    tag_line: String,
+    #[serde(default, rename = "displayName")]
+    display_name: String,
+    #[serde(default, rename = "summonerLevel")]
+    summoner_level: u32,
+    #[serde(default, rename = "profileIconId")]
+    profile_icon_id: u32,
+}
+
+/// Fetch the active account's summoner name, level and profile icon.
+/// Returns `None` if the endpoint can't be reached (e.g. client not fully signed in yet).
+pub async fn get_current_summoner(lock: &Lockfile) -> Result<Option<Summoner>> {
+    let client = http_client()?;
+    let url = format!("https://127.0.0.1:{}/lol-summoner/v1/current-summoner", lock.port);
+    let resp = client
+        .get(url)
+        .header("Authorization", auth_header(lock))
+        .send()
+        .await?;
+
+    if !resp.status().is_success() {
+        return Ok(None);
+    }
+    let raw: CurrentSummonerResponse = resp.json().await?;
+    let display_name = if !raw.game_name.is_empty() {
+        if raw.tag_line.is_empty() {
+            raw.game_name
+        } else {
+            format!("{}#{}", raw.game_name, raw.tag_line)
+        }
+    } else {
+        raw.display_name
+    };
+    Ok(Some(Summoner {
+        display_name,
+        level: raw.summoner_level,
+        profile_icon_id: raw.profile_icon_id,
+    }))
+}
+
 #[derive(serde::Deserialize)]
 struct RankedStats {
     #[serde(rename = "queueMap", default)]

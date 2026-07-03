@@ -5,6 +5,13 @@ export type Role = "top" | "jungle" | "mid" | "adc" | "support";
 
 export type ConnectionStatus = "searching" | "connected";
 
+// Active account's profile (Issue #9), fetched from the LCU on client connect.
+export interface Summoner {
+  display_name: string; // "Name#TAG" Riot ID, or legacy displayName as fallback
+  level: number;
+  profile_icon_id: number;
+}
+
 export type RankTier =
   | "iron"
   | "bronze"

@@ -30,6 +30,17 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
         set_status(&app, &shared, ConnectionStatus::Connected);
         tracing::info!(port = lock.port, "LCU lockfile found; connecting");
 
+        // Fetch the active account's profile for the title bar (Issue #9).
+        // Best-effort: if the client isn't fully signed in yet this just
+        // leaves the "Client connected" fallback showing.
+        match client::get_current_summoner(&lock).await {
+            Ok(profile) => {
+                *shared.profile.lock().unwrap() = profile.clone();
+                let _ = app.emit("lcu://profile", &profile);
+            }
+            Err(e) => tracing::warn!("failed to fetch current summoner: {e}"),
+        }
+
         // Auto-detect the local player's rank tier as the data-fetch default,
         // unless they've already picked one manually from the dropdown
         // (Issue #13). Best-effort: unranked/unreachable just keeps whatever
@@ -131,6 +142,12 @@ fn handle_session(app: &AppHandle, shared: &Shared, data: serde_json::Value) {
 }
 
 fn set_status(app: &AppHandle, shared: &Shared, status: ConnectionStatus) {
+    // The profile is only ever valid while connected; drop it as soon as we
+    // go back to searching so the UI doesn't show a stale name/icon.
+    if matches!(status, ConnectionStatus::Searching) {
+        *shared.profile.lock().unwrap() = None;
+        let _ = app.emit("lcu://profile", &None::<client::Summoner>);
+    }
     *shared.connection.lock().unwrap() = status.clone();
     let _ = app.emit("lcu://connection", &status);
 }
