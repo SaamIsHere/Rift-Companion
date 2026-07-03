@@ -87,9 +87,13 @@ Defined as `ENEMY_WEIGHTS` in [weights.rs](../src-tauri/src/engine/weights.rs). 
 * **ADC → Support (1.8) vs. Support → ADC (1.3)**: intentionally asymmetric. An ADC is more dependent on its Support than vice versa, since a Support can still contribute heavily by roaming if bot-lane synergy is bad, giving it more independence from its ADC partner than the reverse.
 * Because the ally and enemy sums are normalized together into one weighted average (not summed as raw scalars), each role's row totals only need to be *internally* consistent with that role's own matchup-vs-synergy philosophy — they don't need to match in absolute magnitude across roles.
 
-### Badge triggers
-* If the direct lane opponent's $WR_{\text{smoothed}} > 0.52$, a "Strong lane counter to [Champion Name]" badge is added.
-* If an ally synergy cell has $WR_{\text{smoothed}} > 0.52$, the strongest-contributing ally produces a "High synergy with [Ally Name]" badge.
+### Badge triggers (Issue 7 — colored, balanced badges)
+Every badge carries a `BadgeKind` (`Positive` green / `Negative` red / `Comp` blue / `Neutral` grey) so the UI can show a balanced picture instead of only the flattering half of a pick's story:
+* **Matchup badge** (direct lane opponent only): $WR_{\text{smoothed}} > 0.52$ → "Strong lane counter to [Champion]" (green); $WR_{\text{smoothed}} < 0.48$ → "Rough matchup vs [Champion]" (red). Between those thresholds, no matchup badge is shown.
+* **Synergy badge** (allies): the strongest ally relationship in *either* direction — by $|w_{\text{ally}} \cdot \Delta|$, not just the first one found — produces "High synergy with [Ally]" (green, $WR_{\text{smoothed}} > 0.52$) or "Weak synergy with [Ally]" (red, $WR_{\text{smoothed}} < 0.48$).
+* **Comp badges**: unchanged from §4 below, always `Comp` (blue) since there's no "made the gap worse" case.
+* Final badge list order is `[matchup, synergy, ...comp]`, truncated to 3; falls back to a single `Neutral` "Solid blind pick for your role" badge if nothing cleared any threshold.
+* A `get_pairwise_stat` Tauri command exposes the same smoothed-and-gated lookup for a single ally/enemy cell on demand, powering a draft-board hover preview independent of whichever role is currently being scored (see [Issue 7 in the backlog](issues-backlog.md#issue-7-refined-champion-badges-counter-and-synergy-highlights)).
 
 ---
 

@@ -2,6 +2,7 @@
   import type { Recommendation } from "../types";
   import { ddragonVersion } from "../stores/champions";
   import { squareIconUrl } from "../utils/ddragon";
+  import { preselectedChampionId } from "../stores/preselect";
   import ScoreBar from "./ScoreBar.svelte";
   import ReasonBadge from "./ReasonBadge.svelte";
 
@@ -10,12 +11,25 @@
   export let compact = false;
 
   let iconError = false;
+
+  // Click to "preselect" this champion (Issue #7): pins it as the reference
+  // pick for the draft-board hover preview, so its matchup/synergy against
+  // any ally/enemy slot shows on hover even before it's actually locked in.
+  // Clicking the already-preselected card again clears it.
+  $: isPreselected = $preselectedChampionId === rec.champion_id;
+  function togglePreselect() {
+    preselectedChampionId.set(isPreselected ? null : rec.champion_id);
+  }
 </script>
 
 <div
-  class="glass-soft flex animate-fade-in flex-col rounded-xl transition hover:bg-white/[0.08] {compact
+  role="button"
+  tabindex="0"
+  on:click={togglePreselect}
+  on:keydown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), togglePreselect())}
+  class="glass-soft flex animate-fade-in cursor-pointer flex-col rounded-xl transition hover:bg-white/[0.08] {compact
     ? 'gap-1 p-2'
-    : 'gap-2 p-3'}"
+    : 'gap-2 p-3'} {isPreselected ? 'ring-1 ring-hextech-cyan/60' : ''}"
 >
   <div class="flex items-center gap-3">
     <span class="w-4 text-center text-xs text-slate-500">{rank}</span>
@@ -50,10 +64,10 @@
     </div>
   </div>
 
-  {#if rec.reasons.length && !compact}
+  {#if rec.badges.length && !compact}
     <div class="flex flex-wrap gap-1.5 pl-7">
-      {#each rec.reasons as reason (reason)}
-        <ReasonBadge text={reason} />
+      {#each rec.badges as badge (badge.text)}
+        <ReasonBadge text={badge.text} kind={badge.kind} />
       {/each}
     </div>
   {/if}

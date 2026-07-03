@@ -8,6 +8,7 @@ import { settings } from "../stores/settings";
 import type {
   ConnectionStatus,
   DraftState,
+  PairwiseStat,
   RankTier,
   Recommendation,
   Role,
@@ -87,4 +88,24 @@ export async function setSettings(next: Settings): Promise<Recommendation[]> {
 /** Force an immediate OP.GG re-crawl instead of waiting for the auto-refresh cycle. */
 export async function forceRefreshData(): Promise<void> {
   return invoke("force_refresh_data");
+}
+
+/**
+ * Historical win rate for `championId` (playing `role`) paired with
+ * `otherId` — as an ally (synergy) if `isAlly`, otherwise as the opposing
+ * laner (matchup). Powers the draft-board hover preview (Issue #7). Returns
+ * `null` if the pairing has no data or too small a sample to trust.
+ */
+export async function getPairwiseStat(
+  championId: number,
+  role: Role,
+  otherId: number,
+  isAlly: boolean,
+): Promise<PairwiseStat | null> {
+  return invoke<PairwiseStat | null>("get_pairwise_stat", {
+    championId,
+    role,
+    otherId,
+    isAlly,
+  });
 }

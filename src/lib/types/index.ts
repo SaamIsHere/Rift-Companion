@@ -35,13 +35,31 @@ export interface ScoreComponents {
   comp: number;
 }
 
+// Colors which "why" category a badge belongs to (Issue #7): green for a
+// good matchup/synergy, red for a bad one, blue for a comp-gap fill, grey
+// for the no-signal fallback.
+export type BadgeKind = "positive" | "negative" | "comp" | "neutral";
+
+export interface Badge {
+  text: string;
+  kind: BadgeKind;
+}
+
 export interface Recommendation {
   champion_id: number;
   name: string;
   image: string; // Data Dragon key, e.g. "Garen"
   score: number; // 0–100 display score
   components: ScoreComponents;
-  reasons: string[];
+  badges: Badge[];
+}
+
+// One ally/enemy relationship's historical win rate, fetched on demand for
+// the draft-board hover preview (Issue #7).
+export interface PairwiseStat {
+  winrate: number; // Bayesian-smoothed, 0–1
+  games: number;
+  delta: number; // winrate - 0.5, signed
 }
 
 // matchup/synergy/counter are no longer scalar weights — they're driven by

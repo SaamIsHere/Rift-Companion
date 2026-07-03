@@ -6,7 +6,7 @@ use crate::data::models::{RankTier, Role};
 use crate::data::store;
 use crate::data::store::Settings;
 use crate::draft::DraftState;
-use crate::engine::{self, weights::Weights, Recommendation};
+use crate::engine::{self, bayesian, weights, weights::Weights, Recommendation};
 use crate::opgg;
 use crate::{ConnectionStatus, Shared};
 
@@ -129,6 +129,41 @@ pub fn set_settings(state: State<Shared>, settings: Settings, app: AppHandle) ->
 pub fn force_refresh_data(state: State<Shared>, app: AppHandle) {
     let tier = *state.rank_tier.lock().unwrap();
     opgg::refresh::trigger_refresh(app, state.inner().clone(), tier);
+}
+
+/// A single ally/enemy relationship's Bayesian-smoothed win rate, used to
+/// power the on-hover matchup/synergy preview (Issue #7): hovering a draft
+/// slot while a champion is preselected or already locked in shows exactly
+/// how that pairing has historically performed, independent of whatever
+/// role is currently being scored.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PairwiseStat {
+    pub winrate: f64, // Bayesian-smoothed, 0.0–1.0
+    pub games: u32,
+    pub delta: f64, // winrate - 0.5, signed
+}
+
+/// Look up `champion_id`'s (playing `role`) historical win rate paired with
+/// `other_id` — as an ally (synergy) or opponent (matchup). Returns `None`
+/// if the pairing has never been recorded or falls under the same
+/// `MIN_MATCHES` sample-size gate the scoring engine itself uses, so the UI
+/// can distinguish "no signal" from "just under the trust threshold".
+#[tauri::command]
+pub fn get_pairwise_stat(
+    state: State<Shared>,
+    champion_id: u32,
+    role: Role,
+    other_id: u32,
+    is_ally: bool,
+) -> Option<PairwiseStat> {
+    let repo = state.repo.lock().unwrap().clone();
+    let stats = repo.get(champion_id)?.role_stats(role)?;
+    let cell = if is_ally { stats.synergies.get(&other_id) } else { stats.matchups.get(&other_id) }?;
+    if cell.games < weights::MIN_MATCHES {
+        return None;
+    }
+    let winrate = bayesian::smooth(cell.winrate, cell.games, repo.global_avg(), weights::SMOOTH_C);
+    Some(PairwiseStat { winrate, games: cell.games, delta: winrate - 0.5 })
 }
 
 fn compute(state: &Shared) -> Vec<Recommendation> {

@@ -129,6 +129,7 @@ pub fn run() {
             commands::get_settings,
             commands::set_settings,
             commands::force_refresh_data,
+            commands::get_pairwise_stat,
         ])
         .setup(move |app| {
             // Apply the persisted always-on-top preference to the freshly created window.

@@ -2,19 +2,29 @@
   import { draft } from "../stores/draft";
   import { championCatalog, ddragonVersion } from "../stores/champions";
   import { squareIconUrl } from "../utils/ddragon";
+  import { referenceChampionId } from "../stores/preselect";
   import TeamColumn from "./TeamColumn.svelte";
+
+  $: referenceName = $referenceChampionId !== null ? $championCatalog.get($referenceChampionId)?.name : undefined;
 </script>
 
 <section class="glass flex min-h-0 flex-col rounded-2xl p-5">
   <div class="mb-4 flex items-center justify-between">
     <h2 class="text-sm uppercase tracking-widest text-slate-400">Live Draft</h2>
-    {#if $draft?.local_role}
-      <span
-        class="rounded-md bg-hextech-cyan/15 px-2 py-1 text-xs font-medium uppercase text-hextech-cyan"
-      >
-        Your role: {$draft.local_role}
-      </span>
-    {/if}
+    <div class="flex items-center gap-2">
+      {#if referenceName}
+        <span class="text-xs text-slate-400">
+          Previewing <span class="text-hextech-cyan">{referenceName}</span> — hover a pick
+        </span>
+      {/if}
+      {#if $draft?.local_role}
+        <span
+          class="rounded-md bg-hextech-cyan/15 px-2 py-1 text-xs font-medium uppercase text-hextech-cyan"
+        >
+          Your role: {$draft.local_role}
+        </span>
+      {/if}
+    </div>
   </div>
 
   {#if $draft}

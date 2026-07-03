@@ -49,13 +49,16 @@ This backlog structures and analyzes the open GitHub issues for the Rift Compani
   * *Trade vs Swap*: The app monitors player **role swaps** (assigned position cell modifications in draft) to adjust who is tagged in which lane, rather than trading selected champions at the end of the draft.
 
 ### Issue 7: Refined Champion Badges (Counter and Synergy Highlights)
-* **Status**: Open
+* **Status**: Implemented
 * **Priority**: Medium
-* **Technical Summary**: Add visual color categorizations to recommendation badge tags.
-* **Implementation Plan**:
-  * Update [ReasonBadge.svelte](../src/lib/components/ReasonBadge.svelte) to take a color theme prop (e.g. `green` for positive counters/synergies, `red` for negative indicators, `blue` for comp gaps).
+* **Technical Summary**: Add visual color categorizations to recommendation badge tags, plus an on-hover matchup/synergy preview against specific drafted champions.
+* **Implementation**:
+  * [scoring.rs](../src-tauri/src/engine/scoring.rs) replaces `Recommendation::reasons: Vec<String>` with `badges: Vec<Badge>`, where `Badge { text, kind }` and `BadgeKind` is `Positive | Negative | Comp | Neutral`. `refined_advantage` now tracks the strongest ally signal in *both* directions (`best_synergy`/`worst_synergy`, gated by the same `adj > 0.52` / `adj < 0.48` thresholds used for the existing matchup badge) and picks whichever has the larger `|contribution|`, so a champion's synergy badge is whichever relationship actually moved its score most — not just the first positive one found. The direct lane opponent gets the same positive/negative split ("Strong lane counter to X" / "Rough matchup vs X"). Comp-gap badges stay `Comp`-colored and are always positive by construction. Badge list order is `[matchup, synergy, ...comp]`, truncated to 3.
+  * [ReasonBadge.svelte](../src/lib/components/ReasonBadge.svelte) takes a `kind` prop and maps it to a Tailwind color: emerald (positive), rose (negative), hextech-cyan (comp), slate (neutral/fallback).
+  * **Hover preview**: a new `get_pairwise_stat(champion_id, role, other_id, is_ally)` Tauri command ([commands.rs](../src-tauri/src/commands.rs)) looks up one ally/enemy cell directly off the repository (same `MIN_MATCHES` gate + Bayesian smoothing as the scoring engine, so the preview number always matches what actually fed the score) and returns `None` if untrusted. [ChampSlot.svelte](../src/lib/components/ChampSlot.svelte) calls it on hover and renders a small tooltip. The "reference" champion is a derived store, `referenceChampionId` in [stores/preselect.ts](../src/lib/stores/preselect.ts): the local player's locked-in `draft.local_champion_id` if set, otherwise whatever champion was last clicked ("preselected") in [RecommendationCard.svelte](../src/lib/components/RecommendationCard.svelte) — a locked-in pick always wins over a stale preselection. [DraftBoard.svelte](../src/lib/components/DraftBoard.svelte) shows a small "Previewing: [Champion]" hint when a reference is active.
 * **Resolved Design Decisions**:
-  * *Negative Badges & Balanced View*: The scoring engine will be expanded to support negative indicator badges (red). Cards should show a balanced summary: for example, if team synergy is excellent but a lane matchup is difficult, display both a positive badge ("High synergy with [Ally]" in Green) and a negative badge ("Rough matchup vs [Opponent]" in Red) so the user can prepare.
+  * *Negative Badges & Balanced View*: the scoring engine supports negative indicator badges (red). Cards show a balanced summary: if team synergy is excellent but a lane matchup is difficult, both a positive badge ("High synergy with [Ally]" in Green) and a negative badge ("Rough matchup vs [Opponent]" in Red) can appear together, since matchup and synergy are scored/badged as independent categories.
+  * *Preselection is click-to-pin, not raw hover*: the issue's "preselecting a champion" was implemented as clicking a recommendation card (toggle on/off), not a continuous hover-link — hovering a card and then moving the mouse to a draft slot would otherwise clear the hover state before the user could read the board tooltip.
 
 ---
 
