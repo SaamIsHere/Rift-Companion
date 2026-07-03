@@ -5,28 +5,33 @@ use serde_json::{json, Value};
 
 const ENDPOINT: &str = "https://mcp-api.op.gg/mcp";
 
+/// Cheap to share: `reqwest::Client` is already `Arc`-backed internally, and
+/// `session` is behind a `Mutex` so concurrent callers (the parallel crawl in
+/// `fetch::crawl`) can all use one `McpClient` — and one MCP session — via a
+/// shared `Arc<McpClient>` instead of each opening their own session.
 pub struct McpClient {
     http: reqwest::Client,
-    session: Option<String>,
+    session: std::sync::Mutex<Option<String>>,
 }
 
 impl McpClient {
     pub fn new() -> Result<Self> {
-        Ok(Self { http: reqwest::Client::builder().build()?, session: None })
+        Ok(Self { http: reqwest::Client::builder().build()?, session: std::sync::Mutex::new(None) })
     }
 
-    async fn post(&mut self, body: Value, notification: bool) -> Result<Option<Value>> {
+    async fn post(&self, body: Value, notification: bool) -> Result<Option<Value>> {
         let mut req = self
             .http
             .post(ENDPOINT)
             .header("Content-Type", "application/json")
             .header("Accept", "application/json, text/event-stream");
-        if let Some(s) = &self.session {
-            req = req.header("Mcp-Session-Id", s.clone());
+        let sid = self.session.lock().unwrap().clone();
+        if let Some(s) = sid {
+            req = req.header("Mcp-Session-Id", s);
         }
         let resp = req.json(&body).send().await?;
         if let Some(sid) = resp.headers().get("mcp-session-id").and_then(|v| v.to_str().ok()) {
-            self.session = Some(sid.to_string());
+            *self.session.lock().unwrap() = Some(sid.to_string());
         }
         if notification {
             return Ok(None);
@@ -61,7 +66,7 @@ impl McpClient {
         }
     }
 
-    pub async fn initialize(&mut self) -> Result<()> {
+    pub async fn initialize(&self) -> Result<()> {
         self.post(
             json!({
                 "jsonrpc": "2.0", "id": 1, "method": "initialize",
@@ -79,7 +84,7 @@ impl McpClient {
     }
 
     /// Call a tool; returns the parsed DSL content as JSON.
-    pub async fn call_tool(&mut self, name: &str, arguments: Value) -> Result<Value> {
+    pub async fn call_tool(&self, name: &str, arguments: Value) -> Result<Value> {
         let body = json!({
             "jsonrpc": "2.0", "id": next_id(), "method": "tools/call",
             "params": { "name": name, "arguments": arguments }

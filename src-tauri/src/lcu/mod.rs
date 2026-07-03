@@ -12,7 +12,8 @@ use futures_util::StreamExt;
 use tauri::{AppHandle, Emitter};
 use tokio_tungstenite::tungstenite::Message;
 
-use crate::{draft, engine, ConnectionStatus, Shared};
+use crate::data::models::RankTier;
+use crate::{draft, engine, opgg, ConnectionStatus, Shared};
 
 /// Runs forever: (re)discovers the client and processes events, reconnecting on drop.
 pub async fn run_watcher(app: AppHandle, shared: Shared) {
@@ -28,6 +29,22 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
 
         set_status(&app, &shared, ConnectionStatus::Connected);
         tracing::info!(port = lock.port, "LCU lockfile found; connecting");
+
+        // Auto-detect the local player's rank tier as the data-fetch default,
+        // unless they've already picked one manually from the dropdown
+        // (Issue #13). Best-effort: unranked/unreachable just keeps whatever
+        // tier is already active.
+        if !*shared.rank_manual.lock().unwrap() {
+            if let Ok(Some(tier_str)) = client::get_ranked_solo_tier(&lock).await {
+                let detected = RankTier::from_lcu_tier(&tier_str);
+                let current = *shared.rank_tier.lock().unwrap();
+                if detected != current {
+                    tracing::info!(tier = detected.as_opgg_tier(), "auto-detected rank tier from LCU profile");
+                    *shared.rank_tier.lock().unwrap() = detected;
+                    opgg::refresh::trigger_refresh(app.clone(), shared.clone(), detected);
+                }
+            }
+        }
 
         // We may already be in champ select — pull the current state once.
         if let Ok(Some(value)) = client::get_session(&lock).await {

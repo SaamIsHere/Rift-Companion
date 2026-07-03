@@ -1,20 +1,35 @@
 //! OP.GG → normalized `Champion[]` crawl (Rust port of scripts/ingest-opgg.mjs).
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use futures_util::{stream, StreamExt};
 use serde_json::{json, Value};
 
-use crate::data::models::{Champion, DamageType, Role, RoleStats, WinRateCell};
+use crate::data::models::{Champion, DamageType, RankTier, Role, RoleStats, WinRateCell};
 use crate::opgg::client::McpClient;
 
 const DDRAGON: &str = "https://ddragon.leagueoflegends.com";
 const SYNERGY_POSITIONS: [&str; 4] = ["jungle", "mid", "adc", "support"];
 
+/// Below this many recorded games at the selected tier, a champion/role's
+/// matchup+synergy sample is too thin to trust — re-fetch it at Emerald+
+/// instead so niche ranks don't ship empty-looking cards (Issue #13).
+const MIN_TIER_SAMPLE_GAMES: u64 = 300;
+
+/// Max in-flight `lol_get_champion_analysis` requests during the per-champion
+/// crawl step. OP.GG's MCP endpoint responds slowly (~3s/call observed), so a
+/// fully sequential crawl of the whole roster took 10-15 minutes with nothing
+/// but a static "refreshing" indicator — bounded concurrency cuts that down
+/// substantially while staying reasonably polite to a free third-party API.
+const ANALYSIS_CONCURRENCY: usize = 6;
+
 pub struct CrawlOpts {
     pub positions: Vec<String>,
     pub limit: usize,
     pub delay_ms: u64,
+    pub tier: RankTier,
 }
 
 struct DdChamp {
@@ -110,14 +125,26 @@ fn role_from_key(k: &str) -> Option<Role> {
 fn uint(v: &Value, key: &str) -> Option<u32> {
     v.get(key).and_then(|x| x.as_u64()).map(|x| x as u32)
 }
+fn analysis_args(key: &str, role: &str, tier: RankTier, fields: &[String]) -> Value {
+    json!({
+        "game_mode": "ranked", "champion": champion_arg(key), "position": role,
+        "tier": tier.as_opgg_tier(), "desired_output_fields": fields
+    })
+}
 
 /// Crawl OP.GG for the requested positions and return `(patch, champions)`.
-pub async fn crawl(opts: &CrawlOpts) -> Result<(String, Vec<Champion>)> {
+/// `on_progress(done, total)` is called after each per-champion analysis
+/// fetch completes, so callers can surface live progress instead of a
+/// static "refreshing" indicator for what can be a multi-minute crawl.
+pub async fn crawl(opts: &CrawlOpts, mut on_progress: impl FnMut(usize, usize)) -> Result<(String, Vec<Champion>)> {
     let http = reqwest::Client::builder().build()?;
     let (version, by_id, resolve) = load_ddragon(&http).await?;
 
-    let mut mcp = McpClient::new()?;
+    let mcp = McpClient::new()?;
     mcp.initialize().await?;
+    // Shared across the concurrent analysis fetches below so they reuse one
+    // MCP session instead of each caller needing its own client/handshake.
+    let mcp = Arc::new(mcp);
 
     let mut champs: HashMap<u32, Champion> = HashMap::new();
     let mut work: Vec<(u32, String, String)> = Vec::new(); // (id, role, ddragon key)
@@ -175,63 +202,94 @@ pub async fn crawl(opts: &CrawlOpts) -> Result<(String, Vec<Champion>)> {
         tokio::time::sleep(std::time::Duration::from_millis(opts.delay_ms)).await;
     }
 
-    // 2) Per (champion, role): damage type, matchups, synergies.
+    // 2) Per (champion, role): damage type, matchups, synergies — filtered to
+    // the selected rank tier (`lol_get_champion_analysis` is the only OP.GG
+    // tool in this crawl that accepts a `tier` argument; the lane-meta roster
+    // call above has no such parameter). Fetched with bounded concurrency
+    // (`ANALYSIS_CONCURRENCY` in-flight at a time) since each call is
+    // network-latency-bound, not CPU-bound — merging results back into
+    // `champs` stays single-threaded since `buffer_unordered` yields
+    // completions one at a time to this loop.
     let total = work.len();
-    for (idx, (id, role, key)) in work.iter().enumerate() {
-        let mut fields: Vec<String> = vec![
-            "data.damage_type".into(),
-            "data.strong_counters[].champion_id".into(),
-            "data.strong_counters[].win_rate".into(),
-            "data.strong_counters[].play".into(),
-            "data.weak_counters[].champion_id".into(),
-            "data.weak_counters[].win_rate".into(),
-            "data.weak_counters[].play".into(),
-        ];
-        for sp in SYNERGY_POSITIONS {
-            fields.push(format!("data.synergies.{sp}[].synergy_champion_id"));
-            fields.push(format!("data.synergies.{sp}[].win_rate"));
-            fields.push(format!("data.synergies.{sp}[].play"));
+    let tier = opts.tier;
+    let mut analysis_stream = stream::iter(work.into_iter().map(|(id, role, key)| {
+        let mcp = mcp.clone();
+        async move {
+            let mut fields: Vec<String> = vec![
+                "data.damage_type".into(),
+                "data.summary.average_stats.play".into(),
+                "data.strong_counters[].champion_id".into(),
+                "data.strong_counters[].win_rate".into(),
+                "data.strong_counters[].play".into(),
+                "data.weak_counters[].champion_id".into(),
+                "data.weak_counters[].win_rate".into(),
+                "data.weak_counters[].play".into(),
+            ];
+            for sp in SYNERGY_POSITIONS {
+                fields.push(format!("data.synergies.{sp}[].synergy_champion_id"));
+                fields.push(format!("data.synergies.{sp}[].win_rate"));
+                fields.push(format!("data.synergies.{sp}[].play"));
+            }
+
+            let mut d = match mcp.call_tool("lol_get_champion_analysis", analysis_args(&key, &role, tier, &fields)).await {
+                Ok(an) => an.get("data").cloned().unwrap_or(Value::Null),
+                Err(e) => {
+                    tracing::debug!("opgg analysis {key}/{role} failed: {e}");
+                    return (id, role, Value::Null);
+                }
+            };
+
+            // Sparse sample at a niche tier: fall back to the Emerald+ default
+            // rather than shipping a near-empty matchup/synergy card.
+            let sample = d.pointer("/summary/average_stats/play").and_then(|v| v.as_u64()).unwrap_or(0);
+            if tier != RankTier::EmeraldPlus && sample < MIN_TIER_SAMPLE_GAMES {
+                tracing::debug!(champion = %key, %role, tier = tier.as_opgg_tier(), sample, "sparse tier sample; falling back to emerald_plus");
+                match mcp.call_tool("lol_get_champion_analysis", analysis_args(&key, &role, RankTier::EmeraldPlus, &fields)).await {
+                    Ok(an) => d = an.get("data").cloned().unwrap_or(Value::Null),
+                    Err(e) => tracing::debug!("opgg fallback analysis {key}/{role} failed: {e}"),
+                }
+            }
+
+            (id, role, d)
         }
-        let args = json!({
-            "game_mode": "ranked", "champion": champion_arg(key), "position": role,
-            "desired_output_fields": fields
-        });
-        match mcp.call_tool("lol_get_champion_analysis", args).await {
-            Ok(an) => {
-                let d = an.get("data").cloned().unwrap_or(Value::Null);
-                if let Some(c) = champs.get_mut(id) {
-                    if let Some(dt) = d.get("damage_type").and_then(|v| v.as_str()) {
-                        c.damage = map_damage(dt);
+    }))
+    .buffer_unordered(ANALYSIS_CONCURRENCY);
+
+    let mut done = 0usize;
+    while let Some((id, role, d)) = analysis_stream.next().await {
+        done += 1;
+        on_progress(done, total);
+
+        if let Some(c) = champs.get_mut(&id) {
+            if let Some(dt) = d.get("damage_type").and_then(|v| v.as_str()) {
+                c.damage = map_damage(dt);
+            }
+            if let Some(rs) = c.stats.get_mut(&role) {
+                // strong_counters: opponent's win rate → my WR = 1 - win_rate
+                for sc in d.get("strong_counters").and_then(|v| v.as_array()).into_iter().flatten() {
+                    if let (Some(oid), Some(w)) = (uint(sc, "champion_id"), sc.get("win_rate").and_then(|v| v.as_f64())) {
+                        rs.matchups.insert(oid, WinRateCell { winrate: round3(1.0 - w), games: uint(sc, "play").unwrap_or(0) });
                     }
-                    if let Some(rs) = c.stats.get_mut(role) {
-                        // strong_counters: opponent's win rate → my WR = 1 - win_rate
-                        for sc in d.get("strong_counters").and_then(|v| v.as_array()).into_iter().flatten() {
-                            if let (Some(oid), Some(w)) = (uint(sc, "champion_id"), sc.get("win_rate").and_then(|v| v.as_f64())) {
-                                rs.matchups.insert(oid, WinRateCell { winrate: round3(1.0 - w), games: uint(sc, "play").unwrap_or(0) });
-                            }
-                        }
-                        // weak_counters: my win rate, used directly
-                        for wc in d.get("weak_counters").and_then(|v| v.as_array()).into_iter().flatten() {
-                            if let (Some(oid), Some(w)) = (uint(wc, "champion_id"), wc.get("win_rate").and_then(|v| v.as_f64())) {
-                                rs.matchups.insert(oid, WinRateCell { winrate: round3(w), games: uint(wc, "play").unwrap_or(0) });
-                            }
-                        }
-                        for sp in SYNERGY_POSITIONS {
-                            for s in d.pointer(&format!("/synergies/{sp}")).and_then(|v| v.as_array()).into_iter().flatten() {
-                                if let (Some(aid), Some(w)) = (uint(s, "synergy_champion_id"), s.get("win_rate").and_then(|v| v.as_f64())) {
-                                    rs.synergies.insert(aid, WinRateCell { winrate: round3(w), games: uint(s, "play").unwrap_or(0) });
-                                }
-                            }
+                }
+                // weak_counters: my win rate, used directly
+                for wc in d.get("weak_counters").and_then(|v| v.as_array()).into_iter().flatten() {
+                    if let (Some(oid), Some(w)) = (uint(wc, "champion_id"), wc.get("win_rate").and_then(|v| v.as_f64())) {
+                        rs.matchups.insert(oid, WinRateCell { winrate: round3(w), games: uint(wc, "play").unwrap_or(0) });
+                    }
+                }
+                for sp in SYNERGY_POSITIONS {
+                    for s in d.pointer(&format!("/synergies/{sp}")).and_then(|v| v.as_array()).into_iter().flatten() {
+                        if let (Some(aid), Some(w)) = (uint(s, "synergy_champion_id"), s.get("win_rate").and_then(|v| v.as_f64())) {
+                            rs.synergies.insert(aid, WinRateCell { winrate: round3(w), games: uint(s, "play").unwrap_or(0) });
                         }
                     }
                 }
             }
-            Err(e) => tracing::debug!("opgg analysis {key}/{role} failed: {e}"),
         }
-        if (idx + 1) % 40 == 0 {
-            tracing::info!("opgg analysis {}/{}", idx + 1, total);
+
+        if done % 40 == 0 || done == total {
+            tracing::info!("opgg analysis {}/{}", done, total);
         }
-        tokio::time::sleep(std::time::Duration::from_millis(opts.delay_ms)).await;
     }
 
     let out: Vec<Champion> = champs.into_values().filter(|c| !c.stats.is_empty()).collect();

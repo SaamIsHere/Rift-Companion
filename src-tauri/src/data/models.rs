@@ -63,6 +63,54 @@ pub enum DamageType {
     Mixed,
 }
 
+/// Rank tier selectable for OP.GG data fetching (Issue #13). Limited to
+/// Iron..Diamond+ — Master, Grandmaster, and Challenger are excluded from the
+/// UI dropdown, but LCU auto-detection still needs to bucket those players
+/// somewhere, hence `from_lcu_tier` folding them into `DiamondPlus`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RankTier {
+    Iron,
+    Bronze,
+    Silver,
+    Gold,
+    Platinum,
+    #[default]
+    EmeraldPlus,
+    DiamondPlus,
+}
+
+impl RankTier {
+    /// OP.GG MCP `tier` argument value for `lol_get_champion_analysis`.
+    pub fn as_opgg_tier(self) -> &'static str {
+        match self {
+            RankTier::Iron => "iron",
+            RankTier::Bronze => "bronze",
+            RankTier::Silver => "silver",
+            RankTier::Gold => "gold",
+            RankTier::Platinum => "platinum",
+            RankTier::EmeraldPlus => "emerald_plus",
+            RankTier::DiamondPlus => "diamond_plus",
+        }
+    }
+
+    /// Maps the LCU's ranked-stats tier string (`IRON`..`CHALLENGER`) onto one
+    /// of the 7 selectable buckets. Anything at Diamond or above collapses to
+    /// `DiamondPlus`; unranked/unrecognized falls back to the default.
+    pub fn from_lcu_tier(s: &str) -> RankTier {
+        match s.to_uppercase().as_str() {
+            "IRON" => RankTier::Iron,
+            "BRONZE" => RankTier::Bronze,
+            "SILVER" => RankTier::Silver,
+            "GOLD" => RankTier::Gold,
+            "PLATINUM" => RankTier::Platinum,
+            "EMERALD" => RankTier::EmeraldPlus,
+            "DIAMOND" | "MASTER" | "GRANDMASTER" | "CHALLENGER" => RankTier::DiamondPlus,
+            _ => RankTier::default(),
+        }
+    }
+}
+
 /// A single win-rate observation with its supporting sample size.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct WinRateCell {

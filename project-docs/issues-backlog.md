@@ -72,17 +72,22 @@ This backlog structures and analyzes the open GitHub issues for the Rift Compani
   * *Offline Fallback*: Display a greyed-out placeholder or "Searching..." user card when the LCU is disconnected.
 
 ### Issue 13: Rank Data Selection & Ingestion
-* **Status**: Open
+* **Status**: Implemented
 * **Priority**: Medium
 * **Technical Summary**: Retrieve win rate statistics matching the user's active rank and allow manual rank selection.
-* **Implementation Plan**:
-  * Extract the player's current rank tier from the LCU profile.
-  * Add a drop-down menu in the Svelte UI header.
-  * Update the OP.GG MCP fetch parameters in [src-tauri/src/opgg/fetch.rs](../src-tauri/src/opgg/fetch.rs) to pass the selected rank filter when downloading stats.
+* **Implementation**:
+  * [RankTier](../src-tauri/src/data/models.rs) is a 7-value enum (Iron..DiamondPlus) shared by the crawler, `Shared` app state, and the Tauri command layer. `RankTier::as_opgg_tier` maps it to the exact OP.GG MCP `tier` argument values (confirmed live against `mcp-api.op.gg`'s `lol_get_champion_analysis` validator: `iron, bronze, silver, gold, platinum, emerald_plus, diamond_plus`, among others).
+  * [opgg/fetch.rs::crawl](../src-tauri/src/opgg/fetch.rs) passes `tier` on every `lol_get_champion_analysis` call (matchups, synergies, damage type). Per champion/role, if the returned `average_stats.play` sample is below `MIN_TIER_SAMPLE_GAMES` (300) and the selected tier isn't already Emerald+, that one call is transparently re-issued at `emerald_plus` — the graceful per-champion fallback the issue asked for.
+  * [opgg/refresh.rs::refresh_now](../src-tauri/src/opgg/refresh.rs) is the shared crawl-persist-hotswap-emit path, reused by the periodic ticker, the manual dropdown command, and LCU auto-detection, serialized behind `Shared::refresh_lock` so they can't hit OP.GG concurrently. `trigger_refresh` fires it in the background and emits `"rank-refresh://status"` / `"rank://update"` for the UI.
+  * [commands.rs::set_rank_tier](../src-tauri/src/commands.rs) (dropdown) marks the selection `manual` and persists it immediately (survives a restart even if the following crawl fails). [lcu/mod.rs](../src-tauri/src/lcu/mod.rs) auto-detects the local player's Ranked Solo tier via a new [lcu/client.rs::get_ranked_solo_tier](../src-tauri/src/lcu/client.rs) call on every LCU (re)connect, but only while no manual selection is active — manual always wins and is sticky (no "revert to auto" control in this pass).
+  * [RankSelector.svelte](../src/lib/components/RankSelector.svelte) renders the 7-option dropdown in the header next to `ConnectionStatus`. While a refresh is in flight it shows a live `done/total` progress counter (via a new `"rank-refresh://progress"` event) once the per-champion crawl phase starts, falling back to a plain pulsing dot during the brief roster-fetch phase before progress is known.
+  * **Concurrency (found via manual testing)**: the per-champion `lol_get_champion_analysis` crawl was originally fully sequential — OP.GG's MCP endpoint responds slowly enough (~3s/call observed) that a full-roster crawl took 10-15 minutes with only a static dot for feedback, which read as "stuck" even though it wasn't. [opgg/fetch.rs::crawl](../src-tauri/src/opgg/fetch.rs) now fetches up to `ANALYSIS_CONCURRENCY` (6) champion/role pairs concurrently via `futures::stream::buffer_unordered`, merging results back into the champion map sequentially as each completes (safe without locking since the merge only ever happens on the consuming task). [opgg/client.rs::McpClient](../src-tauri/src/opgg/client.rs) was made shareable (`session` behind a `Mutex`, methods take `&self`) so every concurrent fetch reuses one MCP session via `Arc<McpClient>` instead of opening one per call. Measured ~3.4x wall-clock speedup on a scoped test crawl (56s → 16.4s).
 * **Resolved Design Decisions**:
   * *Selectable Ranks*: Ranks dropdown is limited to Iron up to Diamond+ (Iron, Bronze, Silver, Gold, Platinum, Emerald+, Diamond+). Master, Grandmaster, and Challenger are excluded.
   * *Default Rank*: **Emerald+** is the default rank tier for data fetching and fallback.
   * *Sparsity Fallback*: If stats are empty/sparse for a chosen niche rank, it falls back to the Emerald+ default.
+  * *Upstream limitation*: `lol_list_lane_meta_champions` (per-role roster, `global_winrate`, `games`) has no `tier` parameter in OP.GG's MCP schema at all — only `lol_get_champion_analysis` (matchups/synergies/damage type) supports tier filtering. So rank selection makes matchup and synergy numbers rank-specific, but each champion's baseline global win rate stays an all-tier aggregate regardless of the selected rank. This is a real constraint of OP.GG's public API surface, not an oversight.
+  * *Manual vs auto precedence*: an explicit dropdown pick is sticky for the rest of that install — LCU auto-detection never overwrites a manual choice, even across restarts (persisted via the `manual` flag in `stats.meta.json`).
 
 ---
 

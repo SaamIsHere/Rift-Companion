@@ -4,6 +4,7 @@
   import { initChampions } from "./lib/stores/champions";
   import { collapsed } from "./lib/stores/ui";
   import ConnectionStatus from "./lib/components/ConnectionStatus.svelte";
+  import RankSelector from "./lib/components/RankSelector.svelte";
   import WindowControls from "./lib/components/WindowControls.svelte";
   import DraftBoard from "./lib/components/DraftBoard.svelte";
   import RecommendationList from "./lib/components/RecommendationList.svelte";
@@ -35,6 +36,7 @@
       </div>
     </div>
     <div class="flex items-center gap-4">
+      <RankSelector />
       <ConnectionStatus />
       <WindowControls />
     </div>

@@ -16,7 +16,7 @@ mod opgg;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use data::models::Role;
+use data::models::{RankTier, Role};
 use data::repository::Repository;
 use draft::DraftState;
 use engine::weights::Weights;
@@ -43,6 +43,14 @@ pub struct Shared {
     /// Manual enemy-role reassignments from the draft board, keyed by champion id.
     /// Re-applied on every LCU session push so they survive the next websocket frame.
     pub enemy_role_overrides: Arc<Mutex<HashMap<u32, Role>>>,
+    /// Rank tier OP.GG data is currently fetched for (Issue #13).
+    pub rank_tier: Arc<Mutex<RankTier>>,
+    /// Whether `rank_tier` was set explicitly via the UI dropdown; if so, LCU
+    /// auto-detection on (re)connect no longer overrides it.
+    pub rank_manual: Arc<Mutex<bool>>,
+    /// Serializes OP.GG crawls so a periodic refresh and a manual/auto-detected
+    /// rank change can never run concurrently against the MCP endpoint.
+    pub refresh_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 /// CLI entry point: install a normalized champion-stats JSON (the `Champion[]`
@@ -81,12 +89,21 @@ pub fn run() {
         .expect("failed to load champion dataset");
     let repo = Arc::new(Mutex::new(Arc::new(repo)));
 
+    // Seed the rank-tier selection from the last persisted dataset metadata
+    // (if any) so a manual choice survives a restart.
+    let meta = data::store::read_meta();
+    let rank_tier = meta.as_ref().map(|m| m.tier).unwrap_or_default();
+    let rank_manual = meta.as_ref().map(|m| m.manual).unwrap_or(false);
+
     let shared = Shared {
         repo,
         weights: Arc::new(Mutex::new(Weights::default())),
         latest_draft: Arc::new(Mutex::new(None)),
         connection: Arc::new(Mutex::new(ConnectionStatus::Searching)),
         enemy_role_overrides: Arc::new(Mutex::new(HashMap::new())),
+        rank_tier: Arc::new(Mutex::new(rank_tier)),
+        rank_manual: Arc::new(Mutex::new(rank_manual)),
+        refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
     };
 
     tauri::Builder::default()
@@ -97,6 +114,8 @@ pub fn run() {
             commands::get_recommendations,
             commands::set_weights,
             commands::set_enemy_role,
+            commands::get_rank_tier,
+            commands::set_rank_tier,
         ])
         .setup(move |app| {
             // Long-running LCU watcher on Tauri's async (tokio) runtime.

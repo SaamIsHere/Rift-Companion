@@ -83,7 +83,24 @@ On startup, and every 6 hours thereafter, a background refresher process manages
             Emit "recommendations://update" (Live draft recalculation)
 ```
 
-1. **Staleness Check**: Queries Data Dragon's version registry. If the latest patch does not match the local `stats.meta.json` record, or if the file is older than 24 hours (`MAX_AGE_SECS`), an update begins.
+1. **Staleness Check**: Queries Data Dragon's version registry. If the latest patch does not match the local `stats.meta.json` record, if the selected rank tier changed, or if the file is older than 24 hours (`MAX_AGE_SECS`), an update begins.
 2. **Data Dragon Matching**: The scraper queries the Data Dragon CDN to retrieve the list of valid champions, matching key representations to OP.GG identifiers (e.g. converting `XinZhao` to `XIN_ZHAO` for OP.GG query endpoints).
-3. **Crawl & Delay**: Downloads metadata, matchups, and synergies from OP.GG's Server-Sent Events MCP server. To respect endpoint rate limits, calls include a configurable thread delay (default 150ms).
+3. **Crawl & Delay**: Downloads metadata, matchups, and synergies from OP.GG's Server-Sent Events MCP server. The initial per-position roster fetch (5 calls) includes a configurable thread delay (default 150ms); the much larger per-champion analysis phase (hundreds of calls) runs with bounded concurrency instead (`ANALYSIS_CONCURRENCY = 6` in-flight requests at a time) since OP.GG's MCP endpoint is latency-bound, not rate-limited by a fixed delay — sequential fetching there made a full-roster crawl take 10-15 minutes.
 4. **Hot-Reload**: On completion, the new stats are written to disk, and the running `Shared` pointer is updated, triggering a recalculation of active drafts in real-time.
+
+### Rank Tier Selection (Issue 13)
+
+Every `lol_get_champion_analysis` call in the crawl (matchups, synergies, damage
+type) carries a `tier` argument — one of `iron, bronze, silver, gold, platinum,
+emerald_plus, diamond_plus` (Master/Grandmaster/Challenger are not selectable in
+the UI). The active tier is chosen either manually via the header dropdown or
+auto-detected from the local player's Ranked Solo tier on LCU connect (manual
+picks always win and persist across restarts via `stats.meta.json`'s `tier`/
+`manual` fields). If a champion/role's sample at the selected tier is too thin
+(`< MIN_TIER_SAMPLE_GAMES`), that one call is quietly re-fetched at `emerald_plus`
+instead of shipping a near-empty card.
+
+**Limitation**: `lol_list_lane_meta_champions` — the tool supplying each
+champion's per-role roster, `global_winrate`, and `games` — has no `tier`
+parameter in OP.GG's MCP schema. So the rank tier only affects matchup/synergy
+data; each champion's baseline win rate is always an all-tier aggregate.

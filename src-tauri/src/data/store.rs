@@ -10,8 +10,15 @@
 //! stays identical either way — once a matching C toolchain is installed.
 
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
+
+use crate::data::models::RankTier;
+
+pub fn now_unix() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
 
 /// Active dataset path, aligned with the Tauri app identifier so the `ingest`
 /// CLI and the running app agree on the same file.
@@ -29,6 +36,13 @@ pub fn default_data_path() -> PathBuf {
 pub struct DatasetMeta {
     pub patch: String,
     pub fetched_at: u64, // unix seconds
+    /// Rank tier the dataset's matchup/synergy stats were fetched for.
+    #[serde(default)]
+    pub tier: RankTier,
+    /// Whether `tier` was set explicitly via the UI dropdown (true) or is
+    /// still following LCU auto-detection / the default (false).
+    #[serde(default)]
+    pub manual: bool,
 }
 
 fn meta_path() -> PathBuf {
@@ -41,7 +55,7 @@ pub fn read_meta() -> Option<DatasetMeta> {
     serde_json::from_str(&std::fs::read_to_string(meta_path()).ok()?).ok()
 }
 
-pub fn write_meta(patch: &str, fetched_at: u64) -> std::io::Result<()> {
-    let meta = DatasetMeta { patch: patch.to_string(), fetched_at };
+pub fn write_meta(patch: &str, fetched_at: u64, tier: RankTier, manual: bool) -> std::io::Result<()> {
+    let meta = DatasetMeta { patch: patch.to_string(), fetched_at, tier, manual };
     std::fs::write(meta_path(), serde_json::to_string_pretty(&meta).unwrap_or_default())
 }

@@ -5,6 +5,15 @@ export type Role = "top" | "jungle" | "mid" | "adc" | "support";
 
 export type ConnectionStatus = "searching" | "connected";
 
+export type RankTier =
+  | "iron"
+  | "bronze"
+  | "silver"
+  | "gold"
+  | "platinum"
+  | "emerald_plus"
+  | "diamond_plus";
+
 export interface DraftPick {
   champion_id: number;
   role: Role | null;

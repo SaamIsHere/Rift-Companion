@@ -2,9 +2,11 @@
 
 use tauri::{AppHandle, Emitter, State};
 
-use crate::data::models::Role;
+use crate::data::models::{RankTier, Role};
+use crate::data::store;
 use crate::draft::DraftState;
 use crate::engine::{self, weights::Weights, Recommendation};
+use crate::opgg;
 use crate::{ConnectionStatus, Shared};
 
 #[tauri::command]
@@ -72,6 +74,25 @@ pub fn set_enemy_role(
     }
     let _ = app.emit("recommendations://update", &recs);
     recs
+}
+
+#[tauri::command]
+pub fn get_rank_tier(state: State<Shared>) -> RankTier {
+    *state.rank_tier.lock().unwrap()
+}
+
+/// Manually select a rank tier for OP.GG data fetching. Persists the choice
+/// immediately (so it survives a restart even if the crawl below fails) and
+/// kicks off a background re-crawl at the new tier.
+#[tauri::command]
+pub fn set_rank_tier(state: State<Shared>, tier: RankTier, app: AppHandle) {
+    *state.rank_tier.lock().unwrap() = tier;
+    *state.rank_manual.lock().unwrap() = true;
+
+    let patch = store::read_meta().map(|m| m.patch).unwrap_or_default();
+    let _ = store::write_meta(&patch, store::now_unix(), tier, true);
+
+    opgg::refresh::trigger_refresh(app, state.inner().clone(), tier);
 }
 
 fn compute(state: &Shared) -> Vec<Recommendation> {

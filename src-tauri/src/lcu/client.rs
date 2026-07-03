@@ -39,3 +39,37 @@ pub async fn get_session(lock: &Lockfile) -> Result<Option<serde_json::Value>> {
         Ok(None)
     }
 }
+
+#[derive(serde::Deserialize)]
+struct RankedStats {
+    #[serde(rename = "queueMap", default)]
+    queue_map: std::collections::HashMap<String, QueueRank>,
+}
+#[derive(serde::Deserialize)]
+struct QueueRank {
+    #[serde(default)]
+    tier: String,
+}
+
+/// Fetch the local player's current Ranked Solo/Duo tier (`"IRON"`.."CHALLENGER"`),
+/// for defaulting the rank-tier dropdown (Issue #13). Returns `None` if the
+/// player is unranked or the endpoint can't be reached.
+pub async fn get_ranked_solo_tier(lock: &Lockfile) -> Result<Option<String>> {
+    let client = http_client()?;
+    let url = format!("https://127.0.0.1:{}/lol-ranked/v1/current-ranked-stats", lock.port);
+    let resp = client
+        .get(url)
+        .header("Authorization", auth_header(lock))
+        .send()
+        .await?;
+
+    if !resp.status().is_success() {
+        return Ok(None);
+    }
+    let stats: RankedStats = resp.json().await?;
+    Ok(stats
+        .queue_map
+        .get("RANKED_SOLO_5x5")
+        .map(|q| q.tier.clone())
+        .filter(|t| !t.is_empty() && t != "NONE"))
+}
