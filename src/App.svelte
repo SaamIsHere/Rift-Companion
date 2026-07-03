@@ -5,6 +5,8 @@
   import { collapsed } from "./lib/stores/ui";
   import ConnectionStatus from "./lib/components/ConnectionStatus.svelte";
   import RankSelector from "./lib/components/RankSelector.svelte";
+  import SettingsButton from "./lib/components/SettingsButton.svelte";
+  import SettingsModal from "./lib/components/SettingsModal.svelte";
   import WindowControls from "./lib/components/WindowControls.svelte";
   import DraftBoard from "./lib/components/DraftBoard.svelte";
   import RecommendationList from "./lib/components/RecommendationList.svelte";
@@ -38,6 +40,7 @@
     <div class="flex items-center gap-4">
       <RankSelector />
       <ConnectionStatus />
+      <SettingsButton />
       <WindowControls />
     </div>
   </header>
@@ -49,4 +52,6 @@
     <DraftBoard />
     <RecommendationList />
   </main>
+
+  <SettingsModal />
 </div>

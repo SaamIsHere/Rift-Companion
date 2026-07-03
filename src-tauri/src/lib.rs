@@ -16,8 +16,11 @@ mod opgg;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use tauri::Manager;
+
 use data::models::{RankTier, Role};
 use data::repository::Repository;
+use data::store::Settings;
 use draft::DraftState;
 use engine::weights::Weights;
 
@@ -51,6 +54,8 @@ pub struct Shared {
     /// Serializes OP.GG crawls so a periodic refresh and a manual/auto-detected
     /// rank change can never run concurrently against the MCP endpoint.
     pub refresh_lock: Arc<tokio::sync::Mutex<()>>,
+    /// User-adjustable app settings (Issue #15): appearance, behavior, data controls.
+    pub settings: Arc<Mutex<Settings>>,
 }
 
 /// CLI entry point: install a normalized champion-stats JSON (the `Champion[]`
@@ -95,15 +100,20 @@ pub fn run() {
     let rank_tier = meta.as_ref().map(|m| m.tier).unwrap_or_default();
     let rank_manual = meta.as_ref().map(|m| m.manual).unwrap_or(false);
 
+    // Seed persisted user settings (Issue #15); comp-weight rides along on `weights`.
+    let settings = data::store::read_settings().unwrap_or_default();
+    let always_on_top = settings.always_on_top;
+
     let shared = Shared {
         repo,
-        weights: Arc::new(Mutex::new(Weights::default())),
+        weights: Arc::new(Mutex::new(Weights { comp: settings.comp_weight })),
         latest_draft: Arc::new(Mutex::new(None)),
         connection: Arc::new(Mutex::new(ConnectionStatus::Searching)),
         enemy_role_overrides: Arc::new(Mutex::new(HashMap::new())),
         rank_tier: Arc::new(Mutex::new(rank_tier)),
         rank_manual: Arc::new(Mutex::new(rank_manual)),
         refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
+        settings: Arc::new(Mutex::new(settings)),
     };
 
     tauri::Builder::default()
@@ -116,8 +126,15 @@ pub fn run() {
             commands::set_enemy_role,
             commands::get_rank_tier,
             commands::set_rank_tier,
+            commands::get_settings,
+            commands::set_settings,
+            commands::force_refresh_data,
         ])
         .setup(move |app| {
+            // Apply the persisted always-on-top preference to the freshly created window.
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.set_always_on_top(always_on_top);
+            }
             // Long-running LCU watcher on Tauri's async (tokio) runtime.
             {
                 let handle = app.handle().clone();

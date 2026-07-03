@@ -1,5 +1,6 @@
 <script lang="ts">
   import { recommendations } from "../stores/recommendations";
+  import { settings } from "../stores/settings";
   import RecommendationCard from "./RecommendationCard.svelte";
 
   let query = "";
@@ -38,9 +39,9 @@
     </div>
 
     {#if filtered.length}
-      <div class="flex flex-col gap-3 overflow-y-auto pr-1">
+      <div class="flex flex-col overflow-y-auto pr-1 {$settings.compact_density ? 'gap-1.5' : 'gap-3'}">
         {#each filtered as rec (rec.champion_id)}
-          <RecommendationCard {rec} rank={$recommendations.indexOf(rec) + 1} />
+          <RecommendationCard {rec} rank={$recommendations.indexOf(rec) + 1} compact={$settings.compact_density} />
         {/each}
       </div>
     {:else}

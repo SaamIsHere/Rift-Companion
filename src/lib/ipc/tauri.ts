@@ -4,12 +4,14 @@ import { connection } from "../stores/connection";
 import { draft } from "../stores/draft";
 import { rankRefreshing, rankRefreshProgress, rankTier } from "../stores/rank";
 import { recommendations } from "../stores/recommendations";
+import { settings } from "../stores/settings";
 import type {
   ConnectionStatus,
   DraftState,
   RankTier,
   Recommendation,
   Role,
+  Settings,
   Weights,
 } from "../types";
 
@@ -43,6 +45,7 @@ export async function initIpc(): Promise<void> {
     draft.set(await invoke<DraftState | null>("get_draft_state"));
     recommendations.set(await invoke<Recommendation[]>("get_recommendations"));
     rankTier.set(await invoke<RankTier>("get_rank_tier"));
+    settings.set(await invoke<Settings>("get_settings"));
   } catch (err) {
     console.error("Failed to prime state from backend", err);
   }
@@ -71,4 +74,17 @@ export async function setEnemyRole(
  */
 export async function setRankTier(tier: RankTier): Promise<void> {
   return invoke("set_rank_tier", { tier });
+}
+
+/**
+ * Persist and apply a new settings snapshot and receive a freshly ranked
+ * list (the comp-weight change re-ranks immediately, same as `setWeights`).
+ */
+export async function setSettings(next: Settings): Promise<Recommendation[]> {
+  return invoke<Recommendation[]>("set_settings", { settings: next });
+}
+
+/** Force an immediate OP.GG re-crawl instead of waiting for the auto-refresh cycle. */
+export async function forceRefreshData(): Promise<void> {
+  return invoke("force_refresh_data");
 }

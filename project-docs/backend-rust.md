@@ -74,6 +74,15 @@ pub fn get_recommendations(state: State<Shared>) -> Vec<Recommendation>;
 
 #[tauri::command]
 pub fn set_weights(state: State<Shared>, weights: Weights, app: AppHandle) -> Vec<Recommendation>;
+
+#[tauri::command]
+pub fn get_settings(state: State<Shared>) -> Settings;
+
+#[tauri::command]
+pub fn set_settings(state: State<Shared>, settings: Settings, app: AppHandle) -> Vec<Recommendation>;
+
+#[tauri::command]
+pub fn force_refresh_data(state: State<Shared>, app: AppHandle);
 ```
 
 Whenever the LCU watcher process receives draft changes, it emits events asynchronously:

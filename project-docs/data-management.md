@@ -45,7 +45,7 @@ The database consists of a serialized JSON array representing champion stats mat
 ## Data Ingestion & Storage
 
 1. **Embedded Fallback**: The app includes a default dataset embedded at compile time: [data/stats.patch-14.12.json](../src-tauri/data/stats.patch-14.12.json). If no local dataset exists on the user's machine, or if the local database file is corrupted, the application falls back to this embedded index.
-2. **On-Disk Database Path**: The active database is stored in the system's AppData directory under `com.riftcompanion.app/stats.json` (defined in [src-tauri/src/data/store.rs](../src-tauri/src/data/store.rs#L18)).
+2. **On-Disk Database Path**: The active database is stored in the system's AppData directory under `com.riftcompanion.app/stats.json` (defined in [src-tauri/src/data/store.rs](../src-tauri/src/data/store.rs#L18)). Two sidecars live alongside it: `stats.meta.json` (patch/rank-tier metadata) and `settings.json` (user-adjustable app settings — Issue #15: compact density, always-on-top, comp weight), both read/written by the same `data::store` module.
 3. **CLI Ingest Command**: The binary can process new datasets from the command line:
    ```sh
    rift-companion ingest <path_to_normalized_json> [optional_output_path]

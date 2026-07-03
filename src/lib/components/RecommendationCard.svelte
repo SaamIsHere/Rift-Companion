@@ -7,19 +7,24 @@
 
   export let rec: Recommendation;
   export let rank: number;
+  export let compact = false;
 
   let iconError = false;
 </script>
 
 <div
-  class="glass-soft flex animate-fade-in flex-col gap-2 rounded-xl p-3 transition hover:bg-white/[0.08]"
+  class="glass-soft flex animate-fade-in flex-col rounded-xl transition hover:bg-white/[0.08] {compact
+    ? 'gap-1 p-2'
+    : 'gap-2 p-3'}"
 >
   <div class="flex items-center gap-3">
     <span class="w-4 text-center text-xs text-slate-500">{rank}</span>
 
     {#if iconError}
       <div
-        class="grid h-10 w-10 place-items-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-800 text-[10px] text-slate-400"
+        class="grid place-items-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-800 text-[10px] text-slate-400 {compact
+          ? 'h-7 w-7'
+          : 'h-10 w-10'}"
       >
         {rec.image.slice(0, 2)}
       </div>
@@ -27,7 +32,7 @@
       <img
         src={squareIconUrl(rec.image, $ddragonVersion)}
         alt={rec.name}
-        class="h-10 w-10 rounded-lg object-cover ring-1 ring-white/10"
+        class="rounded-lg object-cover ring-1 ring-white/10 {compact ? 'h-7 w-7' : 'h-10 w-10'}"
         on:error={() => (iconError = true)}
       />
     {/if}
@@ -39,11 +44,13 @@
           {Math.round(rec.score)}%
         </span>
       </div>
-      <ScoreBar value={rec.score} />
+      {#if !compact}
+        <ScoreBar value={rec.score} />
+      {/if}
     </div>
   </div>
 
-  {#if rec.reasons.length}
+  {#if rec.reasons.length && !compact}
     <div class="flex flex-wrap gap-1.5 pl-7">
       {#each rec.reasons as reason (reason)}
         <ReasonBadge text={reason} />

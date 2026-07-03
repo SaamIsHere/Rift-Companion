@@ -1,9 +1,10 @@
 //! Tauri command handlers exposed to the frontend via `invoke`.
 
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::data::models::{RankTier, Role};
 use crate::data::store;
+use crate::data::store::Settings;
 use crate::draft::DraftState;
 use crate::engine::{self, weights::Weights, Recommendation};
 use crate::opgg;
@@ -92,6 +93,41 @@ pub fn set_rank_tier(state: State<Shared>, tier: RankTier, app: AppHandle) {
     let patch = store::read_meta().map(|m| m.patch).unwrap_or_default();
     let _ = store::write_meta(&patch, store::now_unix(), tier, true);
 
+    opgg::refresh::trigger_refresh(app, state.inner().clone(), tier);
+}
+
+#[tauri::command]
+pub fn get_settings(state: State<Shared>) -> Settings {
+    state.settings.lock().unwrap().clone()
+}
+
+/// Persist and apply a new settings snapshot (Issue #15). Re-tunes the comp
+/// weight and always-on-top window state immediately and returns a freshly
+/// ranked list, mirroring `set_weights`.
+#[tauri::command]
+pub fn set_settings(state: State<Shared>, settings: Settings, app: AppHandle) -> Vec<Recommendation> {
+    let mut settings = settings;
+    settings.comp_weight = settings.comp_weight.clamp(0.0, 1.0);
+
+    *state.settings.lock().unwrap() = settings.clone();
+    let _ = store::write_settings(&settings);
+
+    state.weights.lock().unwrap().comp = settings.comp_weight;
+
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.set_always_on_top(settings.always_on_top);
+    }
+
+    let recs = compute(&state);
+    let _ = app.emit("recommendations://update", &recs);
+    recs
+}
+
+/// Force an immediate OP.GG re-crawl at the currently selected rank tier,
+/// instead of waiting for the periodic 6h/24h auto-refresh.
+#[tauri::command]
+pub fn force_refresh_data(state: State<Shared>, app: AppHandle) {
+    let tier = *state.rank_tier.lock().unwrap();
     opgg::refresh::trigger_refresh(app, state.inner().clone(), tier);
 }
 

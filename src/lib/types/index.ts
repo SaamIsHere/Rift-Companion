@@ -49,3 +49,10 @@ export interface Recommendation {
 export interface Weights {
   comp: number;
 }
+
+// User-adjustable app settings (Issue #15), persisted to settings.json.
+export interface Settings {
+  compact_density: boolean;
+  always_on_top: boolean;
+  comp_weight: number;
+}

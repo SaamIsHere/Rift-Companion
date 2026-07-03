@@ -59,3 +59,45 @@ pub fn write_meta(patch: &str, fetched_at: u64, tier: RankTier, manual: bool) ->
     let meta = DatasetMeta { patch: patch.to_string(), fetched_at, tier, manual };
     std::fs::write(meta_path(), serde_json::to_string_pretty(&meta).unwrap_or_default())
 }
+
+/// User-adjustable app settings (Issue #15), persisted as a sidecar next to
+/// `stats.json`/`stats.meta.json` so choices survive a restart.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Settings {
+    /// Appearance: tighter padding/gaps on the recommendation cards.
+    #[serde(default)]
+    pub compact_density: bool,
+    /// Behavior: keep the window pinned above other windows (e.g. the League client).
+    #[serde(default)]
+    pub always_on_top: bool,
+    /// Behavior: the team-composition bonus weight (mirrors `engine::weights::Weights.comp`).
+    #[serde(default = "default_comp_weight")]
+    pub comp_weight: f64,
+}
+
+fn default_comp_weight() -> f64 {
+    crate::engine::weights::Weights::default().comp
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings { compact_density: false, always_on_top: false, comp_weight: default_comp_weight() }
+    }
+}
+
+fn settings_path() -> PathBuf {
+    let mut p = default_data_path();
+    p.set_file_name("settings.json");
+    p
+}
+
+pub fn read_settings() -> Option<Settings> {
+    serde_json::from_str(&std::fs::read_to_string(settings_path()).ok()?).ok()
+}
+
+pub fn write_settings(settings: &Settings) -> std::io::Result<()> {
+    if let Some(parent) = settings_path().parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    std::fs::write(settings_path(), serde_json::to_string_pretty(settings).unwrap_or_default())
+}

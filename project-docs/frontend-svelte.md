@@ -21,6 +21,8 @@ All frontend files live in the `src/` directory:
     * **[recommendations.ts](../src/lib/stores/recommendations.ts)**: Ranked recommendation list.
     * **[champions.ts](../src/lib/stores/champions.ts)**: Static champion catalog maps containing numeric IDs to name/image key pairs. Fetches Data Dragon on mount.
     * **[ui.ts](../src/lib/stores/ui.ts)**: Tracks window collapse shade status.
+    * **[rank.ts](../src/lib/stores/rank.ts)**: Active rank tier plus live refresh/progress indicators for the OP.GG crawl.
+    * **[settings.ts](../src/lib/stores/settings.ts)**: Persisted user settings (Issue #15: compact density, always-on-top, comp weight) and settings-modal visibility.
   * **[components/](../src/lib/components)**:
     * **[WindowControls.svelte](../src/lib/components/WindowControls.svelte)**: Controls minimize, close, maximize, and a custom **window-shade rollup mechanism** that scales the window down to title bar height.
     * **[ConnectionStatus.svelte](../src/lib/components/ConnectionStatus.svelte)**: Top bar status orb (Searching/Connected).
@@ -31,6 +33,9 @@ All frontend files live in the `src/` directory:
     * **[RecommendationCard.svelte](../src/lib/components/RecommendationCard.svelte)**: Card displaying score rating, matchup reason tags, and component breakdown bars.
     * **[ScoreBar.svelte](../src/lib/components/ScoreBar.svelte)**: Mini visual score bar.
     * **[ReasonBadge.svelte](../src/lib/components/ReasonBadge.svelte)**: Visual badge tags for counter-picks or synergy indicators.
+    * **[RankSelector.svelte](../src/lib/components/RankSelector.svelte)**: Header rank-tier dropdown plus live crawl progress indicator.
+    * **[SettingsButton.svelte](../src/lib/components/SettingsButton.svelte)**: Header gear icon that opens the settings modal.
+    * **[SettingsModal.svelte](../src/lib/components/SettingsModal.svelte)**: Appearance/Behavior/Data settings modal (Issue #15) — compact density, comp-weight slider, always-on-top toggle, manual data refresh.
 
 ---
 

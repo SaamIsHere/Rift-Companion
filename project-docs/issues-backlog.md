@@ -7,7 +7,7 @@ This backlog structures and analyzes the open GitHub issues for the Rift Compani
 ## Index of Backlog Categories
 
 * [Epic 1: Algorithmic & Engine Improvements (Issues 2, 6, 7)](#epic-1-algorithmic--engine-improvements)
-* [Epic 2: Core UX & Client Integrations (Issues 9, 13)](#epic-2-core-ux--client-integrations)
+* [Epic 2: Core UX & Client Integrations (Issues 9, 13, 15)](#epic-2-core-ux--client-integrations)
 * [Epic 3: New Feature Modules (Issues 4, 5, 10, 11, 12, 14)](#epic-3-new-feature-modules)
 * [Epic 4: Deployment & Tooling (Issue 8)](#epic-4-deployment--tooling)
 
@@ -88,6 +88,21 @@ This backlog structures and analyzes the open GitHub issues for the Rift Compani
   * *Sparsity Fallback*: If stats are empty/sparse for a chosen niche rank, it falls back to the Emerald+ default.
   * *Upstream limitation*: `lol_list_lane_meta_champions` (per-role roster, `global_winrate`, `games`) has no `tier` parameter in OP.GG's MCP schema at all — only `lol_get_champion_analysis` (matchups/synergies/damage type) supports tier filtering. So rank selection makes matchup and synergy numbers rank-specific, but each champion's baseline global win rate stays an all-tier aggregate regardless of the selected rank. This is a real constraint of OP.GG's public API surface, not an oversight.
   * *Manual vs auto precedence*: an explicit dropdown pick is sticky for the rest of that install — LCU auto-detection never overwrites a manual choice, even across restarts (persisted via the `manual` flag in `stats.meta.json`).
+
+### Issue 15: Settings Menu
+* **Status**: Implemented
+* **Priority**: Medium
+* **Technical Summary**: Add a settings button letting the user adjust style, behavior, and preference options, following the issue's suggested Appearance/Behavior/Data groupings.
+* **Implementation**:
+  * A new gear icon in the header ([SettingsButton.svelte](../src/lib/components/SettingsButton.svelte)) opens a centered glass modal ([SettingsModal.svelte](../src/lib/components/SettingsModal.svelte)) with three sections:
+    * **Appearance**: a compact-density toggle that shrinks [RecommendationCard.svelte](../src/lib/components/RecommendationCard.svelte)'s padding/icon size and drops the score bar/reason badges, and tightens the list gap in [RecommendationList.svelte](../src/lib/components/RecommendationList.svelte).
+    * **Behavior**: a team-comp weight slider (0–0.30) that finally gives the pre-existing `set_weights`/`setWeights` plumbing a UI (it was wired end-to-end but never called from anywhere — see Issue 2); and an always-on-top toggle useful for keeping the companion window pinned above the League client.
+    * **Data**: a "Refresh data now" button that force-triggers `opgg::refresh::trigger_refresh` immediately instead of waiting on the periodic 6h/24h cycle, reusing the existing `rank-refresh://status`/`rank-refresh://progress` events (no new events needed).
+  * All four settings persist to a new `Settings` struct in [data/store.rs](../src-tauri/src/data/store.rs), written to a `settings.json` sidecar next to `stats.json`/`stats.meta.json`, mirroring the existing `DatasetMeta` read/write pattern. `Shared.settings` seeds `Shared.weights`' initial `comp` value and the main window's always-on-top state on startup.
+  * `commands::get_settings`/`set_settings` mirror `get_rank_tier`/`set_rank_tier`: `set_settings` clamps `comp_weight` to `[0.0, 1.0]`, persists, updates `Shared.weights.comp`, applies `window.set_always_on_top(...)` directly via the Rust-owned `WebviewWindow` handle, and re-emits `recommendations://update`.
+* **Resolved Design Decisions**:
+  * *Presentation*: a modal overlay (not a slide-in side panel) — simplest to dismiss and doesn't disturb the compact draft/recommendations layout.
+  * *No new capability permissions*: always-on-top is toggled from inside the Rust command using the `AppHandle`'s own window handle, not via a frontend-invoked `core:window:*` call, so `capabilities/default.json` needed no changes.
 
 ---
 
