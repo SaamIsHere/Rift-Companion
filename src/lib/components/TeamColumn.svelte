@@ -5,6 +5,7 @@
   export let title: string;
   export let picks: DraftPick[];
   export let accent: "cyan" | "rose";
+  export let editable = false;
 </script>
 
 <div class="flex min-h-0 flex-col gap-2">
@@ -13,7 +14,7 @@
   </p>
   <div class="flex flex-col gap-2 overflow-y-auto pr-1">
     {#each picks as pick (pick.champion_id)}
-      <ChampSlot {pick} {accent} />
+      <ChampSlot {pick} {accent} {editable} />
     {/each}
     {#if picks.length === 0}
       <p class="text-xs italic text-slate-600">No picks yet</p>

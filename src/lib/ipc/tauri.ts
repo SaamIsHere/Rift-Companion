@@ -7,6 +7,7 @@ import type {
   ConnectionStatus,
   DraftState,
   Recommendation,
+  Role,
   Weights,
 } from "../types";
 
@@ -39,4 +40,15 @@ export async function initIpc(): Promise<void> {
 /** Push new algorithm weights and receive a freshly ranked list. */
 export async function setWeights(weights: Weights): Promise<Recommendation[]> {
   return invoke<Recommendation[]>("set_weights", { weights });
+}
+
+/**
+ * Manually reassign an enemy pick's guessed role and receive a freshly ranked
+ * list. Pass `role: null` to clear the override and revert to the guess.
+ */
+export async function setEnemyRole(
+  championId: number,
+  role: Role | null,
+): Promise<Recommendation[]> {
+  return invoke<Recommendation[]>("set_enemy_role", { championId, role });
 }

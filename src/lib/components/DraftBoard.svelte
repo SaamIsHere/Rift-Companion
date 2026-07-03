@@ -20,7 +20,7 @@
   {#if $draft}
     <div class="grid min-h-0 flex-1 grid-cols-2 gap-5">
       <TeamColumn title="Your team" picks={$draft.allies} accent="cyan" />
-      <TeamColumn title="Enemy team" picks={$draft.enemies} accent="rose" />
+      <TeamColumn title="Enemy team" picks={$draft.enemies} accent="rose" editable />
     </div>
 
     {#if $draft.bans.length}

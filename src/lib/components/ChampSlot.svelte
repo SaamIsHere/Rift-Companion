@@ -1,14 +1,24 @@
 <script lang="ts">
-  import type { DraftPick } from "../types";
+  import type { DraftPick, Role } from "../types";
   import { championCatalog, ddragonVersion } from "../stores/champions";
   import { squareIconUrl } from "../utils/ddragon";
+  import { setEnemyRole } from "../ipc/tauri";
 
   export let pick: DraftPick;
   export let accent: "cyan" | "rose";
+  /** Enemy cards allow correcting the guessed role; ally cards do not. */
+  export let editable = false;
+
+  const ROLES: Role[] = ["top", "jungle", "mid", "adc", "support"];
 
   let imgError = false;
   $: info = $championCatalog.get(pick.champion_id);
   $: name = info?.name ?? `Champion ${pick.champion_id}`;
+
+  function onRoleChange(e: Event) {
+    const value = (e.target as HTMLSelectElement).value;
+    void setEnemyRole(pick.champion_id, value === "" ? null : (value as Role));
+  }
 </script>
 
 <div
@@ -36,7 +46,18 @@
 
   <div class="flex flex-col">
     <span class="text-sm">{name}</span>
-    {#if pick.role}
+    {#if editable}
+      <select
+        class="mt-0.5 w-fit rounded bg-white/5 px-1 py-0.5 text-[11px] uppercase text-slate-300 ring-1 ring-white/10 focus:outline-none focus:ring-1 focus:ring-hextech-cyan/60"
+        value={pick.role ?? ""}
+        on:change={onRoleChange}
+      >
+        <option value="">Guess</option>
+        {#each ROLES as r}
+          <option value={r}>{r}</option>
+        {/each}
+      </select>
+    {:else if pick.role}
       <span class="text-[11px] uppercase text-slate-400">{pick.role}</span>
     {/if}
   </div>

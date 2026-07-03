@@ -13,8 +13,10 @@ mod engine;
 mod lcu;
 mod opgg;
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use data::models::Role;
 use data::repository::Repository;
 use draft::DraftState;
 use engine::weights::Weights;
@@ -38,6 +40,9 @@ pub struct Shared {
     pub weights: Arc<Mutex<Weights>>,
     pub latest_draft: Arc<Mutex<Option<DraftState>>>,
     pub connection: Arc<Mutex<ConnectionStatus>>,
+    /// Manual enemy-role reassignments from the draft board, keyed by champion id.
+    /// Re-applied on every LCU session push so they survive the next websocket frame.
+    pub enemy_role_overrides: Arc<Mutex<HashMap<u32, Role>>>,
 }
 
 /// CLI entry point: install a normalized champion-stats JSON (the `Champion[]`
@@ -81,6 +86,7 @@ pub fn run() {
         weights: Arc::new(Mutex::new(Weights::default())),
         latest_draft: Arc::new(Mutex::new(None)),
         connection: Arc::new(Mutex::new(ConnectionStatus::Searching)),
+        enemy_role_overrides: Arc::new(Mutex::new(HashMap::new())),
     };
 
     tauri::Builder::default()
@@ -90,6 +96,7 @@ pub fn run() {
             commands::get_draft_state,
             commands::get_recommendations,
             commands::set_weights,
+            commands::set_enemy_role,
         ])
         .setup(move |app| {
             // Long-running LCU watcher on Tauri's async (tokio) runtime.

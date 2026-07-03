@@ -75,7 +75,24 @@ fn handle_session(app: &AppHandle, shared: &Shared, data: serde_json::Value) {
     };
 
     let repo = shared.repo.lock().unwrap().clone();
-    let state = draft::from_session(repo.as_ref(), &session);
+    let mut state = draft::from_session(repo.as_ref(), &session);
+
+    // Re-apply any manual enemy-role reassignments from the draft board, since
+    // `state` above is rebuilt from scratch on every session push. Overrides
+    // for champions no longer present (game ended / new draft) are dropped.
+    {
+        let mut overrides = shared.enemy_role_overrides.lock().unwrap();
+        if !overrides.is_empty() {
+            let live_ids: std::collections::HashSet<u32> =
+                state.enemies.iter().map(|p| p.champion_id).collect();
+            overrides.retain(|id, _| live_ids.contains(id));
+            for pick in state.enemies.iter_mut() {
+                if let Some(role) = overrides.get(&pick.champion_id) {
+                    pick.role = Some(*role);
+                }
+            }
+        }
+    }
 
     // Phase 1 deliverable: log champ-select state changes to the console.
     tracing::info!(
