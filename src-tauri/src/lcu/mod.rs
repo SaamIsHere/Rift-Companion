@@ -30,40 +30,46 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
         set_status(&app, &shared, ConnectionStatus::Connected);
         tracing::info!(port = lock.port, "LCU lockfile found; connecting");
 
-        // Fetch the active account's profile for the title bar (Issue #9).
-        // Best-effort: if the client isn't fully signed in yet this just
-        // leaves the "Client connected" fallback showing.
-        match client::get_current_summoner(&lock).await {
-            Ok(profile) => {
-                *shared.profile.lock().unwrap() = profile.clone();
-                let _ = app.emit("lcu://profile", &profile);
-            }
-            Err(e) => tracing::warn!("failed to fetch current summoner: {e}"),
-        }
-
-        // Auto-detect the local player's rank tier as the data-fetch default,
-        // unless they've already picked one manually from the dropdown
-        // (Issue #13). Best-effort: unranked/unreachable just keeps whatever
-        // tier is already active.
-        if !*shared.rank_manual.lock().unwrap() {
-            if let Ok(Some(tier_str)) = client::get_ranked_solo_tier(&lock).await {
-                let detected = RankTier::from_lcu_tier(&tier_str);
-                let current = *shared.rank_tier.lock().unwrap();
-                if detected != current {
-                    tracing::info!(tier = detected.as_opgg_tier(), "auto-detected rank tier from LCU profile");
-                    *shared.rank_tier.lock().unwrap() = detected;
-                    opgg::refresh::trigger_refresh(app.clone(), shared.clone(), detected);
-                }
-            }
-        }
-
-        // We may already be in champ select — pull the current state once.
-        if let Ok(Some(value)) = client::get_session(&lock).await {
-            handle_session(&app, &shared, value);
-        }
-
         match websocket::connect(&lock).await {
             Ok(mut ws) => {
+                // Only fire the REST-dependent setup once the websocket handshake has
+                // actually succeeded. The lockfile can appear on disk slightly before
+                // the LCU's internal HTTPS API is accepting connections (a startup race
+                // most noticeable when the League client is launched *after* this app),
+                // so anything fired right after `lockfile::find()` above can silently
+                // lose that race with no retry. A completed websocket handshake is
+                // concrete proof the API is actually up.
+
+                // Fetch the active account's profile for the title bar (Issue #9).
+                match client::get_current_summoner(&lock).await {
+                    Ok(profile) => {
+                        *shared.profile.lock().unwrap() = profile.clone();
+                        let _ = app.emit("lcu://profile", &profile);
+                    }
+                    Err(e) => tracing::warn!("failed to fetch current summoner: {e}"),
+                }
+
+                // Auto-detect the local player's rank tier as the data-fetch default,
+                // unless they've already picked one manually from the dropdown
+                // (Issue #13). Best-effort: unranked/unreachable just keeps whatever
+                // tier is already active.
+                if !*shared.rank_manual.lock().unwrap() {
+                    if let Ok(Some(tier_str)) = client::get_ranked_solo_tier(&lock).await {
+                        let detected = RankTier::from_lcu_tier(&tier_str);
+                        let current = *shared.rank_tier.lock().unwrap();
+                        if detected != current {
+                            tracing::info!(tier = detected.as_opgg_tier(), "auto-detected rank tier from LCU profile");
+                            *shared.rank_tier.lock().unwrap() = detected;
+                            opgg::refresh::trigger_refresh(app.clone(), shared.clone(), detected);
+                        }
+                    }
+                }
+
+                // We may already be in champ select — pull the current state once.
+                if let Ok(Some(value)) = client::get_session(&lock).await {
+                    handle_session(&app, &shared, value);
+                }
+
                 while let Some(msg) = ws.next().await {
                     match msg {
                         Ok(Message::Text(txt)) => {

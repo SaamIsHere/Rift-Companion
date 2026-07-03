@@ -40,6 +40,13 @@ fn locate_path() -> Option<PathBuf> {
     let mut sys = System::new();
     sys.refresh_processes(ProcessesToUpdate::All, true);
 
+    // More than one "leagueclientux*" process can be alive at once (e.g. a
+    // leftover instance that never exited cleanly from a previous session).
+    // Collect every match instead of returning on the first hit, so a stale
+    // process pinned to a now-dead port can't win over the real, currently
+    // starting one just because of process-list iteration order.
+    let mut candidates: Vec<(&sysinfo::Process, PathBuf)> = Vec::new();
+
     for proc in sys.processes().values() {
         let name = proc.name().to_string_lossy().to_lowercase();
         if !name.starts_with("leagueclientux") {
@@ -51,7 +58,8 @@ fn locate_path() -> Option<PathBuf> {
             if let Some(dir) = exe.parent() {
                 let candidate = dir.join("lockfile");
                 if candidate.exists() {
-                    return Some(candidate);
+                    candidates.push((proc, candidate));
+                    continue;
                 }
             }
         }
@@ -62,10 +70,21 @@ fn locate_path() -> Option<PathBuf> {
             if let Some(dir) = arg.strip_prefix("--install-directory=") {
                 let candidate = PathBuf::from(dir.trim_matches('"')).join("lockfile");
                 if candidate.exists() {
-                    return Some(candidate);
+                    candidates.push((proc, candidate));
+                    break;
                 }
             }
         }
     }
-    None
+
+    if candidates.len() > 1 {
+        tracing::info!(
+            count = candidates.len(),
+            "multiple LeagueClientUx-like processes found; picking the most recently started"
+        );
+    }
+
+    let (proc, path) = candidates.into_iter().max_by_key(|(proc, _)| proc.start_time())?;
+    tracing::info!(pid = %proc.pid(), exe = ?proc.exe(), path = %path.display(), "resolved LCU lockfile");
+    Some(path)
 }
