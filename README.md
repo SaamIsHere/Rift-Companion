@@ -2,7 +2,8 @@
 
 A lightweight, dark-themed League of Legends **champion-select advisor**. It
 attaches to the local League Client (LCU), tracks the live draft, and produces a
-dynamically-weighted **Top 5 pick recommendation** for your assigned role.
+dynamically-weighted, searchable **ranked list of every playable champion** for
+your assigned role.
 
 - **Frontend:** Svelte 5 + Vite + TypeScript + Tailwind CSS (glassmorphism)
 - **Backend / shell:** Tauri 2 (Rust) — small binary, low RAM, fast startup
@@ -186,9 +187,9 @@ npm run tauri:dev      # or: cargo tauri dev
 - **Phase 1 — Connection** ✅ scaffolded: lockfile discovery, authenticated WSS,
   champ-select subscription, state changes logged to console.
 - **Phase 2 — Engine** ✅ scaffolded: weighted scoring over the mock dataset,
-  Top 5 for your role (validated with `scratchpad/sim.mjs`).
-- **Phase 3 — UI** ✅ scaffolded: live ally/enemy board, Top 5 cards with score
-  bars and "why" badges.
+  full ranked pool for your role (validated with `scratchpad/sim.mjs`).
+- **Phase 3 — UI** ✅ scaffolded: live ally/enemy board, searchable ranked
+  cards with score bars and "why" badges.
 - **Next:** real stats ingestion → SQLite, champion id→name map from Data
   Dragon, weight-tuning panel (`set_weights` is already wired), desktop acrylic
   via the `window-vibrancy` crate.

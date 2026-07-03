@@ -1,6 +1,6 @@
 # Scoring Engine & Algorithm
 
-The Rift Companion scoring engine evaluates eligible champions to recommend the top 5 picks for the local player's role. It ranks picks by refining the champion's base role win rate with role-specific ally/enemy weight matrices, plus a small composition-balance bonus.
+The Rift Companion scoring engine evaluates every eligible champion for the local player's role and returns the full pool ranked by score (no top-N cutoff — see [Issue 14](issues-backlog.md#issue-14-expand-playable-champions-pool-per-role-split-from-issue-5)). It ranks picks by refining the champion's base role win rate with role-specific ally/enemy weight matrices, plus a small composition-balance bonus.
 
 The core scoring implementation resides in [src-tauri/src/engine/scoring.rs](../src-tauri/src/engine/scoring.rs).
 

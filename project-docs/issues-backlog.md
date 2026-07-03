@@ -99,14 +99,15 @@ This backlog structures and analyzes the open GitHub issues for the Rift Compani
   * *Control Type*: A simple click dropdown selector on the opponent card is sufficient for rearranging roles (no complex drag-and-drop system is requested).
 
 ### Issue 5: Champion Search Input
-* **Status**: Open
+* **Status**: Implemented
 * **Priority**: Medium
 * **Technical Summary**: Implement a champion lookup filter to show the recommendation score and details of specific champions.
-* **Implementation Plan**:
-  * Add a search text box above the recommendations list in [RecommendationList.svelte](../src/lib/components/RecommendationList.svelte).
-  * If a search string is active, query the Rust engine to score the specific searched champion and render its card at the top of the list.
+* **Implementation**:
+  * A search text box lives above the recommendations list in [RecommendationList.svelte](../src/lib/components/RecommendationList.svelte), filtering the reactive `filtered` list by a case-insensitive substring match on champion name.
+  * No separate backend query was needed: since [Issue 14](#issue-14-expand-playable-champions-pool-per-role-split-from-issue-5) makes the engine return every playable champion's score already (not just a Top 5), the search box only needs to filter the list client-side — every champion is already scored and present in `$recommendations`.
+  * Each card keeps its rank number from the *unfiltered* list (`$recommendations.indexOf(rec) + 1`), so searching shows the champion's true standing among the full pool rather than a re-numbered position within the filtered results.
 * **Resolved Design Decisions**:
-  * *Search Range*: The search input evaluates and scores *any* champion marked as playable in that role, displaying their score card at the top even if they are not in the top 5.
+  * *Search Range*: The search input evaluates and scores *any* champion marked as playable in that role, showing their score card regardless of overall rank.
 
 ### Issue 10: Switch to In-Game Matchup Dashboard
 * **Status**: Open
@@ -140,12 +141,15 @@ This backlog structures and analyzes the open GitHub issues for the Rift Compani
   * Displays a simple list of the last 10 games played, including match win/loss cards.
 
 ### Issue 14: Expand Playable Champions Pool per Role (Split from Issue 5)
-* **Status**: Open
+* **Status**: Implemented
 * **Priority**: Medium
 * **Technical Summary**: Expand the pool of "playable" champions in a role based on OP.GG active indicators.
-* **Implementation Plan**:
-  * Map champions as playable in a position if OP.GG stats report play rates there (instead of relying solely on primary role tags).
-  * Integrate into `Repository::playable_in` to allow off-meta searches.
+* **Implementation**:
+  * `Repository::playable_in` ([repository.rs](../src-tauri/src/data/repository.rs)) already tags a champion's `roles: Vec<Role>` from the actual per-position OP.GG lane-meta crawl in [opgg/fetch.rs::crawl](../src-tauri/src/opgg/fetch.rs) — every position a champion shows up in that crawl's roster gets appended, not just a single "primary role" tag — so the eligibility gate was not the bottleneck.
+  * The actual bottleneck was in the ranking step: `engine::recommend` ([scoring.rs](../src-tauri/src/engine/scoring.rs)) scored every eligible champion via `playable_in` but then called `out.truncate(5)`, discarding everything past the 5th-highest score before it ever reached the frontend. That truncation is now removed — `recommend` returns the full scored, sorted pool for the role.
+  * [RecommendationList.svelte](../src/lib/components/RecommendationList.svelte) renders the entire pool in a scrollable list instead of a fixed 5-card block.
+* **Resolved Design Decisions**:
+  * *No frontend cap*: the UI trusts the backend's full sorted list rather than re-slicing it — any future "show only top N" behavior should be a display-layer choice (e.g. collapsing/paginating), not a scoring-layer one.
 
 ---
 

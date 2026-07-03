@@ -56,7 +56,9 @@ pub struct Components {
     pub comp: f64,
 }
 
-/// Rank the top 5 picks for the local player's role.
+/// Rank every playable champion for the local player's role, sorted by
+/// score descending. Returns the full pool (not just a top-N slice) so the
+/// frontend can show every candidate and let the user search/filter it.
 pub fn recommend(repo: &Repository, draft: &DraftState, w: &weights::Weights) -> Vec<Recommendation> {
     let role = match draft.local_role {
         Some(r) => r,
@@ -75,7 +77,6 @@ pub fn recommend(repo: &Repository, draft: &DraftState, w: &weights::Weights) ->
         .collect();
 
     out.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
-    out.truncate(5);
     out
 }
 
@@ -285,7 +286,11 @@ mod tests {
 
         let recs = recommend(&repo, &draft, &Weights::default());
 
-        assert_eq!(recs.len(), 5, "should return a Top 5");
+        assert_eq!(
+            recs.len(),
+            repo.playable_in(Role::Top).count(),
+            "should return every playable champion for the role, not just a Top 5"
+        );
         // Malphite (54): counters Darius + fills the AP & frontline gaps → #1.
         assert_eq!(recs[0].champion_id, 54, "Malphite should rank first");
         assert!(!recs[0].reasons.is_empty(), "top pick should have a why-badge");
