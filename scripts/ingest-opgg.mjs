@@ -28,7 +28,10 @@
 const ENDPOINT = "https://mcp-api.op.gg/mcp";
 const DDRAGON = "https://ddragon.leagueoflegends.com";
 const ALL_POSITIONS = ["top", "jungle", "mid", "adc", "support"];
-const SYNERGY_POSITIONS = ["jungle", "mid", "adc", "support"]; // OP.GG exposes these ally lanes
+// OP.GG returns synergy lists for every ally lane *except the subject's own*
+// (fields for the own position come back unmatched and are skipped), so
+// request all five. Omitting "top" dropped every top-lane synergy (Issue #20).
+const SYNERGY_POSITIONS = ["top", "jungle", "mid", "adc", "support"];
 
 // ---------- args ----------
 const args = process.argv.slice(2);
@@ -207,8 +210,11 @@ async function loadDataDragon() {
     await sleep(delayMs);
   }
 
-  // 3) Emit normalized Champion[] JSON.
+  // 3) Emit normalized Champion[] JSON. roles[0] is the champion's *primary*
+  // role (used to infer hidden enemy positions), so order roles by actual play
+  // volume rather than the fixed position-crawl order (Issue #19).
   const out = [...champs.values()].filter((c) => Object.keys(c.stats).length > 0);
+  for (const c of out) c.roles.sort((a, b) => (c.stats[b]?.games || 0) - (c.stats[a]?.games || 0));
   const { writeFileSync } = await import("node:fs");
   writeFileSync(outPath, JSON.stringify(out, null, 2));
   const matchups = out.reduce((a, c) => a + Object.values(c.stats).reduce((b, s) => b + Object.keys(s.matchups).length, 0), 0);

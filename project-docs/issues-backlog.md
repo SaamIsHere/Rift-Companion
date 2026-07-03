@@ -10,6 +10,7 @@ This backlog structures and analyzes the open GitHub issues for the Rift Compani
 * [Epic 2: Core UX & Client Integrations (Issues 9, 13, 15)](#epic-2-core-ux--client-integrations)
 * [Epic 3: New Feature Modules (Issues 4, 5, 10, 11, 12, 14)](#epic-3-new-feature-modules)
 * [Epic 4: Deployment & Tooling (Issue 8)](#epic-4-deployment--tooling)
+* [Epic 5: Code-Review Hardening (Issues 19–31)](#epic-5-code-review-hardening-issues-19-31)
 
 ---
 
@@ -191,3 +192,41 @@ This backlog structures and analyzes the open GitHub issues for the Rift Compani
   * Set up GitHub Actions release flow to bundle builds automatically.
 * **Resolved Design Decisions**:
   * Build simple installers. Auto-update checks are deferred.
+
+---
+
+## Epic 5: Code-Review Hardening (Issues 19–31)
+
+A full codebase review (2026-07-04) produced [GitHub issues #19–#31](https://github.com/SaamIsHere/Rift-Companion/issues), labeled `high-priority`/`medium-priority`/`low-priority` plus `bug` for runtime-behavior defects. Each issue carries the review evidence (dataset measurements, live OP.GG API output, test logs) and a suggested fix. The two high-priority data-correctness bugs are fixed and closed; the rest are open.
+
+### Issue 19: Crawler Assigns Wrong Primary Role to ~20% of Champions
+* **Status**: Implemented (closed)
+* **Priority**: High (`bug`)
+* **Technical Summary**: [opgg/fetch.rs](../src-tauri/src/opgg/fetch.rs) appended to `Champion.roles` in position-crawl order (top → support), while [Repository::primary_role](../src-tauri/src/data/repository.rs) treats `roles[0]` as the champion's primary role — the value used to infer hidden enemy positions in solo-queue drafts. Any champion appearing in the top-lane roster therefore became "top-primary". Measured against the live crawled dataset (patch 16.13.1, gold): **32 of 173 champions** carried a wrong primary role — Xin Zhao top (15k games) over jungle (61k), Lux mid over support (~2:1), Tristana mid over adc (~13:1), Seraphine adc over support (~4:1). An enemy Lux was scored as the local mid's *direct lane opponent* (weight 1.4) while the enemy-support cell went unused.
+* **Implementation**:
+  * `order_roles_by_play` in [opgg/fetch.rs](../src-tauri/src/opgg/fetch.rs) sorts each crawled champion's `roles` by per-role `games` descending before the roster is returned (stable sort, so crawl order only breaks exact ties). Mirrored in [scripts/ingest-opgg.mjs](../scripts/ingest-opgg.mjs).
+  * Verified by a pure unit test (`roles_are_ordered_by_play_volume`, a Lux-shaped case) and an `#[ignore]`d live scoped-crawl test asserting every crawled champion's roles are ordered by games (`cargo test -- --ignored`).
+  * No schema change — an existing installed dataset self-heals on its next OP.GG refresh.
+
+### Issue 20: Top-Lane Synergies Were Never Crawled
+* **Status**: Implemented (closed)
+* **Priority**: High (`bug`)
+* **Technical Summary**: `SYNERGY_POSITIONS` in [opgg/fetch.rs](../src-tauri/src/opgg/fetch.rs) (and [scripts/ingest-opgg.mjs](../scripts/ingest-opgg.mjs)) was hardcoded to `jungle/mid/adc/support` under the assumption that those are the lanes OP.GG exposes. Verified live against `mcp-api.op.gg`: the API actually returns synergy lists for **every ally lane except the subject's own** (a jungler gets top/mid/adc/support; requesting the subject's own position just returns those fields as unmatched in `_field_diagnostics`, skipped harmlessly). So no champion ever stored a synergy cell with a top-lane ally — the jungle→top `ALLY_WEIGHTS` cell (0.5, tied for the largest ally weight in the jungle row) always contributed a delta of `0.0`, as did mid→top (0.2), adc→top (0.1) and support→top (0.2).
+* **Implementation**:
+  * `SYNERGY_POSITIONS` now covers all five lanes in both the Rust crawler and the JS adapter script.
+  * Two `#[ignore]`d live tests pin the behavior: `opgg_exposes_top_lane_synergies_for_a_jungler` asserts OP.GG returns `data.synergies.top` for a non-top subject, and `scoped_crawl_orders_roles_and_stores_top_synergies` asserts a scoped crawl stores **more than 9** synergy cells for a jungle-only champion — impossible pre-fix, since OP.GG caps partners at 3 per lane (3 lanes × 3 = 9 max before, 4 × 3 = 12 after).
+  * Requires a re-crawl to take effect on an existing dataset (the installed `stats.meta.json` was expired so the app refreshes on next launch).
+
+### Issues 21–31: Open Review Findings
+Tracked on GitHub with full evidence and suggested fixes; not yet implemented:
+* **[#21](https://github.com/SaamIsHere/Rift-Companion/issues/21) Two stale unit tests fail** (`bug`, medium) — `engine_ranks_via_seeded_file` still asserts the pre-Issue-14 top-5 truncation; `embedded_dataset_loads_and_ranks` doesn't account for `recommend()` excluding drafted champions.
+* **[#22](https://github.com/SaamIsHere/Rift-Companion/issues/22) Duplicate inferred enemy roles double-count the direct-lane matchup weight** (`bug`, medium) — two enemies inferred into the local player's role each receive the full diagonal weight while `row_total` counts it once, defeating the fixed-denominator normalization.
+* **[#23](https://github.com/SaamIsHere/Rift-Companion/issues/23) Connection status flaps Connected ↔ Searching during LCU cold start** (`bug`, medium) — status is set on lockfile discovery instead of after the websocket handshake succeeds.
+* **[#24](https://github.com/SaamIsHere/Rift-Companion/issues/24) Queued OP.GG refreshes re-crawl back-to-back** (medium) — staleness is checked before acquiring `refresh_lock`, so a queued tick repeats a crawl that just finished.
+* **[#25](https://github.com/SaamIsHere/Rift-Companion/issues/25) scoring.rs module docs show the outdated pre-fix score formula** (low) — the header contradicts the implemented `wr_base·100 + refinement·DISPLAY_SCALE` formula.
+* **[#26](https://github.com/SaamIsHere/Rift-Companion/issues/26) Mixed-damage comp bonus awards points without a "why" badge** (`bug`, low).
+* **[#27](https://github.com/SaamIsHere/Rift-Companion/issues/27) `McpClient::next_id()` timestamp ids can collide under concurrency** (`bug`, low) — should be an `AtomicU64` counter.
+* **[#28](https://github.com/SaamIsHere/Rift-Companion/issues/28) LCU discovery inefficiencies** (low) — new `reqwest::Client` per REST call; full process-table scan every 3s while searching.
+* **[#29](https://github.com/SaamIsHere/Rift-Companion/issues/29) RecommendationList rank lookup is O(n²) per render** (low) — `indexOf` inside the `#each` over the full pool.
+* **[#30](https://github.com/SaamIsHere/Rift-Companion/issues/30) Set a real CSP before packaging** (low) — `"csp": null` today; only Data Dragon needs allowing.
+* **[#31](https://github.com/SaamIsHere/Rift-Companion/issues/31) Stray AI-session memory link in ui.ts doc comment** (low).

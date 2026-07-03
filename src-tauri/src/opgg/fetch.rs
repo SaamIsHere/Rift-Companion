@@ -11,7 +11,13 @@ use crate::data::models::{Champion, DamageType, RankTier, Role, RoleStats, WinRa
 use crate::opgg::client::McpClient;
 
 const DDRAGON: &str = "https://ddragon.leagueoflegends.com";
-const SYNERGY_POSITIONS: [&str; 4] = ["jungle", "mid", "adc", "support"];
+/// Ally lanes to request synergy data for. OP.GG returns synergy lists for
+/// every position *except the subject's own* (a top-laner gets jungle/mid/
+/// adc/support back, a jungler gets top/mid/adc/support, etc.); fields for
+/// the subject's own position simply come back unmatched and are skipped
+/// server-side, so requesting all five is safe. Omitting "top" here silently
+/// dropped every top-lane synergy cell from the dataset (Issue #20).
+const SYNERGY_POSITIONS: [&str; 5] = ["top", "jungle", "mid", "adc", "support"];
 
 /// Below this many recorded games at the selected tier, a champion/role's
 /// matchup+synergy sample is too thin to trust — re-fetch it at Emerald+
@@ -292,6 +298,105 @@ pub async fn crawl(opts: &CrawlOpts, mut on_progress: impl FnMut(usize, usize)) 
         }
     }
 
-    let out: Vec<Champion> = champs.into_values().filter(|c| !c.stats.is_empty()).collect();
+    let mut out: Vec<Champion> = champs.into_values().filter(|c| !c.stats.is_empty()).collect();
+    for c in out.iter_mut() {
+        order_roles_by_play(c);
+    }
     Ok((version, out))
+}
+
+/// Order `roles` by per-role game count, most-played first. `roles[0]` is the
+/// champion's *primary* role (`Repository::primary_role`), which is what infers
+/// hidden enemy positions in drafts — so it must reflect actual play volume,
+/// not the fixed top→support position-crawl order above, which tagged every
+/// champion appearing in the top roster as "top-primary" (e.g. Xin Zhao top
+/// over jungle at 15k vs 61k games — Issue #19).
+fn order_roles_by_play(c: &mut Champion) {
+    let Champion { roles, stats, .. } = c;
+    roles.sort_by_key(|r| std::cmp::Reverse(stats.get(r.as_key()).map_or(0, |s| s.games)));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn roles_are_ordered_by_play_volume() {
+        // Lux-shaped case from the real dataset: crawled as mid first (position
+        // order), but actually a support main by nearly 2:1 games.
+        let mut c = Champion {
+            champion_id: 99,
+            name: "Lux".into(),
+            image: "Lux".into(),
+            damage: DamageType::Magic,
+            frontline: false,
+            roles: vec![Role::Mid, Role::Adc, Role::Support],
+            stats: HashMap::from([
+                ("mid".to_string(), RoleStats { global_winrate: 0.5, games: 64_688, matchups: HashMap::new(), synergies: HashMap::new() }),
+                ("adc".to_string(), RoleStats { global_winrate: 0.5, games: 5_141, matchups: HashMap::new(), synergies: HashMap::new() }),
+                ("support".to_string(), RoleStats { global_winrate: 0.5, games: 111_132, matchups: HashMap::new(), synergies: HashMap::new() }),
+            ]),
+        };
+        order_roles_by_play(&mut c);
+        assert_eq!(c.roles, vec![Role::Support, Role::Mid, Role::Adc]);
+    }
+
+    /// Live check for Issue #20: OP.GG must return `data.synergies.top` when
+    /// asked, for a non-top subject. Run with `cargo test -- --ignored`.
+    #[tokio::test]
+    #[ignore = "network: hits the live OP.GG MCP endpoint"]
+    async fn opgg_exposes_top_lane_synergies_for_a_jungler() {
+        let mcp = McpClient::new().unwrap();
+        mcp.initialize().await.unwrap();
+        let mut fields: Vec<String> = Vec::new();
+        for sp in SYNERGY_POSITIONS {
+            fields.push(format!("data.synergies.{sp}[].synergy_champion_id"));
+            fields.push(format!("data.synergies.{sp}[].win_rate"));
+            fields.push(format!("data.synergies.{sp}[].play"));
+        }
+        let res = mcp
+            .call_tool("lol_get_champion_analysis", analysis_args("LeeSin", "jungle", RankTier::EmeraldPlus, &fields))
+            .await
+            .expect("analysis call");
+        let top = res.pointer("/data/synergies/top").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+        assert!(!top.is_empty(), "OP.GG returned no top-lane synergies for a jungler: {res}");
+    }
+
+    /// Live end-to-end check for Issues #19/#20 on a scoped crawl.
+    /// Run with `cargo test -- --ignored` (takes ~30-60s).
+    #[tokio::test]
+    #[ignore = "network: runs a scoped live crawl against OP.GG + Data Dragon"]
+    async fn scoped_crawl_orders_roles_and_stores_top_synergies() {
+        let opts = CrawlOpts {
+            positions: ["top", "jungle", "mid", "adc", "support"].iter().map(|s| s.to_string()).collect(),
+            limit: 10,
+            delay_ms: 150,
+            tier: RankTier::EmeraldPlus,
+        };
+        let (_patch, champs) = crawl(&opts, |_, _| {}).await.expect("scoped crawl");
+        assert!(!champs.is_empty(), "crawl produced no champions");
+
+        // Issue #19: every champion's roles must be ordered most-played first.
+        for c in &champs {
+            let games: Vec<u32> = c.roles.iter().map(|r| c.stats.get(r.as_key()).map_or(0, |s| s.games)).collect();
+            assert!(
+                games.windows(2).all(|w| w[0] >= w[1]),
+                "{}: roles {:?} not ordered by games {:?}",
+                c.name,
+                c.roles,
+                games
+            );
+        }
+
+        // Issue #20: OP.GG returns up to 3 synergy partners per ally lane. With
+        // "top" missing from SYNERGY_POSITIONS, a jungle-only champion could
+        // collect at most 9 synergy cells (mid/adc/support); with it included,
+        // 12. So at least one jungle-only champion clearing 9 proves top-lane
+        // synergies actually flow through the whole crawl pipeline.
+        let cleared = champs
+            .iter()
+            .filter(|c| c.stats.contains_key("jungle") && !c.stats.contains_key("top"))
+            .any(|c| c.stats["jungle"].synergies.len() > 9);
+        assert!(cleared, "no jungle-only champion stored more than 9 synergy cells — top-lane synergies missing");
+    }
 }

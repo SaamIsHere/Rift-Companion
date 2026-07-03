@@ -36,7 +36,7 @@ The database consists of a serialized JSON array representing champion stats mat
 ### Schema Rules & Design Choices
 
 1. **Damage Type enum**: Maps to string literals `"physical"`, `"magic"`, or `"mixed"`.
-2. **Roles array**: The first element in the array is treated as the champion's primary position, which is used to infer the roles of opponents in drafts.
+2. **Roles array**: The first element in the array is treated as the champion's primary position, which is used to infer the roles of opponents in drafts. The crawler guarantees this ordering by sorting `roles` by per-role game count, most-played first (Issue #19 — it previously reflected the fixed top→support crawl order, mistagging ~20% of champions).
 3. **Stats maps**: Per-role stats are keyed by string representations of position names (`"top"`, `"jungle"`, `"mid"`, `"adc"`, `"support"`). Using string keys rather than enum serialization prevents ambiguity during deserialization with `serde_json`.
 4. **Matchups & Synergies**: Indexed by numeric champion IDs. Win rates are expressed as floating-point ratios (e.g. `0.542` instead of `54.2%`) and games are unsigned 32-bit integers.
 
@@ -85,7 +85,7 @@ On startup, and every 6 hours thereafter, a background refresher process manages
 
 1. **Staleness Check**: Queries Data Dragon's version registry. If the latest patch does not match the local `stats.meta.json` record, if the selected rank tier changed, or if the file is older than 24 hours (`MAX_AGE_SECS`), an update begins.
 2. **Data Dragon Matching**: The scraper queries the Data Dragon CDN to retrieve the list of valid champions, matching key representations to OP.GG identifiers (e.g. converting `XinZhao` to `XIN_ZHAO` for OP.GG query endpoints).
-3. **Crawl & Delay**: Downloads metadata, matchups, and synergies from OP.GG's Server-Sent Events MCP server. The initial per-position roster fetch (5 calls) includes a configurable thread delay (default 150ms); the much larger per-champion analysis phase (hundreds of calls) runs with bounded concurrency instead (`ANALYSIS_CONCURRENCY = 6` in-flight requests at a time) since OP.GG's MCP endpoint is latency-bound, not rate-limited by a fixed delay — sequential fetching there made a full-roster crawl take 10-15 minutes.
+3. **Crawl & Delay**: Downloads metadata, matchups, and synergies from OP.GG's Server-Sent Events MCP server. Synergy data is requested for all five ally lanes — OP.GG returns lists for every position except the subject's own, whose fields simply come back unmatched (Issue #20: omitting "top" from that request list silently dropped every top-lane synergy cell). The initial per-position roster fetch (5 calls) includes a configurable thread delay (default 150ms); the much larger per-champion analysis phase (hundreds of calls) runs with bounded concurrency instead (`ANALYSIS_CONCURRENCY = 6` in-flight requests at a time) since OP.GG's MCP endpoint is latency-bound, not rate-limited by a fixed delay — sequential fetching there made a full-roster crawl take 10-15 minutes.
 4. **Hot-Reload**: On completion, the new stats are written to disk, and the running `Shared` pointer is updated, triggering a recalculation of active drafts in real-time.
 
 ### Rank Tier Selection (Issue 13)
