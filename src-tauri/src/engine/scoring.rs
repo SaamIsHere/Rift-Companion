@@ -9,10 +9,15 @@
 //! its Jungler's.
 //!
 //! ```text
-//! wr_refined = wr_base(c) + weighted_avg(ally deltas, enemy deltas)
-//! net        = (wr_refined - 0.50) + w_comp * compBonus(c)
-//! score      = clamp(50 + net * DISPLAY_SCALE, 0, 100)
+//! wr_refined = clamp(wr_base(c) + weighted_avg(ally deltas, enemy deltas), 0.02, 0.98)
+//! refinement = (wr_refined - wr_base) + w_comp * compBonus(c)
+//! score      = clamp(wr_base * 100 + refinement * DISPLAY_SCALE, 0, 100)
 //! ```
+//!
+//! Note `wr_base` maps straight through to the score as a percentage — only
+//! the *refinement* on top of it gets the `DISPLAY_SCALE` amplification, so
+//! a first pick with nothing else revealed displays as exactly its real win
+//! rate rather than an amplified distance from 50%.
 //!
 //! Critically this is a weighted *average*, not a weighted *sum* — every
 //! delta is divided by the **fixed full matrix row total** for the role
@@ -374,10 +379,16 @@ mod tests {
 
         let recs = recommend(&repo, &draft, &Weights::default());
 
+        let expected = repo
+            .playable_in(Role::Top)
+            .filter(|c| !draft.bans.contains(&c.champion_id))
+            .filter(|c| !draft.allies.iter().any(|a| a.champion_id == c.champion_id))
+            .filter(|c| !draft.enemies.iter().any(|e| e.champion_id == c.champion_id))
+            .count();
         assert_eq!(
             recs.len(),
-            repo.playable_in(Role::Top).count(),
-            "should return every playable champion for the role, not just a Top 5"
+            expected,
+            "should return every playable champion for the role minus drafted/banned picks, not just a Top 5"
         );
         // Malphite (54): counters Darius + fills the AP & frontline gaps → #1.
         assert_eq!(recs[0].champion_id, 54, "Malphite should rank first");

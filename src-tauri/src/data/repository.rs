@@ -132,7 +132,13 @@ mod tests {
             enemies: vec![DraftPick { champion_id: 122, role: Some(Role::Top), is_local: false }],
         };
         let recs = recommend(&repo, &draft, &Weights::default());
-        assert_eq!(recs.len(), 5);
+        let expected = repo
+            .playable_in(Role::Top)
+            .filter(|c| !draft.bans.contains(&c.champion_id))
+            .filter(|c| !draft.allies.iter().any(|a| a.champion_id == c.champion_id))
+            .filter(|c| !draft.enemies.iter().any(|e| e.champion_id == c.champion_id))
+            .count();
+        assert_eq!(recs.len(), expected, "should return every playable champion minus drafted/banned picks");
         // Same result as the embedded-path test → the file-backed store is transparent.
         assert_eq!(recs[0].champion_id, 54, "Malphite still ranks #1");
     }

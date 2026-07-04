@@ -71,6 +71,9 @@ pub fn bonus(candidate: &Champion, needs: &CompNeeds) -> (f64, Vec<&'static str>
             if needs.needs_ad {
                 bonus += 0.03;
             }
+            if bonus > 0.0 {
+                reasons.push("Adds flexible mixed damage");
+            }
         }
         _ => {}
     }

@@ -5,6 +5,8 @@
 
   let query = "";
 
+  $: ranks = new Map($recommendations.map((rec, i) => [rec.champion_id, i + 1]));
+
   $: filtered = query.trim()
     ? $recommendations.filter((rec) =>
         rec.name.toLowerCase().includes(query.trim().toLowerCase()),
@@ -41,7 +43,7 @@
     {#if filtered.length}
       <div class="flex flex-col overflow-y-auto pr-1 {$settings.compact_density ? 'gap-1.5' : 'gap-3'}">
         {#each filtered as rec (rec.champion_id)}
-          <RecommendationCard {rec} rank={$recommendations.indexOf(rec) + 1} compact={$settings.compact_density} />
+          <RecommendationCard {rec} rank={ranks.get(rec.champion_id) ?? 0} compact={$settings.compact_density} />
         {/each}
       </div>
     {:else}
