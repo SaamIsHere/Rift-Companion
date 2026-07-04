@@ -18,11 +18,17 @@
  * Field mapping (see README of the data flow):
  *   damage_type AD/AP/BOTH                  -> damage physical/magic/mixed
  *   lane_meta win_rate/play (per position)  -> RoleStats.global_winrate / games
- *   strong_counters[].{id,win_rate,play}    -> matchups[id] = {winrate: 1-win_rate, games: play}
- *   weak_counters[].{id,win_rate,play}      -> matchups[id] = {winrate:   win_rate, games: play}
+ *   strong_counters[].{id,win_rate,play}    -> matchups[id] = {winrate:   win_rate, games: play}
+ *   weak_counters[].{id,win_rate,play}      -> matchups[id] = {winrate: 1-win_rate, games: play}
+ *   positions[].counters[].{id,win,play}    -> matchups[id] = {winrate: win/play,  games: play}  (gap-fill only)
  *   synergies.<pos>[].{id,win_rate,play}    -> synergies[id] = {winrate:  win_rate, games: play}
- * (OP.GG counter lists always report the *favoured* side's win rate, hence the
- *  inversion for strong_counters.)
+ * (OP.GG counter lists always report the *favoured* side's win rate: the
+ *  subject IS that side in strong_counters, but the opponent is in
+ *  weak_counters, hence the inversion there. Verified live against
+ *  mcp-api.op.gg: a champion and its opponent report the identical
+ *  win_rate+play for the same matchup entry, e.g. Ezreal's weak_counters
+ *  lists Yasuo at 0.58/1413 games, and Yasuo's own strong_counters lists
+ *  Ezreal at that same 0.58/1413.)
  */
 
 const ENDPOINT = "https://mcp-api.op.gg/mcp";
@@ -187,6 +193,7 @@ async function loadDataDragon() {
       "data.damage_type",
       "data.strong_counters[].champion_id", "data.strong_counters[].win_rate", "data.strong_counters[].play",
       "data.weak_counters[].champion_id", "data.weak_counters[].win_rate", "data.weak_counters[].play",
+      "data.summary.positions[].counters[].champion_id", "data.summary.positions[].counters[].win", "data.summary.positions[].counters[].play",
       ...SYNERGY_POSITIONS.flatMap((sp) => [
         `data.synergies.${sp}[].synergy_champion_id`, `data.synergies.${sp}[].win_rate`, `data.synergies.${sp}[].play`,
       ]),
@@ -199,8 +206,21 @@ async function loadDataDragon() {
       const d = an?.data || {};
       if (d.damage_type) rec.damage = mapDamage(d.damage_type);
       const rs = rec.stats[role];
-      for (const sc of d.strong_counters || []) if (sc?.champion_id != null) rs.matchups[sc.champion_id] = { winrate: round3(1 - sc.win_rate), games: sc.play | 0 };
-      for (const wc of d.weak_counters || []) if (wc?.champion_id != null) rs.matchups[wc.champion_id] = { winrate: round3(wc.win_rate), games: wc.play | 0 };
+      // strong_counters: the subject IS the favoured side -> use directly.
+      for (const sc of d.strong_counters || []) if (sc?.champion_id != null) rs.matchups[sc.champion_id] = { winrate: round3(sc.win_rate), games: sc.play | 0 };
+      // weak_counters: the opponent is the favoured side -> invert for my WR.
+      for (const wc of d.weak_counters || []) if (wc?.champion_id != null) rs.matchups[wc.champion_id] = { winrate: round3(1 - wc.win_rate), games: wc.play | 0 };
+      // Broaden matchup coverage beyond the top-3-each strong/weak lists using
+      // the per-position counters list (raw win/play, no polarity ambiguity);
+      // don't overwrite cells already classified above.
+      for (const pos of d.summary?.positions || []) {
+        for (const c of pos.counters || []) {
+          if (c?.champion_id == null || !c.play) continue;
+          if (rs.matchups[c.champion_id] == null) {
+            rs.matchups[c.champion_id] = { winrate: round3((c.win | 0) / c.play), games: c.play | 0 };
+          }
+        }
+      }
       for (const sp of SYNERGY_POSITIONS) for (const s of d.synergies?.[sp] || []) if (s?.synergy_champion_id != null) rs.synergies[s.synergy_champion_id] = { winrate: round3(s.win_rate), games: s.play | 0 };
     } catch (e) {
       skipped++;

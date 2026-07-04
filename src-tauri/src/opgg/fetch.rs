@@ -230,6 +230,9 @@ pub async fn crawl(opts: &CrawlOpts, mut on_progress: impl FnMut(usize, usize)) 
                 "data.weak_counters[].champion_id".into(),
                 "data.weak_counters[].win_rate".into(),
                 "data.weak_counters[].play".into(),
+                "data.summary.positions[].counters[].champion_id".into(),
+                "data.summary.positions[].counters[].win".into(),
+                "data.summary.positions[].counters[].play".into(),
             ];
             for sp in SYNERGY_POSITIONS {
                 fields.push(format!("data.synergies.{sp}[].synergy_champion_id"));
@@ -271,18 +274,7 @@ pub async fn crawl(opts: &CrawlOpts, mut on_progress: impl FnMut(usize, usize)) 
                 c.damage = map_damage(dt);
             }
             if let Some(rs) = c.stats.get_mut(&role) {
-                // strong_counters: opponent's win rate → my WR = 1 - win_rate
-                for sc in d.get("strong_counters").and_then(|v| v.as_array()).into_iter().flatten() {
-                    if let (Some(oid), Some(w)) = (uint(sc, "champion_id"), sc.get("win_rate").and_then(|v| v.as_f64())) {
-                        rs.matchups.insert(oid, WinRateCell { winrate: round3(1.0 - w), games: uint(sc, "play").unwrap_or(0) });
-                    }
-                }
-                // weak_counters: my win rate, used directly
-                for wc in d.get("weak_counters").and_then(|v| v.as_array()).into_iter().flatten() {
-                    if let (Some(oid), Some(w)) = (uint(wc, "champion_id"), wc.get("win_rate").and_then(|v| v.as_f64())) {
-                        rs.matchups.insert(oid, WinRateCell { winrate: round3(w), games: uint(wc, "play").unwrap_or(0) });
-                    }
-                }
+                merge_matchups(&mut rs.matchups, &d);
                 for sp in SYNERGY_POSITIONS {
                     for s in d.pointer(&format!("/synergies/{sp}")).and_then(|v| v.as_array()).into_iter().flatten() {
                         if let (Some(aid), Some(w)) = (uint(s, "synergy_champion_id"), s.get("win_rate").and_then(|v| v.as_f64())) {
@@ -316,6 +308,54 @@ fn order_roles_by_play(c: &mut Champion) {
     roles.sort_by_key(|r| std::cmp::Reverse(stats.get(r.as_key()).map_or(0, |s| s.games)));
 }
 
+/// Merge one champion/role's OP.GG counters analysis (`data`, the value at
+/// `lol_get_champion_analysis`'s `data` key) into `matchups`.
+///
+/// `strong_counters`/`weak_counters` both report the *favoured* side's win
+/// rate, not necessarily the subject's own — verified live against
+/// mcp-api.op.gg (Issue #17/#18): a champion and its opponent report the
+/// *identical* win_rate + play for the same matchup, e.g. Ezreal's
+/// weak_counters lists Yasuo at 0.58/1413 games, and Yasuo's own
+/// strong_counters lists Ezreal at that same 0.58/1413 — so 0.58 is Yasuo's
+/// win rate in both places, not Ezreal's. The subject IS the favoured side
+/// in `strong_counters` (used directly), but the opponent is in
+/// `weak_counters` (inverted for the subject's own rate). Getting this
+/// backwards (the bug, pre-fix) made every genuine counter-pick show up as a
+/// "rough matchup" and vice versa.
+///
+/// `strong_counters`/`weak_counters` only cover ~6 champions total (top 3
+/// each), which starved the hover preview (Issue #17) of data for almost any
+/// opponent that isn't a standout matchup. `summary.positions[].counters`
+/// reports the subject's own raw win/play counts directly (no polarity
+/// ambiguity) for a separate top-3 list that often names different
+/// opponents — merged in to fill gaps without overwriting the
+/// already-classified strong/weak cells above.
+fn merge_matchups(matchups: &mut HashMap<u32, WinRateCell>, data: &Value) {
+    for sc in data.get("strong_counters").and_then(|v| v.as_array()).into_iter().flatten() {
+        if let (Some(oid), Some(w)) = (uint(sc, "champion_id"), sc.get("win_rate").and_then(|v| v.as_f64())) {
+            matchups.insert(oid, WinRateCell { winrate: round3(w), games: uint(sc, "play").unwrap_or(0) });
+        }
+    }
+    for wc in data.get("weak_counters").and_then(|v| v.as_array()).into_iter().flatten() {
+        if let (Some(oid), Some(w)) = (uint(wc, "champion_id"), wc.get("win_rate").and_then(|v| v.as_f64())) {
+            matchups.insert(oid, WinRateCell { winrate: round3(1.0 - w), games: uint(wc, "play").unwrap_or(0) });
+        }
+    }
+    for pos in data.pointer("/summary/positions").and_then(|v| v.as_array()).into_iter().flatten() {
+        for c in pos.get("counters").and_then(|v| v.as_array()).into_iter().flatten() {
+            if let (Some(oid), Some(play)) = (uint(c, "champion_id"), uint(c, "play")) {
+                if play == 0 {
+                    continue;
+                }
+                let win = uint(c, "win").unwrap_or(0);
+                matchups
+                    .entry(oid)
+                    .or_insert_with(|| WinRateCell { winrate: round3(win as f64 / play as f64), games: play });
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -339,6 +379,75 @@ mod tests {
         };
         order_roles_by_play(&mut c);
         assert_eq!(c.roles, vec![Role::Support, Role::Mid, Role::Adc]);
+    }
+
+    #[test]
+    fn merge_matchups_orients_counters_toward_the_subject() {
+        // Real response captured live from mcp-api.op.gg for
+        // lol_get_champion_analysis(champion: EZREAL, position: adc):
+        // Yasuo/Senna are Ezreal's *weak_counters* (Ezreal is disadvantaged),
+        // Varus is a *strong_counters* entry (Ezreal is favoured), and Lux
+        // only appears in the separate positions[].counters[] list. Issue #18
+        // was filed because the pre-fix code inverted the wrong list, so
+        // Yasuo/Senna (genuine counters to Ezreal) scored as good picks *for*
+        // Ezreal instead of bad ones.
+        let data: Value = serde_json::from_str(
+            r#"{
+                "strong_counters": [{"champion_id": 110, "win_rate": 0.51, "play": 3460}],
+                "weak_counters": [
+                    {"champion_id": 157, "win_rate": 0.58, "play": 1413},
+                    {"champion_id": 235, "win_rate": 0.57, "play": 11838}
+                ],
+                "summary": {
+                    "positions": [{
+                        "name": "ADC",
+                        "counters": [
+                            {"champion_id": 157, "champion_name": "Yasuo", "play": 1413, "win": 598},
+                            {"champion_id": 235, "champion_name": "Senna", "play": 11838, "win": 5145},
+                            {"champion_id": 99, "champion_name": "Lux", "play": 1032, "win": 449}
+                        ]
+                    }]
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let mut matchups = HashMap::new();
+        merge_matchups(&mut matchups, &data);
+
+        // weak_counters: Ezreal is disadvantaged, so his own win rate is the
+        // *inverse* of the listed (favoured, i.e. Yasuo's/Senna's) win rate.
+        assert_eq!(matchups[&157].winrate, round3(1.0 - 0.58), "Yasuo should be a bad matchup for Ezreal");
+        assert_eq!(matchups[&235].winrate, round3(1.0 - 0.57), "Senna should be a bad matchup for Ezreal");
+        // strong_counters: Ezreal is favoured, so his own win rate is used directly.
+        assert_eq!(matchups[&110].winrate, 0.51, "Varus should stay a good matchup for Ezreal");
+        // positions[].counters[] gap-fill: raw win/play, unambiguous.
+        assert_eq!(matchups[&99].winrate, round3(449.0 / 1032.0), "Lux should be filled in from the positions counters list");
+    }
+
+    #[test]
+    fn merge_matchups_does_not_overwrite_strong_or_weak_classification() {
+        // positions[].counters[] must only fill gaps, never override the
+        // already-oriented strong/weak cells above it, even if it happens to
+        // re-list the same opponent (as OP.GG's real data sometimes does).
+        let data: Value = serde_json::from_str(
+            r#"{
+                "strong_counters": [],
+                "weak_counters": [{"champion_id": 157, "win_rate": 0.58, "play": 1413}],
+                "summary": {
+                    "positions": [{
+                        "name": "ADC",
+                        "counters": [{"champion_id": 157, "champion_name": "Yasuo", "play": 1413, "win": 598}]
+                    }]
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let mut matchups = HashMap::new();
+        merge_matchups(&mut matchups, &data);
+
+        assert_eq!(matchups[&157].winrate, round3(1.0 - 0.58), "weak_counters classification must win over the gap-fill list");
     }
 
     /// Live check for Issue #20: OP.GG must return `data.synergies.top` when
