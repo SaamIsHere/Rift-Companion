@@ -11,12 +11,11 @@ use crate::data::models::{Champion, DamageType, RankTier, Role, RoleStats, WinRa
 use crate::opgg::client::McpClient;
 
 const DDRAGON: &str = "https://ddragon.leagueoflegends.com";
-/// Ally lanes to request synergy data for. OP.GG returns synergy lists for
-/// every position *except the subject's own* (a top-laner gets jungle/mid/
-/// adc/support back, a jungler gets top/mid/adc/support, etc.); fields for
-/// the subject's own position simply come back unmatched and are skipped
-/// server-side, so requesting all five is safe. Omitting "top" here silently
-/// dropped every top-lane synergy cell from the dataset (Issue #20).
+/// All 5 lanes; the crawl loop skips the subject's own position (querying
+/// `lol_get_champion_synergies` for `my_position === synergy_position` isn't
+/// meaningful). Omitting "top" here silently dropped every top-lane synergy
+/// cell from the dataset (Issue #20) back when this list fed the embedded
+/// `data.synergies.<pos>` field instead of the dedicated synergies tool.
 const SYNERGY_POSITIONS: [&str; 5] = ["top", "jungle", "mid", "adc", "support"];
 
 /// Below this many recorded games at the selected tier, a champion/role's
@@ -137,6 +136,12 @@ fn analysis_args(key: &str, role: &str, tier: RankTier, fields: &[String]) -> Va
         "tier": tier.as_opgg_tier(), "desired_output_fields": fields
     })
 }
+fn synergy_args(key: &str, my_position: &str, synergy_position: &str, fields: &[String]) -> Value {
+    json!({
+        "champion": champion_arg(key), "my_position": my_position,
+        "synergy_position": synergy_position, "desired_output_fields": fields
+    })
+}
 
 /// Crawl OP.GG for the requested positions and return `(patch, champions)`.
 /// `on_progress(done, total)` is called after each per-champion analysis
@@ -221,7 +226,7 @@ pub async fn crawl(opts: &CrawlOpts, mut on_progress: impl FnMut(usize, usize)) 
     let mut analysis_stream = stream::iter(work.into_iter().map(|(id, role, key)| {
         let mcp = mcp.clone();
         async move {
-            let mut fields: Vec<String> = vec![
+            let fields: Vec<String> = vec![
                 "data.damage_type".into(),
                 "data.summary.average_stats.play".into(),
                 "data.strong_counters[].champion_id".into(),
@@ -234,11 +239,6 @@ pub async fn crawl(opts: &CrawlOpts, mut on_progress: impl FnMut(usize, usize)) 
                 "data.summary.positions[].counters[].win".into(),
                 "data.summary.positions[].counters[].play".into(),
             ];
-            for sp in SYNERGY_POSITIONS {
-                fields.push(format!("data.synergies.{sp}[].synergy_champion_id"));
-                fields.push(format!("data.synergies.{sp}[].win_rate"));
-                fields.push(format!("data.synergies.{sp}[].play"));
-            }
 
             let mut d = match mcp.call_tool("lol_get_champion_analysis", analysis_args(&key, &role, tier, &fields)).await {
                 Ok(an) => an.get("data").cloned().unwrap_or(Value::Null),
@@ -257,6 +257,33 @@ pub async fn crawl(opts: &CrawlOpts, mut on_progress: impl FnMut(usize, usize)) 
                     Ok(an) => d = an.get("data").cloned().unwrap_or(Value::Null),
                     Err(e) => tracing::debug!("opgg fallback analysis {key}/{role} failed: {e}"),
                 }
+            }
+
+            // The main analysis call's embedded `data.synergies.*` field only
+            // returns ~3 partners per ally lane; the dedicated
+            // `lol_get_champion_synergies` tool returns ~10 for the same
+            // pairing (verified live: Lucian/adc's support synergies went
+            // from {Yuumi, Leona, Nautilus} to 10 entries including Braum) —
+            // worth 4 extra calls per champion/role to meaningfully widen the
+            // hover preview's (Issue #17) ally-side coverage.
+            let synergy_fields = vec![
+                "data.synergies[].synergy_champion_id".to_string(),
+                "data.synergies[].win_rate".to_string(),
+                "data.synergies[].play".to_string(),
+            ];
+            let mut synergies = serde_json::Map::new();
+            for sp in SYNERGY_POSITIONS.iter().filter(|&&sp| sp != role.as_str()) {
+                match mcp.call_tool("lol_get_champion_synergies", synergy_args(&key, &role, sp, &synergy_fields)).await {
+                    Ok(res) => {
+                        if let Some(list) = res.pointer("/data/synergies").cloned() {
+                            synergies.insert((*sp).to_string(), list);
+                        }
+                    }
+                    Err(e) => tracing::debug!("opgg synergies {key}/{role} vs {sp} failed: {e}"),
+                }
+            }
+            if let Some(obj) = d.as_object_mut() {
+                obj.insert("synergies".to_string(), Value::Object(synergies));
             }
 
             (id, role, d)

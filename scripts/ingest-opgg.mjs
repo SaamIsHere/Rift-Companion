@@ -21,22 +21,28 @@
  *   strong_counters[].{id,win_rate,play}    -> matchups[id] = {winrate:   win_rate, games: play}
  *   weak_counters[].{id,win_rate,play}      -> matchups[id] = {winrate: 1-win_rate, games: play}
  *   positions[].counters[].{id,win,play}    -> matchups[id] = {winrate: win/play,  games: play}  (gap-fill only)
- *   synergies.<pos>[].{id,win_rate,play}    -> synergies[id] = {winrate:  win_rate, games: play}
+ *   lol_get_champion_synergies (per ally lane) -> synergies[id] = {winrate: win_rate, games: play}
  * (OP.GG counter lists always report the *favoured* side's win rate: the
  *  subject IS that side in strong_counters, but the opponent is in
  *  weak_counters, hence the inversion there. Verified live against
  *  mcp-api.op.gg: a champion and its opponent report the identical
  *  win_rate+play for the same matchup entry, e.g. Ezreal's weak_counters
  *  lists Yasuo at 0.58/1413 games, and Yasuo's own strong_counters lists
- *  Ezreal at that same 0.58/1413.)
+ *  Ezreal at that same 0.58/1413.
+ *
+ *  Synergies come from the dedicated lol_get_champion_synergies tool (one
+ *  call per ally lane) rather than the main analysis call's embedded
+ *  data.synergies.<pos> field, which only returns ~3 partners per lane vs
+ *  ~10 from the dedicated tool for the same pairing.)
  */
 
 const ENDPOINT = "https://mcp-api.op.gg/mcp";
 const DDRAGON = "https://ddragon.leagueoflegends.com";
 const ALL_POSITIONS = ["top", "jungle", "mid", "adc", "support"];
-// OP.GG returns synergy lists for every ally lane *except the subject's own*
-// (fields for the own position come back unmatched and are skipped), so
-// request all five. Omitting "top" dropped every top-lane synergy (Issue #20).
+// All 5 lanes; the crawl loop skips the subject's own position (querying
+// lol_get_champion_synergies for my_position === synergy_position isn't
+// meaningful). Omitting "top" here dropped every top-lane synergy (Issue #20)
+// back when this list fed the embedded data.synergies.<pos> field.
 const SYNERGY_POSITIONS = ["top", "jungle", "mid", "adc", "support"];
 
 // ---------- args ----------
@@ -194,9 +200,6 @@ async function loadDataDragon() {
       "data.strong_counters[].champion_id", "data.strong_counters[].win_rate", "data.strong_counters[].play",
       "data.weak_counters[].champion_id", "data.weak_counters[].win_rate", "data.weak_counters[].play",
       "data.summary.positions[].counters[].champion_id", "data.summary.positions[].counters[].win", "data.summary.positions[].counters[].play",
-      ...SYNERGY_POSITIONS.flatMap((sp) => [
-        `data.synergies.${sp}[].synergy_champion_id`, `data.synergies.${sp}[].win_rate`, `data.synergies.${sp}[].play`,
-      ]),
     ];
     try {
       const an = await callTool("lol_get_champion_analysis", {
@@ -221,7 +224,27 @@ async function loadDataDragon() {
           }
         }
       }
-      for (const sp of SYNERGY_POSITIONS) for (const s of d.synergies?.[sp] || []) if (s?.synergy_champion_id != null) rs.synergies[s.synergy_champion_id] = { winrate: round3(s.win_rate), games: s.play | 0 };
+      // The embedded data.synergies.* field only returns ~3 partners per ally
+      // lane; the dedicated lol_get_champion_synergies tool returns ~10 for
+      // the same pairing (verified live: Lucian/adc+support went from
+      // {Yuumi, Leona, Nautilus} to 10 entries including Braum) — worth 4
+      // extra calls per champion/role to widen the hover preview's
+      // (Issue #17) ally-side coverage.
+      for (const sp of SYNERGY_POSITIONS) {
+        if (sp === role) continue;
+        try {
+          const syn = await callTool("lol_get_champion_synergies", {
+            champion: championArg(key), my_position: role, synergy_position: sp,
+            desired_output_fields: ["data.synergies[].synergy_champion_id", "data.synergies[].win_rate", "data.synergies[].play"],
+          });
+          for (const s of syn?.data?.synergies || []) {
+            if (s?.synergy_champion_id != null) rs.synergies[s.synergy_champion_id] = { winrate: round3(s.win_rate), games: s.play | 0 };
+          }
+        } catch (e) {
+          console.warn(`  skip synergies ${key}/${role} vs ${sp}: ${e.message}`);
+        }
+        await sleep(delayMs);
+      }
     } catch (e) {
       skipped++;
       if (skipped <= 8) console.warn(`  skip ${key}/${role}: ${e.message}`);
