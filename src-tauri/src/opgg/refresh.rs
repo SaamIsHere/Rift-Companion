@@ -33,28 +33,53 @@ pub async fn run_refresher(app: AppHandle, shared: Shared) {
     }
 }
 
+fn is_stale(version: &str, tier: RankTier) -> bool {
+    match store::read_meta() {
+        None => true,
+        Some(m) => m.patch != version || m.tier != tier || store::now_unix().saturating_sub(m.fetched_at) >= MAX_AGE_SECS,
+    }
+}
+
 async fn tick(app: &AppHandle, shared: &Shared) -> anyhow::Result<()> {
     let tier = *shared.rank_tier.lock().unwrap();
     let version = fetch::current_version().await?;
-    let stale = match store::read_meta() {
-        None => true,
-        Some(m) => m.patch != version || m.tier != tier || store::now_unix().saturating_sub(m.fetched_at) >= MAX_AGE_SECS,
-    };
-    if !stale {
+    if !is_stale(&version, tier) {
         tracing::info!(patch = %version, tier = tier.as_opgg_tier(), "champion data is up to date");
         return Ok(());
     }
-    refresh_now(app, shared, tier).await
-}
 
-/// Crawl OP.GG for `tier`, persist it as the active dataset, hot-swap the
-/// in-memory repository, and re-rank the current draft (if any). Shared by
-/// the periodic ticker and by manual/auto-detected rank changes.
-pub async fn refresh_now(app: &AppHandle, shared: &Shared, tier: RankTier) -> anyhow::Result<()> {
     // Serialize crawls: a periodic tick and a rank change triggered at nearly
     // the same moment must not hit OP.GG concurrently.
     let _guard = shared.refresh_lock.lock().await;
 
+    // Re-check after acquiring the lock: a manual/auto refresh that was
+    // already in flight (or queued ahead of us) may have just produced
+    // exactly this patch/tier while we were waiting, in which case
+    // re-crawling immediately would only repeat work that just finished.
+    let tier = *shared.rank_tier.lock().unwrap();
+    let version = fetch::current_version().await?;
+    if !is_stale(&version, tier) {
+        tracing::info!(patch = %version, tier = tier.as_opgg_tier(), "champion data satisfied by a concurrent refresh while queued; skipping");
+        return Ok(());
+    }
+    do_refresh(app, shared, tier).await
+}
+
+/// Crawl OP.GG for `tier` unconditionally (no staleness check — an explicit
+/// rank change always wants that tier's data). Used by manual (dropdown,
+/// "Refresh data now") and LCU-auto-detected rank changes, which need it to
+/// run immediately rather than on the next periodic tick.
+pub async fn refresh_now(app: &AppHandle, shared: &Shared, tier: RankTier) -> anyhow::Result<()> {
+    // Serialize crawls: a periodic tick and a rank change triggered at nearly
+    // the same moment must not hit OP.GG concurrently.
+    let _guard = shared.refresh_lock.lock().await;
+    do_refresh(app, shared, tier).await
+}
+
+/// Crawl OP.GG for `tier`, persist it as the active dataset, hot-swap the
+/// in-memory repository, and re-rank the current draft (if any). Callers
+/// must hold `shared.refresh_lock` (see [`refresh_now`] and [`tick`]).
+async fn do_refresh(app: &AppHandle, shared: &Shared, tier: RankTier) -> anyhow::Result<()> {
     let version = fetch::current_version().await?;
     tracing::info!(patch = %version, tier = tier.as_opgg_tier(), "refreshing champion data from OP.GG (this runs in the background)...");
     let limit = std::env::var("RIFT_OPGG_LIMIT").ok().and_then(|s| s.parse().ok()).unwrap_or(usize::MAX);

@@ -6,7 +6,14 @@
 
 use anyhow::{anyhow, Result};
 use std::path::PathBuf;
+use std::sync::Mutex;
 use sysinfo::{ProcessesToUpdate, System};
+
+/// Last lockfile path resolved via a full process scan. Checked first on
+/// every call so the common "still running, nothing changed" case only
+/// costs a cheap `exists()` instead of a full `sysinfo` process-table scan
+/// (with exe paths and command lines) every 3s while idle.
+static LAST_KNOWN_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 #[derive(Debug, Clone)]
 pub struct Lockfile {
@@ -37,6 +44,22 @@ fn parse(raw: &str) -> Result<Lockfile> {
 }
 
 fn locate_path() -> Option<PathBuf> {
+    // Fast path: the League client deletes its lockfile on clean shutdown, so
+    // `exists()` is enough to tell a still-valid cached path from a stale one.
+    if let Some(cached) = LAST_KNOWN_PATH.lock().unwrap().clone() {
+        if cached.exists() {
+            return Some(cached);
+        }
+    }
+
+    let resolved = locate_path_via_process_scan();
+    if let Some(path) = &resolved {
+        *LAST_KNOWN_PATH.lock().unwrap() = Some(path.clone());
+    }
+    resolved
+}
+
+fn locate_path_via_process_scan() -> Option<PathBuf> {
     let mut sys = System::new();
     sys.refresh_processes(ProcessesToUpdate::All, true);
 

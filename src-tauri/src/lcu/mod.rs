@@ -27,18 +27,19 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
             }
         };
 
-        set_status(&app, &shared, ConnectionStatus::Connected);
         tracing::info!(port = lock.port, "LCU lockfile found; connecting");
 
         match websocket::connect(&lock).await {
             Ok(mut ws) => {
-                // Only fire the REST-dependent setup once the websocket handshake has
-                // actually succeeded. The lockfile can appear on disk slightly before
-                // the LCU's internal HTTPS API is accepting connections (a startup race
-                // most noticeable when the League client is launched *after* this app),
-                // so anything fired right after `lockfile::find()` above can silently
-                // lose that race with no retry. A completed websocket handshake is
+                // Only report Connected — and fire the REST-dependent setup — once the
+                // websocket handshake has actually succeeded. The lockfile can appear
+                // on disk slightly before the LCU's internal HTTPS API is accepting
+                // connections (a startup race most noticeable when the League client
+                // is launched *after* this app); reporting Connected right after
+                // `lockfile::find()` above flapped Connected/Searching every retry
+                // until the API actually came up. A completed websocket handshake is
                 // concrete proof the API is actually up.
+                set_status(&app, &shared, ConnectionStatus::Connected);
 
                 // Fetch the active account's profile for the title bar (Issue #9).
                 match client::get_current_summoner(&lock).await {

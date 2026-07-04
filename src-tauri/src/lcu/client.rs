@@ -4,6 +4,8 @@
 //! HTTP Basic auth (`riot:<password>` from the lockfile). For a local prototype
 //! we accept the self-signed cert; production code should pin Riot's root CA.
 
+use std::sync::OnceLock;
+
 use anyhow::Result;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 
@@ -14,10 +16,18 @@ pub fn auth_header(lock: &Lockfile) -> String {
     format!("Basic {token}")
 }
 
-fn http_client() -> Result<reqwest::Client> {
-    Ok(reqwest::Client::builder()
+/// `reqwest::Client` owns a connection pool and TLS config, so it's built
+/// once and reused rather than per-call — the LCU's port doesn't change for
+/// the lifetime of a client session, and every call already targets 127.0.0.1.
+fn http_client() -> Result<&'static reqwest::Client> {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    if let Some(client) = CLIENT.get() {
+        return Ok(client);
+    }
+    let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
-        .build()?)
+        .build()?;
+    Ok(CLIENT.get_or_init(|| client))
 }
 
 /// Fetch the current champ-select session, if any (404 → not in champ select).
