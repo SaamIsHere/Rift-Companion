@@ -4,14 +4,15 @@
   import { LogicalSize } from "@tauri-apps/api/dpi";
   import { collapsed } from "../stores/ui";
 
-  // Frameless window (decorations:false) → we provide our own controls.
-  const appWindow = getCurrentWindow();
+  const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  const appWindow = isTauri ? getCurrentWindow() : null;
 
   let maximized = false;
   let restore: { w: number; h: number } | null = null;
   let unlisten: (() => void) | undefined;
 
   onMount(async () => {
+    if (!appWindow) return;
     try {
       maximized = await appWindow.isMaximized();
       // Keep the maximize/restore glyph in sync with double-click-to-maximize etc.
@@ -24,10 +25,11 @@
   });
   onDestroy(() => unlisten?.());
 
-  const minimize = () => appWindow.minimize();
-  const close = () => appWindow.close();
+  const minimize = () => appWindow?.minimize();
+  const close = () => appWindow?.close();
 
   async function toggleMaximize() {
+    if (!appWindow) return;
     if ($collapsed) await toggleCollapse(); // expand first; the two don't mix
     await appWindow.toggleMaximize();
     maximized = await appWindow.isMaximized();
@@ -35,6 +37,10 @@
 
   /** Window-shade: roll the window up to just the title bar, and back. */
   async function toggleCollapse() {
+    if (!appWindow) {
+      collapsed.update((v) => !v);
+      return;
+    }
     if (!$collapsed) {
       const sz = await appWindow.innerSize();
       const sf = await appWindow.scaleFactor();

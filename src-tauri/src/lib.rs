@@ -137,9 +137,11 @@ pub fn run() {
             commands::test_server_connection,
         ])
         .setup(move |app| {
-            // Apply the persisted always-on-top preference to the freshly created window.
+            // Apply the persisted always-on-top preference to the freshly created window and ensure it is shown.
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_always_on_top(always_on_top);
+                let _ = window.show();
+                let _ = window.set_focus();
             }
             // Long-running LCU watcher on Tauri's async (tokio) runtime.
             {

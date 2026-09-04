@@ -19,11 +19,21 @@ import type {
   Weights,
 } from "../types";
 
+export const isTauri =
+  typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
 /**
  * Wire backend events into the Svelte stores and prime initial state.
  * Call once on app mount.
  */
 export async function initIpc(): Promise<void> {
+  if (!isTauri) {
+    console.warn(
+      "Running outside of Tauri environment (browser mode). IPC events disabled.",
+    );
+    return;
+  }
+
   // Subscribe first so we never miss an update that fires during priming.
   await listen<ConnectionStatus>("lcu://connection", (e) =>
     connection.set(e.payload),
@@ -59,6 +69,7 @@ export async function initIpc(): Promise<void> {
 
 /** Push new algorithm weights and receive a freshly ranked list. */
 export async function setWeights(weights: Weights): Promise<Recommendation[]> {
+  if (!isTauri) return [];
   return invoke<Recommendation[]>("set_weights", { weights });
 }
 
@@ -70,6 +81,7 @@ export async function setEnemyRole(
   championId: number,
   role: Role | null,
 ): Promise<Recommendation[]> {
+  if (!isTauri) return [];
   return invoke<Recommendation[]>("set_enemy_role", { championId, role });
 }
 
@@ -79,6 +91,7 @@ export async function setEnemyRole(
  * "rank-refresh://status" events rather than this call's return value.
  */
 export async function setRankTier(tier: RankTier): Promise<void> {
+  if (!isTauri) return;
   return invoke("set_rank_tier", { tier });
 }
 
@@ -87,11 +100,13 @@ export async function setRankTier(tier: RankTier): Promise<void> {
  * list (the comp-weight change re-ranks immediately, same as `setWeights`).
  */
 export async function setSettings(next: Settings): Promise<Recommendation[]> {
+  if (!isTauri) return [];
   return invoke<Recommendation[]>("set_settings", { settings: next });
 }
 
 /** Force an immediate OP.GG re-crawl instead of waiting for the auto-refresh cycle. */
 export async function forceRefreshData(): Promise<void> {
+  if (!isTauri) return;
   return invoke("force_refresh_data");
 }
 
@@ -107,6 +122,7 @@ export async function getPairwiseStat(
   otherId: number,
   isAlly: boolean,
 ): Promise<PairwiseStat | null> {
+  if (!isTauri) return null;
   return invoke<PairwiseStat | null>("get_pairwise_stat", {
     championId,
     role,
@@ -117,5 +133,11 @@ export async function getPairwiseStat(
 
 /** Test connectivity to the NAS Rift Server and fetch its status. */
 export async function testServerConnection(serverUrl: string): Promise<ServerStatus> {
+  if (!isTauri) {
+    const res = await fetch(`${serverUrl.replace(/\/+$/, "")}/api/status`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
   return invoke<ServerStatus>("test_server_connection", { serverUrl });
 }
+

@@ -6,6 +6,8 @@ dist
 # Rust / Tauri
 src-tauri/target
 src-tauri/gen
+*.exe
+*.dll
 
 # Generated stats datasets from the OP.GG adapter (scripts/ingest-opgg.mjs)
 opgg-stats.json

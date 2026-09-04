@@ -235,7 +235,7 @@ Tracked on GitHub with full evidence and suggested fixes; not yet implemented:
 
 ## Epic 6: NAS Data Server & Cumulative Plus Tiers
 
-### Issue 32: Containerized Background Sync Server (`server/`)
+### Containerized Background Sync Server (`server/`)
 * **Status**: Implemented
 * **Priority**: High
 * **Technical Summary**: Offload heavy Data Dragon and OP.GG crawling to a 24/7 background microservice running in Docker on a local NAS.
@@ -246,7 +246,7 @@ Tracked on GitHub with full evidence and suggested fixes; not yet implemented:
   * Built-in Web Dashboard on port 8080 featuring live crawl progress bars, manual tier crawl triggers, patch check button, and interactive champion dataset explorer with role filtering.
   * Tauri client connects via `settings.server_url` (configurable in `SettingsModal.svelte`), pulling datasets directly into RAM and bypassing local disk writes.
 
-### Issue 33: Cumulative "Plus" Rank Tiers & Dataset Synthesis
+### Cumulative "Plus" Rank Tiers & Dataset Synthesis
 * **Status**: Implemented
 * **Priority**: High
 * **Technical Summary**: Individual low-elo ranks (`iron`, `bronze`) have insufficient sample sizes on OP.GG, resulting in sparse or missing matchup lists.
@@ -256,3 +256,28 @@ Tracked on GitHub with full evidence and suggested fixes; not yet implemented:
   * `silver_plus` is synthesized via weighted addition of `silver` + `gold_plus`.
   * `bronze_plus` is synthesized via weighted addition of `bronze` + `silver_plus`.
   * Preserved full backwards compatibility with legacy tier strings in API and Rust models (`#[serde(alias = "...")]`).
+
+---
+
+## Epic 7: Visual & Interaction Polish (Issues #32–#35)
+
+### Issue 32: [Visual Overhaul of Desktop Application UI](https://github.com/SaamIsHere/Rift-Companion/issues/32)
+* **Status**: Open
+* **Priority**: Medium (`medium-priority`, `feature`)
+* **Technical Summary**: Modernize and polish the visual presentation of the Rift Companion desktop UI (contrast, typography, spatial density, glassmorphic glows).
+
+### Issue 33: [Customizable Color Themes (Dark Mode, Purple / Void Mode, etc.)](https://github.com/SaamIsHere/Rift-Companion/issues/33)
+* **Status**: Open
+* **Priority**: Medium (`medium-priority`, `feature`)
+* **Technical Summary**: Introduce a theme switcher in the Settings modal allowing users to toggle between color schemes (Hextech Dark, Purple/Void Mode, etc.) via dynamic CSS variables.
+
+### Issue 34: [Drag-and-Drop Role Reassignment for Enemy Champions](https://github.com/SaamIsHere/Rift-Companion/issues/34)
+* **Status**: Open
+* **Priority**: Low (`low-priority`, `feature`)
+* **Technical Summary**: Replace/complement the dropdown role picker with drag-and-drop support on the draft board for quickly swapping enemy champion roles.
+
+### Issue 35: [Quick-Select Evaluation Presets (Matchup, Balanced, Team-Oriented) in Champ Select](https://github.com/SaamIsHere/Rift-Companion/issues/35)
+* **Status**: Open
+* **Priority**: Medium (`medium-priority`, `feature`)
+* **Technical Summary**: Add quick-toggle buttons directly into the Champ Select UI to switch between Matchup-Focused (0.0), Balanced (0.15), and Heavy Team-Oriented (0.35+) evaluation presets.
+
