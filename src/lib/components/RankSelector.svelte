@@ -4,11 +4,11 @@
   import type { RankTier } from "../types";
 
   const RANKS: { value: RankTier; label: string }[] = [
-    { value: "iron", label: "Iron" },
-    { value: "bronze", label: "Bronze" },
-    { value: "silver", label: "Silver" },
-    { value: "gold", label: "Gold" },
-    { value: "platinum", label: "Platinum" },
+    { value: "iron_plus", label: "Iron+" },
+    { value: "bronze_plus", label: "Bronze+" },
+    { value: "silver_plus", label: "Silver+" },
+    { value: "gold_plus", label: "Gold+" },
+    { value: "platinum_plus", label: "Platin+" },
     { value: "emerald_plus", label: "Emerald+" },
     { value: "diamond_plus", label: "Diamond+" },
   ];

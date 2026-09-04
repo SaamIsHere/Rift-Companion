@@ -57,6 +57,13 @@ The architecture spans across three runtime environments:
    * **Stores ([src/lib/stores](../src/lib/stores))**: Tracks draft, connections, UI window state, and recommendations reactive variables.
    * **IPC Manager ([src/lib/ipc/tauri.ts](../src/lib/ipc/tauri.ts))**: Listens to backend-emitted events and binds them to Svelte stores. Performs priming on boot.
 
+4. **The NAS Data Server ([server/](../server/README.md))**
+   * A containerized Docker microservice running 24/7 on a local NAS or home server.
+   * Periodically pre-crawls all 7 cumulative Plus rank tiers (`iron_plus`, `bronze_plus`, `silver_plus`, `gold_plus`, `platinum_plus`, `emerald_plus`, `diamond_plus`) from OP.GG and Data Dragon.
+   * Synthesizes lower-tier plus ranks (`silver_plus`, `bronze_plus`) via exact weighted aggregation to ensure high statistical power.
+   * Hosts an interactive Web Dashboard (`http://<host>:8080`) providing live crawler progress, database exploration, manual refresh triggers, and health checks.
+   * Exposes REST endpoints (`/api/stats`, `/api/status`, `/api/refresh`, `/api/champions`) allowing the desktop client to load champion datasets directly into RAM in milliseconds without local disk dumps.
+
 ## State Distribution Flow
 
 ```
@@ -77,4 +84,20 @@ The architecture spans across three runtime environments:
             │                                                       │
             ▼                                                       ▼
    Updates <RecommendationList />                          Updates <DraftBoard />
+```
+
+### Remote Data Sync Flow (NAS Server Mode)
+
+```
+   [SettingsModal: server_url configured]
+            │
+            ▼
+   [opgg::remote::fetch_remote_stats] ──(HTTP GET /api/stats?tier=...)──> [Rift Server (NAS Docker)]
+            │                                                                      │
+            │ <─────────── Returns Gzip-compressed JSON dataset ───────────────────┘
+            ▼
+   Parse into memory ([data::repository::Repository])
+            │
+            ├─► Updates Shared pointer in RAM (Zero local disk writes)
+            └─► Triggers immediate draft recalculation & recommendation update
 ```

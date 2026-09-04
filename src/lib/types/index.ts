@@ -13,13 +13,18 @@ export interface Summoner {
 }
 
 export type RankTier =
+  | "iron_plus"
+  | "bronze_plus"
+  | "silver_plus"
+  | "gold_plus"
+  | "platinum_plus"
+  | "emerald_plus"
+  | "diamond_plus"
   | "iron"
   | "bronze"
   | "silver"
   | "gold"
-  | "platinum"
-  | "emerald_plus"
-  | "diamond_plus";
+  | "platinum";
 
 export interface DraftPick {
   champion_id: number;
@@ -80,4 +85,19 @@ export interface Settings {
   compact_density: boolean;
   always_on_top: boolean;
   comp_weight: number;
+  server_url: string;
+}
+
+export interface ServerStatus {
+  patch: string | null;
+  last_updated: number | null;
+  crawling: boolean;
+  crawl_progress: {
+    tier: string;
+    done: number;
+    total: number;
+    champion: string;
+  } | null;
+  tiers: Record<string, { champions: number; updated_at: number }>;
+  supported_tiers: string[];
 }

@@ -13,6 +13,7 @@ import type {
   RankTier,
   Recommendation,
   Role,
+  ServerStatus,
   Settings,
   Summoner,
   Weights,
@@ -112,4 +113,9 @@ export async function getPairwiseStat(
     otherId,
     isAlly,
   });
+}
+
+/** Test connectivity to the NAS Rift Server and fetch its status. */
+export async function testServerConnection(serverUrl: string): Promise<ServerStatus> {
+  return invoke<ServerStatus>("test_server_connection", { serverUrl });
 }

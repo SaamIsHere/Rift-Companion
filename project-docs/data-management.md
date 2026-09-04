@@ -52,6 +52,7 @@ The database consists of a serialized JSON array representing champion stats mat
    ```
    * Parses the file, validates its structure, and serializes it to the active on-disk path.
    * Enables third-party pipelines (e.g. Aggregators, custom REST scrapers) to easily update the app database.
+4. **Remote NAS Server Mode**: When configured in settings (`settings.server_url`, e.g. `http://192.168.1.100:8080`), the application fetches pre-computed statistics directly from the containerized Rift Server over the local network into RAM. In this mode, no large JSON datasets are dumped to the user's disk, and local background OP.GG crawls are disabled. Switching rank tiers resolves in milliseconds from the server cache.
 
 ---
 
@@ -88,19 +89,15 @@ On startup, and every 6 hours thereafter, a background refresher process manages
 3. **Crawl & Delay**: Downloads metadata, matchups, and synergies from OP.GG's Server-Sent Events MCP server. Synergy data is requested for all five ally lanes — OP.GG returns lists for every position except the subject's own, whose fields simply come back unmatched (Issue #20: omitting "top" from that request list silently dropped every top-lane synergy cell). The initial per-position roster fetch (5 calls) includes a configurable thread delay (default 150ms); the much larger per-champion analysis phase (hundreds of calls) runs with bounded concurrency instead (`ANALYSIS_CONCURRENCY = 6` in-flight requests at a time) since OP.GG's MCP endpoint is latency-bound, not rate-limited by a fixed delay — sequential fetching there made a full-roster crawl take 10-15 minutes.
 4. **Hot-Reload**: On completion, the new stats are written to disk, and the running `Shared` pointer is updated, triggering a recalculation of active drafts in real-time.
 
-### Rank Tier Selection (Issue 13)
+### Rank Tier Selection (Cumulative Plus Tiers)
 
-Every `lol_get_champion_analysis` call in the crawl (matchups, synergies, damage
-type) carries a `tier` argument — one of `iron, bronze, silver, gold, platinum,
-emerald_plus, diamond_plus` (Master/Grandmaster/Challenger are not selectable in
-the UI). The active tier is chosen either manually via the header dropdown or
-auto-detected from the local player's Ranked Solo tier on LCU connect (manual
-picks always win and persist across restarts via `stats.meta.json`'s `tier`/
-`manual` fields). If a champion/role's sample at the selected tier is too thin
-(`< MIN_TIER_SAMPLE_GAMES`), that one call is quietly re-fetched at `emerald_plus`
-instead of shipping a near-empty card.
+To ensure statistically meaningful sample sizes across all skill brackets, the rank tiers use cumulative "Plus" buckets: `iron_plus`, `bronze_plus`, `silver_plus`, `gold_plus`, `platinum_plus`, `emerald_plus`, and `diamond_plus` (Diamond/Master/Grandmaster/Challenger collapse into `diamond_plus`).
 
-**Limitation**: `lol_list_lane_meta_champions` — the tool supplying each
-champion's per-role roster, `global_winrate`, and `games` — has no `tier`
-parameter in OP.GG's MCP schema. So the rank tier only affects matchup/synergy
-data; each champion's baseline win rate is always an all-tier aggregate.
+* **`iron_plus`**: Queries OP.GG's native `"all"` tier. Encompasses all ranked games from Iron up to Challenger (~865k+ games), guaranteeing comprehensive matchup and synergy sets for every valid champion role.
+* **`gold_plus`, `platinum_plus`, `emerald_plus`, `diamond_plus`**: Directly supported by OP.GG's API endpoints.
+* **`silver_plus` & `bronze_plus`**: OP.GG does not offer native API arguments for these lower plus brackets. The server synthesizes them via exact weighted aggregation (`combineChampionDatasets`):
+  $$\text{Silver+} = \text{Silver} + \text{Gold+}$$
+  $$\text{Bronze+} = \text{Bronze} + \text{Silver+}$$
+  Game counts, winrates, matchups, and synergies are aggregated with proportional sample weights.
+
+The active tier is chosen either manually via the header dropdown or auto-detected from the local player's Ranked Solo tier on LCU connect (manual picks always win and persist). Backward compatibility is maintained with aliases (`iron` -> `iron_plus`, etc.).

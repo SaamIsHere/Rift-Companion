@@ -1,0 +1,346 @@
+[
+  {
+    "champion_id": 86,
+    "name": "Garen",
+    "image": "Garen",
+    "damage": "physical",
+    "frontline": true,
+    "roles": ["top"],
+    "stats": {
+      "top": {
+        "global_winrate": 0.515,
+        "games": 48000,
+        "matchups": {
+          "122": { "winrate": 0.48, "games": 1200 },
+          "82": { "winrate": 0.46, "games": 1100 },
+          "266": { "winrate": 0.51, "games": 1400 },
+          "114": { "winrate": 0.55, "games": 900 }
+        },
+        "synergies": {
+          "64": { "winrate": 0.515, "games": 800 },
+          "89": { "winrate": 0.52, "games": 350 }
+        }
+      }
+    }
+  },
+  {
+    "champion_id": 122,
+    "name": "Darius",
+    "image": "Darius",
+    "damage": "physical",
+    "frontline": true,
+    "roles": ["top"],
+    "stats": {
+      "top": {
+        "global_winrate": 0.518,
+        "games": 52000,
+        "matchups": {
+          "86": { "winrate": 0.52, "games": 1200 },
+          "82": { "winrate": 0.47, "games": 1300 },
+          "114": { "winrate": 0.49, "games": 1000 }
+        },
+        "synergies": {
+          "59": { "winrate": 0.53, "games": 500 }
+        }
+      }
+    }
+  },
+  {
+    "champion_id": 875,
+    "name": "Sett",
+    "image": "Sett",
+    "damage": "physical",
+    "frontline": true,
+    "roles": ["top"],
+    "stats": {
+      "top": {
+        "global_winrate": 0.508,
+        "games": 31000,
+        "matchups": {
+          "122": { "winrate": 0.51, "games": 900 },
+          "82": { "winrate": 0.49, "games": 700 },
+          "266": { "winrate": 0.5, "games": 850 }
+        },
+        "synergies": {
+          "89": { "winrate": 0.53, "games": 300 },
+          "59": { "winrate": 0.525, "games": 420 }
+        }
+      }
+    }
+  },
+  {
+    "champion_id": 54,
+    "name": "Malphite",
+    "image": "Malphite",
+    "damage": "magic",
+    "frontline": true,
+    "roles": ["top"],
+    "stats": {
+      "top": {
+        "global_winrate": 0.512,
+        "games": 24000,
+        "matchups": {
+          "122": { "winrate": 0.545, "games": 800 },
+          "266": { "winrate": 0.55, "games": 950 },
+          "114": { "winrate": 0.57, "games": 600 },
+          "238": { "winrate": 0.56, "games": 500 }
+        },
+        "synergies": {
+          "59": { "winrate": 0.555, "games": 600 },
+          "89": { "winrate": 0.54, "games": 280 }
+        }
+      }
+    }
+  },
+  {
+    "champion_id": 164,
+    "name": "Camille",
+    "image": "Camille",
+    "damage": "physical",
+    "frontline": false,
+    "roles": ["top"],
+    "stats": {
+      "top": {
+        "global_winrate": 0.505,
+        "games": 22000,
+        "matchups": {
+          "122": { "winrate": 0.5, "games": 700 },
+          "82": { "winrate": 0.52, "games": 650 },
+          "266": { "winrate": 0.49, "games": 800 }
+        },
+        "synergies": {
+          "64": { "winrate": 0.52, "games": 500 }
+        }
+      }
+    }
+  },
+  {
+    "champion_id": 24,
+    "name": "Jax",
+    "image": "Jax",
+    "damage": "mixed",
+    "frontline": false,
+    "roles": ["top"],
+    "stats": {
+      "top": {
+        "global_winrate": 0.51,
+        "games": 33000,
+        "matchups": {
+          "122": { "winrate": 0.49, "games": 1100 },
+          "82": { "winrate": 0.5, "games": 900 },
+          "114": { "winrate": 0.52, "games": 700 }
+        },
+        "synergies": {
+          "64": { "winrate": 0.515, "games": 600 }
+        }
+      }
+    }
+  },
+  {
+    "champion_id": 114,
+    "name": "Fiora",
+    "image": "Fiora",
+    "damage": "physical",
+    "frontline": false,
+    "roles": ["top"],
+    "stats": {
+      "top": {
+        "global_winrate": 0.507,
+        "games": 29000,
+        "matchups": {
+          "122": { "winrate": 0.53, "games": 1500 },
+          "86": { "winrate": 0.45, "games": 900 },
+          "82": { "winrate": 0.42, "games": 1000 }
+        },
+        "synergies": {
+          "59": { "winrate": 0.52, "games": 400 }
+        }
+      }
+    }
+  },
+  {
+    "champion_id": 266,
+    "name": "Aatrox",
+    "image": "Aatrox",
+    "damage": "physical",
+    "frontline": false,
+    "roles": ["top"],
+    "stats": {
+      "top": {
+        "global_winrate": 0.506,
+        "games": 41000,
+        "matchups": {
+          "122": { "winrate": 0.47, "games": 2000 },
+          "82": { "winrate": 0.51, "games": 1200 },
+          "114": { "winrate": 0.5, "games": 800 }
+        },
+        "synergies": {
+          "64": { "winrate": 0.52, "games": 700 }
+        }
+      }
+    }
+  },
+  {
+    "champion_id": 82,
+    "name": "Mordekaiser",
+    "image": "Mordekaiser",
+    "damage": "magic",
+    "frontline": false,
+    "roles": ["top"],
+    "stats": {
+      "top": {
+        "global_winrate": 0.516,
+        "games": 37000,
+        "matchups": {
+          "122": { "winrate": 0.55, "games": 1300 },
+          "86": { "winrate": 0.54, "games": 1100 },
+          "266": { "winrate": 0.49, "games": 1200 },
+          "114": { "winrate": 0.58, "games": 1000 }
+        },
+        "synergies": {
+          "59": { "winrate": 0.53, "games": 450 }
+        }
+      }
+    }
+  },
+  {
+    "champion_id": 92,
+    "name": "Riven",
+    "image": "Riven",
+    "damage": "physical",
+    "frontline": false,
+    "roles": ["top"],
+    "stats": {
+      "top": {
+        "global_winrate": 0.502,
+        "games": 35000,
+        "matchups": {
+          "122": { "winrate": 0.52, "games": 1000 },
+          "82": { "winrate": 0.48, "games": 800 },
+          "266": { "winrate": 0.5, "games": 900 }
+        },
+        "synergies": {
+          "64": { "winrate": 0.51, "games": 550 }
+        }
+      }
+    }
+  },
+  {
+    "champion_id": 17,
+    "name": "Teemo",
+    "image": "Teemo",
+    "damage": "magic",
+    "frontline": false,
+    "roles": ["top"],
+    "stats": {
+      "top": {
+        "global_winrate": 0.515,
+        "games": 19000,
+        "matchups": {
+          "122": { "winrate": 0.85, "games": 18 },
+          "82": { "winrate": 0.6, "games": 40 }
+        },
+        "synergies": {}
+      }
+    }
+  },
+  {
+    "champion_id": 64,
+    "name": "Lee Sin",
+    "image": "LeeSin",
+    "damage": "physical",
+    "frontline": false,
+    "roles": ["jungle"],
+    "stats": {
+      "jungle": { "global_winrate": 0.49, "games": 60000 }
+    }
+  },
+  {
+    "champion_id": 59,
+    "name": "Jarvan IV",
+    "image": "JarvanIV",
+    "damage": "physical",
+    "frontline": true,
+    "roles": ["jungle"],
+    "stats": {
+      "jungle": { "global_winrate": 0.512, "games": 38000 }
+    }
+  },
+  {
+    "champion_id": 103,
+    "name": "Ahri",
+    "image": "Ahri",
+    "damage": "magic",
+    "frontline": false,
+    "roles": ["mid"],
+    "stats": {
+      "mid": { "global_winrate": 0.515, "games": 44000 }
+    }
+  },
+  {
+    "champion_id": 238,
+    "name": "Zed",
+    "image": "Zed",
+    "damage": "physical",
+    "frontline": false,
+    "roles": ["mid"],
+    "stats": {
+      "mid": { "global_winrate": 0.5, "games": 47000 }
+    }
+  },
+  {
+    "champion_id": 222,
+    "name": "Jinx",
+    "image": "Jinx",
+    "damage": "physical",
+    "frontline": false,
+    "roles": ["adc"],
+    "stats": {
+      "adc": { "global_winrate": 0.518, "games": 50000 }
+    }
+  },
+  {
+    "champion_id": 145,
+    "name": "Kai'Sa",
+    "image": "Kaisa",
+    "damage": "mixed",
+    "frontline": false,
+    "roles": ["adc"],
+    "stats": {
+      "adc": { "global_winrate": 0.505, "games": 52000 }
+    }
+  },
+  {
+    "champion_id": 117,
+    "name": "Lulu",
+    "image": "Lulu",
+    "damage": "magic",
+    "frontline": false,
+    "roles": ["support"],
+    "stats": {
+      "support": { "global_winrate": 0.52, "games": 33000 }
+    }
+  },
+  {
+    "champion_id": 412,
+    "name": "Thresh",
+    "image": "Thresh",
+    "damage": "magic",
+    "frontline": false,
+    "roles": ["support"],
+    "stats": {
+      "support": { "global_winrate": 0.498, "games": 41000 }
+    }
+  },
+  {
+    "champion_id": 89,
+    "name": "Leona",
+    "image": "Leona",
+    "damage": "magic",
+    "frontline": true,
+    "roles": ["support"],
+    "stats": {
+      "support": { "global_winrate": 0.515, "games": 36000 }
+    }
+  }
+]

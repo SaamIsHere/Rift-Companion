@@ -230,3 +230,29 @@ Tracked on GitHub with full evidence and suggested fixes; not yet implemented:
 * **[#29](https://github.com/SaamIsHere/Rift-Companion/issues/29) RecommendationList rank lookup is O(n²) per render** (low) — `indexOf` inside the `#each` over the full pool.
 * **[#30](https://github.com/SaamIsHere/Rift-Companion/issues/30) Set a real CSP before packaging** (low) — `"csp": null` today; only Data Dragon needs allowing.
 * **[#31](https://github.com/SaamIsHere/Rift-Companion/issues/31) Stray AI-session memory link in ui.ts doc comment** (low).
+
+---
+
+## Epic 6: NAS Data Server & Cumulative Plus Tiers
+
+### Issue 32: Containerized Background Sync Server (`server/`)
+* **Status**: Implemented
+* **Priority**: High
+* **Technical Summary**: Offload heavy Data Dragon and OP.GG crawling to a 24/7 background microservice running in Docker on a local NAS.
+* **Implementation**:
+  * Node.js/Express service containerized via `Dockerfile` and `docker-compose.yml`.
+  * Automated scheduled crawl (daily at 04:00) with Data Dragon patch change auto-detection.
+  * In-memory caching with Gzip compression over HTTP REST endpoints (`/api/stats`, `/api/status`, `/api/refresh`, `/api/champions`).
+  * Built-in Web Dashboard on port 8080 featuring live crawl progress bars, manual tier crawl triggers, patch check button, and interactive champion dataset explorer with role filtering.
+  * Tauri client connects via `settings.server_url` (configurable in `SettingsModal.svelte`), pulling datasets directly into RAM and bypassing local disk writes.
+
+### Issue 33: Cumulative "Plus" Rank Tiers & Dataset Synthesis
+* **Status**: Implemented
+* **Priority**: High
+* **Technical Summary**: Individual low-elo ranks (`iron`, `bronze`) have insufficient sample sizes on OP.GG, resulting in sparse or missing matchup lists.
+* **Implementation**:
+  * Shifted tier taxonomy to 7 cumulative Plus brackets: `iron_plus`, `bronze_plus`, `silver_plus`, `gold_plus`, `platinum_plus`, `emerald_plus`, `diamond_plus`.
+  * `iron_plus` maps to OP.GG's `"all"` tier (~865,000 games, Iron to Challenger).
+  * `silver_plus` is synthesized via weighted addition of `silver` + `gold_plus`.
+  * `bronze_plus` is synthesized via weighted addition of `bronze` + `silver_plus`.
+  * Preserved full backwards compatibility with legacy tier strings in API and Rust models (`#[serde(alias = "...")]`).

@@ -73,6 +73,9 @@ pub struct Settings {
     /// Behavior: the team-composition bonus weight (mirrors `engine::weights::Weights.comp`).
     #[serde(default = "default_comp_weight")]
     pub comp_weight: f64,
+    /// Data Source: Optional Rift Server URL on local NAS (e.g. "http://192.168.1.100:8080").
+    #[serde(default)]
+    pub server_url: String,
 }
 
 fn default_comp_weight() -> f64 {
@@ -81,7 +84,12 @@ fn default_comp_weight() -> f64 {
 
 impl Default for Settings {
     fn default() -> Self {
-        Settings { compact_density: false, always_on_top: false, comp_weight: default_comp_weight() }
+        Settings {
+            compact_density: false,
+            always_on_top: false,
+            comp_weight: default_comp_weight(),
+            server_url: String::new(),
+        }
     }
 }
 

@@ -10,6 +10,7 @@ src-tauri/gen
 # Generated stats datasets from the OP.GG adapter (scripts/ingest-opgg.mjs)
 opgg-stats.json
 *.stats.json
+server/data/
 
 # Claude Code local settings
 .claude/settings.local.json

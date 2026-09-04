@@ -24,6 +24,7 @@ All backend code lives in the `src-tauri/src/` folder:
   * **[client.rs](../src-tauri/src/opgg/client.rs)**: A minimal HTTP client implementation talking to OP.GG's MCP Server endpoint.
   * **[dsl.rs](../src-tauri/src/opgg/dsl.rs)**: Custom recursive-descent parser for OP.GG's class-based response DSL.
   * **[fetch.rs](../src-tauri/src/opgg/fetch.rs)**: Drives OP.GG API crawlers and parses models into runtime entities.
+  * **[remote.rs](../src-tauri/src/opgg/remote.rs)**: Client for the remote Rift Server (NAS / Docker), fetching pre-crawled tier stats over REST without disk writes.
   * **[refresh.rs](../src-tauri/src/opgg/refresh.rs)**: The scheduler thread check ticker.
 
 ---
@@ -83,6 +84,9 @@ pub fn set_settings(state: State<Shared>, settings: Settings, app: AppHandle) ->
 
 #[tauri::command]
 pub fn force_refresh_data(state: State<Shared>, app: AppHandle);
+
+#[tauri::command]
+pub async fn test_server_connection(server_url: String) -> Result<ServerStatus, String>;
 ```
 
 Whenever the LCU watcher process receives draft changes, it emits events asynchronously:

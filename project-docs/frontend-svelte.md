@@ -21,8 +21,8 @@ All frontend files live in the `src/` directory:
     * **[recommendations.ts](../src/lib/stores/recommendations.ts)**: Ranked recommendation list.
     * **[champions.ts](../src/lib/stores/champions.ts)**: Static champion catalog maps containing numeric IDs to name/image key pairs. Fetches Data Dragon on mount.
     * **[ui.ts](../src/lib/stores/ui.ts)**: Tracks window collapse shade status.
-    * **[rank.ts](../src/lib/stores/rank.ts)**: Active rank tier plus live refresh/progress indicators for the OP.GG crawl.
-    * **[settings.ts](../src/lib/stores/settings.ts)**: Persisted user settings (Issue #15: compact density, always-on-top, comp weight) and settings-modal visibility.
+    * **[rank.ts](../src/lib/stores/rank.ts)**: Active rank tier (supports all 7 Plus tiers: Iron+ to Diamond+) plus live refresh/progress indicators for the OP.GG crawl.
+    * **[settings.ts](../src/lib/stores/settings.ts)**: Persisted user settings (compact density, always-on-top, comp weight, remote `server_url` for NAS mode) and settings-modal visibility.
     * **[preselect.ts](../src/lib/stores/preselect.ts)**: `preselectedChampionId` (Issue #7 — click-to-pin from a recommendation card) plus the derived `referenceChampionId` (locked-in pick if set, else the preselection) that drives the draft-board hover preview.
   * **[components/](../src/lib/components)**:
     * **[WindowControls.svelte](../src/lib/components/WindowControls.svelte)**: Controls minimize, close, maximize, and a custom **window-shade rollup mechanism** that scales the window down to title bar height.
@@ -34,9 +34,9 @@ All frontend files live in the `src/` directory:
     * **[RecommendationCard.svelte](../src/lib/components/RecommendationCard.svelte)**: Card displaying score rating, colored badge tags, and component breakdown bars. Clicking a card toggles it as the preselected reference champion (Issue #7).
     * **[ScoreBar.svelte](../src/lib/components/ScoreBar.svelte)**: Mini visual score bar.
     * **[ReasonBadge.svelte](../src/lib/components/ReasonBadge.svelte)**: Colored badge tag (green/red/blue/grey per `BadgeKind`) for counter-picks, synergy indicators, and comp-gap fills (Issue #7).
-    * **[RankSelector.svelte](../src/lib/components/RankSelector.svelte)**: Header rank-tier dropdown plus live crawl progress indicator.
+    * **[RankSelector.svelte](../src/lib/components/RankSelector.svelte)**: Header rank-tier dropdown for all 7 Plus tiers (Iron+ to Diamond+) plus live crawl progress indicator.
     * **[SettingsButton.svelte](../src/lib/components/SettingsButton.svelte)**: Header gear icon that opens the settings modal.
-    * **[SettingsModal.svelte](../src/lib/components/SettingsModal.svelte)**: Appearance/Behavior/Data settings modal (Issue #15) — compact density, comp-weight slider, always-on-top toggle, manual data refresh.
+    * **[SettingsModal.svelte](../src/lib/components/SettingsModal.svelte)**: Appearance/Behavior/Data settings modal — compact density, comp-weight slider, always-on-top toggle, remote Rift Server URL configuration with connection test, and manual data refresh.
 
 ---
 

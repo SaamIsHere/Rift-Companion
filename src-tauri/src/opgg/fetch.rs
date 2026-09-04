@@ -133,7 +133,7 @@ fn uint(v: &Value, key: &str) -> Option<u32> {
 fn analysis_args(key: &str, role: &str, tier: RankTier, fields: &[String]) -> Value {
     json!({
         "game_mode": "ranked", "champion": champion_arg(key), "position": role,
-        "tier": tier.as_opgg_tier(), "desired_output_fields": fields
+        "tier": tier.as_mcp_tier(), "desired_output_fields": fields
     })
 }
 fn synergy_args(key: &str, my_position: &str, synergy_position: &str, fields: &[String]) -> Value {

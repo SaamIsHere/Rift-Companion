@@ -6,6 +6,7 @@ export const settings = writable<Settings>({
   compact_density: false,
   always_on_top: false,
   comp_weight: 0.15,
+  server_url: "",
 });
 
 /** Whether the settings modal is currently open. */

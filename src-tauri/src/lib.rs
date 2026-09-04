@@ -16,7 +16,7 @@ mod opgg;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 use data::models::{RankTier, Role};
 use data::repository::Repository;
@@ -134,6 +134,7 @@ pub fn run() {
             commands::set_settings,
             commands::force_refresh_data,
             commands::get_pairwise_stat,
+            commands::test_server_connection,
         ])
         .setup(move |app| {
             // Apply the persisted always-on-top preference to the freshly created window.
@@ -148,8 +149,38 @@ pub fn run() {
                     lcu::run_watcher(handle, shared).await;
                 });
             }
-            // Background champion-data refresher (OP.GG → dataset; daily / on patch change).
-            {
+            // Data refresher: If remote Rift Server URL is set, load directly from server on startup into memory.
+            // Otherwise, fall back to local background refresher (OP.GG -> dataset; daily / on patch change).
+            let server_url = shared.settings.lock().unwrap().server_url.clone();
+            if !server_url.trim().is_empty() {
+                let handle = app.handle().clone();
+                let shared = shared.clone();
+                let s_url = server_url.clone();
+                tauri::async_runtime::spawn(async move {
+                    let tier = *shared.rank_tier.lock().unwrap();
+                    let _ = handle.emit("rank-refresh://status", "refreshing");
+                    match opgg::remote::fetch_stats(&s_url, tier).await {
+                        Ok(champions) => {
+                            let count = champions.len();
+                            let repo = Repository::from_champions(champions);
+                            *shared.repo.lock().unwrap() = Arc::new(repo);
+                            tracing::info!(tier = tier.as_opgg_tier(), champions = count, "seeded champion stats from Rift Server");
+                            let draft = shared.latest_draft.lock().unwrap().clone();
+                            if let Some(d) = draft {
+                                let repo = shared.repo.lock().unwrap().clone();
+                                let weights = shared.weights.lock().unwrap();
+                                let recs = engine::recommend(repo.as_ref(), &d, &weights);
+                                let _ = handle.emit("recommendations://update", &recs);
+                            }
+                            let _ = handle.emit("rank-refresh://status", "idle");
+                        }
+                        Err(e) => {
+                            tracing::warn!("failed to seed stats from Rift Server ({s_url}): {e:#}; using local/embedded repo");
+                            let _ = handle.emit("rank-refresh://status", "idle");
+                        }
+                    }
+                });
+            } else {
                 let handle = app.handle().clone();
                 let shared = shared.clone();
                 tauri::async_runtime::spawn(async move {

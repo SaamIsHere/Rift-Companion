@@ -70,11 +70,16 @@ pub enum DamageType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum RankTier {
-    Iron,
-    Bronze,
-    Silver,
-    Gold,
-    Platinum,
+    #[serde(alias = "iron")]
+    IronPlus,
+    #[serde(alias = "bronze")]
+    BronzePlus,
+    #[serde(alias = "silver")]
+    SilverPlus,
+    #[serde(alias = "gold")]
+    GoldPlus,
+    #[serde(alias = "platinum")]
+    PlatinumPlus,
     #[default]
     EmeraldPlus,
     DiamondPlus,
@@ -82,13 +87,26 @@ pub enum RankTier {
 
 impl RankTier {
     /// OP.GG MCP `tier` argument value for `lol_get_champion_analysis`.
+    pub fn as_mcp_tier(self) -> &'static str {
+        match self {
+            RankTier::IronPlus => "all",
+            RankTier::BronzePlus => "bronze",
+            RankTier::SilverPlus => "silver",
+            RankTier::GoldPlus => "gold_plus",
+            RankTier::PlatinumPlus => "platinum_plus",
+            RankTier::EmeraldPlus => "emerald_plus",
+            RankTier::DiamondPlus => "diamond_plus",
+        }
+    }
+
+    /// Server API and OP.GG tier identifier.
     pub fn as_opgg_tier(self) -> &'static str {
         match self {
-            RankTier::Iron => "iron",
-            RankTier::Bronze => "bronze",
-            RankTier::Silver => "silver",
-            RankTier::Gold => "gold",
-            RankTier::Platinum => "platinum",
+            RankTier::IronPlus => "iron_plus",
+            RankTier::BronzePlus => "bronze_plus",
+            RankTier::SilverPlus => "silver_plus",
+            RankTier::GoldPlus => "gold_plus",
+            RankTier::PlatinumPlus => "platinum_plus",
             RankTier::EmeraldPlus => "emerald_plus",
             RankTier::DiamondPlus => "diamond_plus",
         }
@@ -99,11 +117,11 @@ impl RankTier {
     /// `DiamondPlus`; unranked/unrecognized falls back to the default.
     pub fn from_lcu_tier(s: &str) -> RankTier {
         match s.to_uppercase().as_str() {
-            "IRON" => RankTier::Iron,
-            "BRONZE" => RankTier::Bronze,
-            "SILVER" => RankTier::Silver,
-            "GOLD" => RankTier::Gold,
-            "PLATINUM" => RankTier::Platinum,
+            "IRON" => RankTier::IronPlus,
+            "BRONZE" => RankTier::BronzePlus,
+            "SILVER" => RankTier::SilverPlus,
+            "GOLD" => RankTier::GoldPlus,
+            "PLATINUM" => RankTier::PlatinumPlus,
             "EMERALD" => RankTier::EmeraldPlus,
             "DIAMOND" | "MASTER" | "GRANDMASTER" | "CHALLENGER" => RankTier::DiamondPlus,
             _ => RankTier::default(),

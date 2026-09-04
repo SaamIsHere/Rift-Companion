@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rift Server — Dashboard</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%230ac8b9'><polygon points='12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2'/></svg>">
+  <style>
+    :root {
+      --bg-base: #060c16;
+      --bg-surface: #0a1424;
+      --bg-card: rgba(14, 26, 46, 0.75);
+      --bg-card-hover: rgba(20, 36, 64, 0.9);
+      --border-color: rgba(30, 58, 95, 0.5);
+      --border-gold: rgba(200, 170, 110, 0.4);
+      --gold: #c8aa6e;
+      --gold-light: #f0e6d2;
+      --cyan: #0ac8b9;
+      --cyan-glow: rgba(10, 200, 185, 0.3);
+      --blue: #005a82;
+      --emerald: #10b981;
+      --rose: #f43f5e;
+      --slate: #94a3b8;
+      --slate-dark: #475569;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: radial-gradient(circle at 50% 0%, #0d1e38 0%, var(--bg-base) 70%);
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+    /* Header */
+    header {
+      background: var(--bg-card);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    .brand { display: flex; align-items: center; gap: 14px; }
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      background: linear-gradient(135deg, #0ac8b9 0%, #005a82 100%);
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      box-shadow: 0 0 20px var(--cyan-glow);
+    }
+    .brand h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: 0.5px; color: #fff; }
+    .brand p { font-size: 0.8rem; color: var(--slate); }
+
+    .header-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 9999px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-idle { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-crawling { background: rgba(10, 200, 185, 0.2); color: #38bdf8; border: 1px solid rgba(10, 200, 185, 0.4); animation: pulse 2s infinite; }
+    .badge-info { background: rgba(30, 58, 95, 0.5); color: var(--slate); border: 1px solid var(--border-color); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot-idle { background: #34d399; }
+    .dot-crawling { background: #38bdf8; }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+    /* Live Crawl Banner */
+    .crawl-banner {
+      background: linear-gradient(135deg, rgba(10, 200, 185, 0.1) 0%, rgba(0, 90, 130, 0.15) 100%);
+      border: 1px solid rgba(10, 200, 185, 0.4);
+      border-radius: 16px;
+      padding: 20px 24px;
+      box-shadow: 0 0 24px var(--cyan-glow);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .progress-bar-bg {
+      width: 100%;
+      height: 10px;
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 9999px;
+      overflow: hidden;
+      border: 1px solid var(--border-color);
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #0ac8b9, #38bdf8);
+      border-radius: 9999px;
+      transition: width 0.4s ease;
+      box-shadow: 0 0 10px #0ac8b9;
+    }
+
+    /* Actions Bar */
+    .actions-bar {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .action-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    button, select {
+      font-family: inherit;
+      font-size: 0.85rem;
+      border-radius: 8px;
+      padding: 8px 14px;
+      border: 1px solid var(--border-color);
+      background: rgba(20, 36, 64, 0.8);
+      color: #fff;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    button:hover:not(:disabled) {
+      background: rgba(30, 58, 95, 0.9);
+      border-color: var(--cyan);
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    button.primary {
+      background: linear-gradient(135deg, #0ac8b9 0%, #005a82 100%);
+      border-color: rgba(10, 200, 185, 0.6);
+      font-weight: 600;
+    }
+    button.primary:hover:not(:disabled) {
+      box-shadow: 0 0 16px var(--cyan-glow);
+    }
+
+    /* Tiers Grid */
+    .section-title { font-size: 0.9rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--gold); margin-bottom: 12px; }
+    .grid-tiers {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+    }
+    .card-tier {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 14px;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+    }
+    .card-tier:hover {
+      transform: translateY(-2px);
+      border-color: var(--border-gold);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .card-tier.active-crawl {
+      border-color: var(--cyan);
+      box-shadow: 0 0 16px var(--cyan-glow);
+    }
+    .tier-header { display: flex; justify-content: space-between; align-items: center; }
+    .tier-name { font-size: 1.05rem; font-weight: 700; text-transform: capitalize; color: #fff; }
+    .tier-stats { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--slate); }
+    .tier-stats strong { color: #fff; font-weight: 600; }
+    .tier-actions { display: flex; gap: 8px; margin-top: 4px; }
+    .tier-actions a, .tier-actions button {
+      flex: 1;
+      text-align: center;
+      text-decoration: none;
+      font-size: 0.75rem;
+      padding: 6px 10px;
+    }
+
+    /* Explorer / Table */
+    .card-table {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 20px;
+      overflow: hidden;
+    }
+    .table-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .search-input {
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: #fff;
+      font-size: 0.85rem;
+      width: 260px;
+      max-width: 100%;
+    }
+    .search-input:focus { outline: none; border-color: var(--cyan); }
+    .table-container { overflow-x: auto; max-height: 480px; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; }
+    th {
+      position: sticky;
+      top: 0;
+      background: #0d1e38;
+      padding: 10px 14px;
+      font-weight: 600;
+      color: var(--gold);
+      border-bottom: 1px solid var(--border-color);
+      z-index: 10;
+    }
+    td { padding: 10px 14px; border-bottom: 1px solid rgba(30, 58, 95, 0.3); }
+    tr:hover td { background: rgba(255, 255, 255, 0.03); }
+    .champ-cell { display: flex; align-items: center; gap: 10px; font-weight: 600; color: #fff; }
+    .champ-img { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border-color); background: #000; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; }
+    .pill-ad { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .pill-ap { background: rgba(14, 165, 233, 0.15); color: #38bdf8; }
+    .pill-mixed { background: rgba(168, 85, 247, 0.15); color: #c084fc; }
+
+    /* Role Filter Pills */
+    .role-filters { display: flex; gap: 6px; flex-wrap: wrap; }
+    .role-btn {
+      font-size: 0.75rem;
+      padding: 5px 12px;
+      border-radius: 9999px;
+      border: 1px solid var(--border-color);
+      background: rgba(20, 36, 64, 0.6);
+      color: var(--slate);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .role-btn:hover { background: rgba(30, 58, 95, 0.9); color: #fff; }
+    .role-btn.active {
+      background: linear-gradient(135deg, rgba(10, 200, 185, 0.25) 0%, rgba(0, 90, 130, 0.4) 100%);
+      border-color: var(--cyan);
+      color: #fff;
+      font-weight: 600;
+      box-shadow: 0 0 10px var(--cyan-glow);
+    }
+    .role-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: rgba(30, 58, 95, 0.5);
+      border: 1px solid rgba(10, 200, 185, 0.3);
+      color: #38bdf8;
+      text-transform: capitalize;
+    }
+    .role-rate { font-size: 0.7rem; color: #94a3b8; font-weight: normal; margin-left: 2px; }
+
+    /* Notification toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--bg-surface);
+      border: 1px solid var(--cyan);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 0.85rem;
+      z-index: 100;
+      display: none;
+      animation: fadeIn 0.3s;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/><line x1="12" y1="22" x2="12" y2="15.5"/><polyline points="22 8.5 12 15.5 2 8.5"/></svg>
+        </div>
+        <div>
+          <h1>Rift Server Dashboard</h1>
+          <p>LoL Champion Data Crawler & NAS Companion Service</p>
+        </div>
+      </div>
+
+      <div class="header-meta">
+        <span id="statusBadge" class="badge badge-idle">
+          <span class="dot dot-idle"></span>
+          <span id="statusText">Bereit</span>
+        </span>
+        <span class="badge badge-info" id="patchBadge">Patch: …</span>
+        <span class="badge badge-info" id="uptimeBadge">Uptime: …</span>
+      </div>
+    </header>
+
+    <!-- Live Crawl Progress Banner -->
+    <div id="crawlBanner" class="crawl-banner" style="display: none;">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <strong style="color: #38bdf8; font-size: 0.95rem;">Aktiver Crawler-Vorgang:</strong>
+          <span id="crawlTierLabel" style="text-transform: uppercase; font-weight: 700; color: #fff; margin-left: 6px;">…</span>
+        </div>
+        <div id="crawlPercent" style="font-size: 0.9rem; font-weight: 700; color: #0ac8b9;">0%</div>
+      </div>
+      <div class="progress-bar-bg">
+        <div id="progressBar" class="progress-bar-fill" style="width: 0%;"></div>
+      </div>
+      <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--slate);">
+        <span id="crawlChampion">Aktuell: …</span>
+        <span id="crawlCounts">0 / 0</span>
+      </div>
+    </div>
+
+    <!-- Actions Bar -->
+    <div class="actions-bar">
+      <div class="action-group">
+        <button class="primary" id="btnCrawlAll" onclick="triggerCrawl('all')">
+          ⚡ Alle Ränge crawlen (Full Sync)
+        </button>
+        <select id="selectTier">
+          <option value="emerald_plus" selected>Emerald+</option>
+          <option value="diamond_plus">Diamond+</option>
+          <option value="platinum_plus">Platin+</option>
+          <option value="gold_plus">Gold+</option>
+          <option value="silver_plus">Silver+</option>
+          <option value="bronze_plus">Bronze+</option>
+          <option value="iron_plus">Iron+</option>
+        </select>
+        <button id="btnCrawlTier" onclick="triggerSelectedTier()">
+          Rang crawlen
+        </button>
+      </div>
+
+      <div class="action-group">
+        <button onclick="checkPatch()">🔄 Patch prüfen</button>
+        <button onclick="fetchStatus()">Aktualisieren</button>
+      </div>
+    </div>
+
+    <!-- Available Tiers Grid -->
+    <div>
+      <div class="section-title">📊 Verfügbare Datensätze (Rank Tiers)</div>
+      <div class="grid-tiers" id="tiersGrid">
+        <!-- Filled dynamically -->
+      </div>
+    </div>
+
+    <!-- Champion Database Explorer -->
+    <div class="card-table">
+      <div class="table-toolbar">
+        <div>
+          <div class="section-title" style="margin-bottom: 4px;">🔍 Datenbank-Explorer</div>
+          <p style="font-size: 0.8rem; color: var(--slate);">Gecrawlte Champions, Rollen und Statistiken der aktiven Rangstufe</p>
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="text" id="champSearch" class="search-input" placeholder="Champion suchen…" oninput="filterChampions()">
+          <select id="explorerTier" onchange="loadChampions()">
+            <option value="emerald_plus" selected>Emerald+</option>
+            <option value="diamond_plus">Diamond+</option>
+            <option value="platinum_plus">Platin+</option>
+            <option value="gold_plus">Gold+</option>
+            <option value="silver_plus">Silver+</option>
+            <option value="bronze_plus">Bronze+</option>
+            <option value="iron_plus">Iron+</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Role Filter Buttons -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 8px; flex-wrap: wrap;">
+        <div class="role-filters" id="roleFilters">
+          <button class="role-btn active" onclick="setRoleFilter('all')">Alle Rollen</button>
+          <button class="role-btn" onclick="setRoleFilter('top')">Top</button>
+          <button class="role-btn" onclick="setRoleFilter('jungle')">Jungle</button>
+          <button class="role-btn" onclick="setRoleFilter('mid')">Mid</button>
+          <button class="role-btn" onclick="setRoleFilter('adc')">ADC</button>
+          <button class="role-btn" onclick="setRoleFilter('support')">Support</button>
+        </div>
+        <div id="champCounter" style="font-size: 0.8rem; color: var(--slate);">0 Einträge</div>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Champion</th>
+              <th>Rolle (Pickrate)</th>
+              <th>Schaden</th>
+              <th>Win-Rate</th>
+              <th>Gespielte Matches</th>
+              <th>Matchups</th>
+              <th>Synergien</th>
+            </tr>
+          </thead>
+          <tbody id="championsTableBody">
+            <tr><td colspan="7" style="text-align: center; color: var(--slate); padding: 24px;">Lade Daten…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    let allChampions = [];
+    let ddragonVersion = "14.12.1";
+
+    const ALL_TIERS = [
+      { id: "diamond_plus", label: "Diamond+" },
+      { id: "emerald_plus", label: "Emerald+" },
+      { id: "platinum_plus", label: "Platin+" },
+      { id: "gold_plus", label: "Gold+" },
+      { id: "silver_plus", label: "Silver+" },
+      { id: "bronze_plus", label: "Bronze+" },
+      { id: "iron_plus", label: "Iron+" }
+    ];
+
+    function showToast(msg) {
+      const t = document.getElementById("toast");
+      t.innerText = msg;
+      t.style.display = "block";
+      setTimeout(() => { t.style.display = "none"; }, 3500);
+    }
+
+    function formatTime(unixSecs) {
+      if (!unixSecs) return "Nie";
+      const d = new Date(unixSecs * 1000);
+      return d.toLocaleString("de-DE", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" });
+    }
+
+    function formatUptime(secs) {
+      const h = Math.floor(secs / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      return `${h}h ${m}m`;
+    }
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch("/api/status");
+        const data = await res.json();
+
+        // Uptime
+        try {
+          const health = await fetch("/health").then(r => r.json());
+          document.getElementById("uptimeBadge").innerText = "Uptime: " + formatUptime(health.uptime);
+        } catch {}
+
+        // Patch
+        if (data.patch) {
+          ddragonVersion = data.patch;
+          document.getElementById("patchBadge").innerText = "Patch: " + data.patch;
+        }
+
+        // Crawl Status
+        const banner = document.getElementById("crawlBanner");
+        const statusBadge = document.getElementById("statusBadge");
+        const statusText = document.getElementById("statusText");
+
+        if (data.crawling && data.crawl_progress) {
+          statusBadge.className = "badge badge-crawling";
+          statusBadge.querySelector(".dot").className = "dot dot-crawling";
+          statusText.innerText = "Crawlt…";
+
+          banner.style.display = "flex";
+          document.getElementById("crawlTierLabel").innerText = data.crawl_progress.tier;
+          const done = data.crawl_progress.done || 0;
+          const total = data.crawl_progress.total || 1;
+          const pct = Math.round((done / total) * 100);
+
+          document.getElementById("crawlPercent").innerText = pct + "%";
+          document.getElementById("progressBar").style.width = pct + "%";
+          document.getElementById("crawlChampion").innerText = "Aktuell: " + (data.crawl_progress.champion || "Verarbeite…");
+          document.getElementById("crawlCounts").innerText = `${done} / ${total}`;
+        } else {
+          statusBadge.className = "badge badge-idle";
+          statusBadge.querySelector(".dot").className = "dot dot-idle";
+          statusText.innerText = "Bereit";
+          banner.style.display = "none";
+        }
+
+        renderTiersGrid(data.tiers, data.crawl_progress);
+      } catch (err) {
+        console.error("Status check failed", err);
+      }
+    }
+
+    function renderTiersGrid(tiersData, activeProgress) {
+      const grid = document.getElementById("tiersGrid");
+      grid.innerHTML = ALL_TIERS.map(t => {
+        const meta = tiersData?.[t.id];
+        const isCurrentCrawling = activeProgress?.tier === t.id;
+        const isReady = !!meta;
+
+        return `
+          <div class="card-tier ${isCurrentCrawling ? 'active-crawl' : ''}">
+            <div class="tier-header">
+              <span class="tier-name">${t.label}</span>
+              ${isCurrentCrawling 
+                ? '<span class="badge badge-crawling" style="padding: 2px 8px; font-size: 0.7rem;">Wird gecrawlt</span>'
+                : isReady 
+                  ? '<span class="badge badge-idle" style="padding: 2px 8px; font-size: 0.7rem;">Bereit</span>'
+                  : '<span class="badge badge-info" style="padding: 2px 8px; font-size: 0.7rem;">Ausstehend</span>'
+              }
+            </div>
+            <div class="tier-stats">
+              <div>Champions: <strong>${meta?.champions ?? (isReady ? '20 (Seed)' : '–')}</strong></div>
+              <div>Matchups: <strong>${meta?.matchups ?? '–'}</strong> • Synergien: <strong>${meta?.synergies ?? '–'}</strong></div>
+              <div>Zuletzt aktualisiert: <strong>${formatTime(meta?.updated_at)}</strong></div>
+            </div>
+            <div class="tier-actions">
+              <button onclick="triggerCrawl('${t.id}')">Jetzt crawlen</button>
+              <a href="/api/stats?tier=${t.id}" target="_blank" class="badge badge-info" style="border-radius: 8px;">JSON</a>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    async function triggerCrawl(tier) {
+      try {
+        const res = await fetch(`/api/refresh?tier=${tier}`, { method: "POST" });
+        const data = await res.json();
+        if (res.ok) {
+          showToast(`Crawl für '${tier}' erfolgreich gestartet!`);
+          fetchStatus();
+        } else {
+          showToast(data.error || "Crawl konnte nicht gestartet werden.");
+        }
+      } catch (e) {
+        showToast("Fehler beim Starten des Crawls.");
+      }
+    }
+
+    function triggerSelectedTier() {
+      const sel = document.getElementById("selectTier").value;
+      triggerCrawl(sel);
+    }
+
+    async function checkPatch() {
+      try {
+        const res = await fetch("/api/check-patch", { method: "POST" });
+        showToast("Patch-Prüfung angestoßen!");
+        fetchStatus();
+      } catch (e) {
+        showToast("Patch-Prüfung fehlgeschlagen.");
+      }
+    }
+
+    async function loadChampions() {
+      const tier = document.getElementById("explorerTier").value;
+      const tbody = document.getElementById("championsTableBody");
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--slate); padding: 24px;">Lade Daten für ${tier}…</td></tr>`;
+
+      try {
+        const res = await fetch(`/api/champions?tier=${tier}`);
+        if (!res.ok) {
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--rose); padding: 24px;">Keine Daten für '${tier}' verfügbar.</td></tr>`;
+          return;
+        }
+        allChampions = await res.json();
+        filterChampions();
+      } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--rose); padding: 24px;">Fehler beim Laden: ${err.message}</td></tr>`;
+      }
+    }
+
+    let currentRoleFilter = "all";
+
+    function setRoleFilter(role) {
+      currentRoleFilter = role;
+      document.querySelectorAll("#roleFilters .role-btn").forEach(btn => {
+        const isTarget = btn.getAttribute("onclick").includes(`'${role}'`);
+        btn.classList.toggle("active", isTarget);
+      });
+      filterChampions();
+    }
+
+    function filterChampions() {
+      const query = document.getElementById("champSearch").value.toLowerCase().trim();
+      const tbody = document.getElementById("championsTableBody");
+
+      const filtered = allChampions.filter(c => {
+        const matchesQuery = c.name.toLowerCase().includes(query);
+        const matchesRole = currentRoleFilter === "all" || c.role === currentRoleFilter;
+        return matchesQuery && matchesRole;
+      });
+
+      const counterEl = document.getElementById("champCounter");
+      if (counterEl) counterEl.innerText = `${filtered.length} Einträge`;
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--slate); padding: 24px;">Keine Champions für die Auswahl gefunden.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(c => {
+        const iconUrl = `https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/img/champion/${c.image}.png`;
+        const wrColor = c.winrate >= 0.51 ? '#34d399' : c.winrate <= 0.49 ? '#f43f5e' : '#e2e8f0';
+        const dmgPill = c.damage === 'magic' ? 'pill-ap' : c.damage === 'mixed' ? 'pill-mixed' : 'pill-ad';
+        const rolePct = c.role_rate != null ? Math.round(c.role_rate * 100) : null;
+
+        return `
+          <tr>
+            <td>
+              <div class="champ-cell">
+                <img class="champ-img" src="${iconUrl}" alt="${c.name}" onerror="this.src='https://ddragon.leagueoflegends.com/cdn/img/champion/splash/Garen_0.jpg'">
+                <span>${c.name}</span>
+              </div>
+            </td>
+            <td>
+              <span class="role-badge">
+                ${c.role}
+                ${rolePct != null ? `<span class="role-rate">(${rolePct}%)</span>` : ''}
+              </span>
+            </td>
+            <td><span class="pill ${dmgPill}">${c.damage}</span></td>
+            <td style="font-weight: 700; color: ${wrColor};">
+              ${c.winrate ? (c.winrate * 100).toFixed(1) + '%' : '–'}
+            </td>
+            <td>${c.games ? c.games.toLocaleString('de-DE') : '–'}</td>
+            <td><strong>${c.matchup_count}</strong> Matchups</td>
+            <td><strong>${c.synergy_count}</strong> Synergien</td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    // Polling lifecycle: Polls every 3s
+    fetchStatus();
+    loadChampions();
+    setInterval(fetchStatus, 3000);
+  </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "rift-server",
+  "version": "1.0.0",
+  "description": "Rift Companion NAS Data Server and OP.GG Crawler",
+  "main": "src/index.mjs",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.mjs",
+    "crawl": "node src/cli.mjs"
+  },
+  "dependencies": {
+    "compression": "^1.7.4",
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}
