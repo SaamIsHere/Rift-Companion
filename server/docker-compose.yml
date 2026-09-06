@@ -4,11 +4,11 @@ services:
     container_name: rift-server
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "8085:8085"
     volumes:
       - ./data:/data
     environment:
-      - PORT=8080
+      - PORT=8085
       - DATA_DIR=/data
       - CRAWL_CONCURRENCY=6
       - CRON_HOUR=4

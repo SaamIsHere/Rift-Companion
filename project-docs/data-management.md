@@ -52,7 +52,7 @@ The database consists of a serialized JSON array representing champion stats mat
    ```
    * Parses the file, validates its structure, and serializes it to the active on-disk path.
    * Enables third-party pipelines (e.g. Aggregators, custom REST scrapers) to easily update the app database.
-4. **Remote NAS Server Mode**: When configured in settings (`settings.server_url`, e.g. `http://192.168.1.100:8080`), the application fetches pre-computed statistics directly from the containerized Rift Server over the local network into RAM. In this mode, no large JSON datasets are dumped to the user's disk, and local background OP.GG crawls are disabled. Switching rank tiers resolves in milliseconds from the server cache.
+4. **Remote NAS Server Mode**: When configured in settings (`settings.server_url`, e.g. `http://192.168.1.100:8085`), the application fetches pre-computed statistics directly from the containerized Rift Server over the local network into RAM. In this mode, no large JSON datasets are dumped to the user's disk, and local background OP.GG crawls are disabled. Switching rank tiers resolves in milliseconds from the server cache.
 
 ---
 

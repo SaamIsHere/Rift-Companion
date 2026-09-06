@@ -16,6 +16,7 @@ All frontend files live in the `src/` directory:
   * **[ipc/tauri.ts](../src/lib/ipc/tauri.ts)**: Subscribes Svelte stores to Tauri event streams and executes state priming during initialization.
   * **[utils/ddragon.ts](../src/lib/utils/ddragon.ts)**: Constructs URLs pointing to League of Legends Data Dragon CDN (e.g. champion portraits and squares).
   * **[stores/](../src/lib/stores)**: Writable reactive storage models.
+    * **[navigation.ts](../src/lib/stores/navigation.ts)**: Active navigation tab (`startseite`, `profil`, `champions`, `ranglisten`, `live_match`) with automatic routing on champ select start/end, and reset triggers.
     * **[connection.ts](../src/lib/stores/connection.ts)**: LCU WebSocket connection state.
     * **[draft.ts](../src/lib/stores/draft.ts)**: Normalized draft state data.
     * **[recommendations.ts](../src/lib/stores/recommendations.ts)**: Ranked recommendation list.
@@ -25,17 +26,22 @@ All frontend files live in the `src/` directory:
     * **[settings.ts](../src/lib/stores/settings.ts)**: Persisted user settings (compact density, always-on-top, comp weight, remote `server_url` for NAS mode) and settings-modal visibility.
     * **[preselect.ts](../src/lib/stores/preselect.ts)**: `preselectedChampionId` (Issue #7 — click-to-pin from a recommendation card) plus the derived `referenceChampionId` (locked-in pick if set, else the preselection) that drives the draft-board hover preview.
   * **[components/](../src/lib/components)**:
-    * **[WindowControls.svelte](../src/lib/components/WindowControls.svelte)**: Controls minimize, close, maximize, and a custom **window-shade rollup mechanism** that scales the window down to title bar height.
-    * **[ConnectionStatus.svelte](../src/lib/components/ConnectionStatus.svelte)**: Top bar status orb (Searching/Connected).
-    * **[DraftBoard.svelte](../src/lib/components/DraftBoard.svelte)**: Splitted draft layout containing ally and enemy columns and ban listings. Shows a "Previewing: [Champion]" hint (Issue #7) when a hover-preview reference champion is active.
+    * **[TopNavBar.svelte](../src/lib/components/TopNavBar.svelte)**: Sleek frameless navigation bar with brand logo, tab switcher (Home, Profile, Champions, Rankings, Live Match), live summoner profile snippet, settings gear, and window controls.
+    * **[LandingPage.svelte](../src/lib/components/LandingPage.svelte)**: Visual landing page with app overview, live patch status, quick links, and draft status.
+    * **[ChampionsView.svelte](../src/lib/components/ChampionsView.svelte)**: Comprehensive sortable champion list view (sort by Win Rate, Pick Rate, Ban Rate) with role filter tabs, search, and drill-down into detailed champion analytics.
+    * **[ChampionOverview.svelte](../src/lib/components/ChampionOverview.svelte)**: Deep champion build dashboard displaying runes trees, stat shards, skill leveling priority matrix, starter items, boots, core item builds, situational items, best & worst matchups, and full matchup/synergy modal table.
+    * **[ProfileView.svelte](../src/lib/components/ProfileView.svelte)**: Active summoner profile card displaying summoner icon, level, active rank, and LCU connection status.
+    * **[RankingsView.svelte](../src/lib/components/RankingsView.svelte)**: Rank tier selection overview with remote NAS sync status and data refresh triggers.
+    * **[LiveMatchView.svelte](../src/lib/components/LiveMatchView.svelte)**: Champ select screen coordinating the draft board, recommendation list, and toggle to in-game build overview.
+    * **[WindowControls.svelte](../src/lib/components/WindowControls.svelte)**: Controls minimize, close, and custom window-shade rollup mechanism.
+    * **[DraftBoard.svelte](../src/lib/components/DraftBoard.svelte)**: Split draft layout containing ally and enemy columns and ban listings.
     * **[TeamColumn.svelte](../src/lib/components/TeamColumn.svelte)**: Grid showing five picks for a team.
-    * **[ChampSlot.svelte](../src/lib/components/ChampSlot.svelte)**: Individual draft selection slot display. Shows champion portrait, names, and roles. On hover, fetches and renders a matchup/synergy tooltip (Issue #7) against the current reference champion via `get_pairwise_stat`.
+    * **[ChampSlot.svelte](../src/lib/components/ChampSlot.svelte)**: Individual draft selection slot display. Shows champion portrait, names, and roles with 2-decimal winrate tooltip on hover.
     * **[RecommendationList.svelte](../src/lib/components/RecommendationList.svelte)**: Container for pick suggestion cards.
-    * **[RecommendationCard.svelte](../src/lib/components/RecommendationCard.svelte)**: Card displaying score rating, colored badge tags, and component breakdown bars. Clicking a card toggles it as the preselected reference champion (Issue #7).
+    * **[RecommendationCard.svelte](../src/lib/components/RecommendationCard.svelte)**: Card displaying score rating, colored badge tags, and component breakdown bars.
     * **[ScoreBar.svelte](../src/lib/components/ScoreBar.svelte)**: Mini visual score bar.
-    * **[ReasonBadge.svelte](../src/lib/components/ReasonBadge.svelte)**: Colored badge tag (green/red/blue/grey per `BadgeKind`) for counter-picks, synergy indicators, and comp-gap fills (Issue #7).
+    * **[ReasonBadge.svelte](../src/lib/components/ReasonBadge.svelte)**: Colored badge tag (green/red/blue/grey) for counter-picks, synergy indicators, and comp-gap fills.
     * **[RankSelector.svelte](../src/lib/components/RankSelector.svelte)**: Header rank-tier dropdown for all 7 Plus tiers (Iron+ to Diamond+) plus live crawl progress indicator.
-    * **[SettingsButton.svelte](../src/lib/components/SettingsButton.svelte)**: Header gear icon that opens the settings modal.
     * **[SettingsModal.svelte](../src/lib/components/SettingsModal.svelte)**: Appearance/Behavior/Data settings modal — compact density, comp-weight slider, always-on-top toggle, remote Rift Server URL configuration with connection test, and manual data refresh.
 
 ---

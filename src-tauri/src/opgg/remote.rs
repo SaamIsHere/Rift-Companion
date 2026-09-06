@@ -66,3 +66,34 @@ pub async fn trigger_refresh(server_url: &str, tier: Option<&str>) -> Result<()>
     }
     Ok(())
 }
+
+/// Fetch build data for a single champion and role from the Rift Server.
+pub async fn fetch_build(
+    server_url: &str,
+    champion_slug: &str,
+    role: &str,
+    tier: RankTier,
+) -> Result<crate::data::models::ChampionBuildStats> {
+    let url = format!(
+        "{}/api/build?champion={}&role={}&tier={}",
+        server_url.trim_end_matches('/'),
+        champion_slug,
+        role,
+        tier.as_opgg_tier()
+    );
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(3))
+        .build()?;
+    let res = client.get(&url).send().await.with_context(|| format!("fetching build from {url}"))?;
+    if !res.status().is_success() {
+        bail!("server returned status: {}", res.status());
+    }
+    #[derive(Deserialize)]
+    struct BuildResponse {
+        build: Option<crate::data::models::ChampionBuildStats>,
+    }
+    let body: BuildResponse = res.json().await.context("parsing build response from server")?;
+    body.build.ok_or_else(|| anyhow::anyhow!("no build found in response"))
+}
+
+

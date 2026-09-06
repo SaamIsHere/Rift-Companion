@@ -5,9 +5,9 @@
   // Shift hue from amber (weak) → cyan (strong) based on score.
   $: color =
     value >= 60
-      ? "from-hextech-cyan to-hextech-blue"
+      ? "from-purple-500 to-violet-400"
       : value >= 45
-        ? "from-amber-300 to-hextech-cyan"
+        ? "from-amber-300 to-purple-400"
         : "from-rose-400 to-amber-300";
 </script>
 

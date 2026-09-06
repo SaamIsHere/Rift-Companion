@@ -61,7 +61,37 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                         if detected != current {
                             tracing::info!(tier = detected.as_opgg_tier(), "auto-detected rank tier from LCU profile");
                             *shared.rank_tier.lock().unwrap() = detected;
-                            opgg::refresh::trigger_refresh(app.clone(), shared.clone(), detected);
+                            let _ = app.emit("rank://update", detected);
+
+                            let server_url = shared.settings.lock().unwrap().server_url.clone();
+                            if !server_url.trim().is_empty() {
+                                let shared_clone = shared.clone();
+                                let app_clone = app.clone();
+                                tauri::async_runtime::spawn(async move {
+                                    let _ = app_clone.emit("rank-refresh://status", "refreshing");
+                                    match opgg::remote::fetch_stats(&server_url, detected).await {
+                                        Ok(champions) => {
+                                            let count = champions.len();
+                                            let repo = crate::data::repository::Repository::from_champions(champions);
+                                            *shared_clone.repo.lock().unwrap() = std::sync::Arc::new(repo);
+                                            tracing::info!(tier = detected.as_opgg_tier(), champions = count, "loaded champion stats from Rift Server");
+                                            let draft = shared_clone.latest_draft.lock().unwrap().clone();
+                                            if let Some(d) = draft {
+                                                let weights = shared_clone.weights.lock().unwrap();
+                                                let recs = engine::recommend(shared_clone.repo.lock().unwrap().as_ref(), &d, &weights);
+                                                let _ = app_clone.emit("recommendations://update", &recs);
+                                            }
+                                            let _ = app_clone.emit("rank-refresh://status", "idle");
+                                        }
+                                        Err(e) => {
+                                            tracing::warn!("failed to fetch stats from server ({server_url}): {e:#}");
+                                            let _ = app_clone.emit("rank-refresh://status", "error");
+                                        }
+                                    }
+                                });
+                            } else {
+                                opgg::refresh::trigger_refresh(app.clone(), shared.clone(), detected);
+                            }
                         }
                     }
                 }

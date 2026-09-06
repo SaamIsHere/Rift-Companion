@@ -82,6 +82,61 @@ export function createApiRouter(scheduler, dataDir) {
     stream.pipe(res);
   });
 
+  // Fetch build recommendations for a specific champion and role
+  router.get("/api/build", async (req, res) => {
+    const champQuery = (req.query.champion || "").toLowerCase().trim();
+    const roleQuery = (req.query.role || "").toLowerCase().trim();
+    const tier = normalizeTier(req.query.tier);
+
+    if (!champQuery || !roleQuery) {
+      return res.status(400).json({ error: "Missing champion or role query parameter" });
+    }
+
+    let targetFile = path.join(dataDir, `stats-${tier}.json`);
+    if (!fs.existsSync(targetFile)) {
+      const legacyFile = path.join(dataDir, `stats-${req.query.tier}.json`);
+      if (req.query.tier && fs.existsSync(legacyFile)) {
+        targetFile = legacyFile;
+      } else {
+        const fallback = path.join(dataDir, "stats.json");
+        if (fs.existsSync(fallback)) targetFile = fallback;
+        else return res.status(404).json({ error: `No dataset available for tier '${tier}'` });
+      }
+    }
+
+    try {
+      const raw = await fsp.readFile(targetFile, "utf8");
+      const champions = JSON.parse(raw);
+      const champ = champions.find(
+        (c) =>
+          c.name.toLowerCase() === champQuery ||
+          c.image.toLowerCase() === champQuery ||
+          String(c.champion_id) === champQuery
+      );
+
+      if (!champ) {
+        return res.status(404).json({ error: `Champion '${champQuery}' not found` });
+      }
+
+      const roleStats = champ.stats?.[roleQuery];
+      if (!roleStats) {
+        return res.status(404).json({ error: `No stats found for '${champ.name}' in role '${roleQuery}'` });
+      }
+
+      res.json({
+        champion_id: champ.champion_id,
+        name: champ.name,
+        role: roleQuery,
+        tier: tier,
+        global_winrate: roleStats.global_winrate,
+        games: roleStats.games,
+        build: roleStats.build || null,
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Manually trigger a refresh
   router.post("/api/refresh", async (req, res) => {
     const requestedTier = req.query.tier || req.body?.tier || "emerald_plus";
@@ -153,6 +208,7 @@ export function createApiRouter(scheduler, dataDir) {
             games: roleGames,
             matchup_count: Object.keys(st.matchups || {}).length,
             synergy_count: Object.keys(st.synergies || {}).length,
+            has_build: !!st.build,
           });
         }
       }

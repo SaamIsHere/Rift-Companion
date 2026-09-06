@@ -26,6 +26,7 @@ export async function initChampions(): Promise<void> {
   try {
     const versions: string[] = await fetch(
       "https://ddragon.leagueoflegends.com/api/versions.json",
+      { signal: AbortSignal.timeout(4000) }
     ).then((r) => r.json());
     const version = versions[0] ?? FALLBACK_VERSION;
     ddragonVersion.set(version);
@@ -33,6 +34,7 @@ export async function initChampions(): Promise<void> {
     const res: { data: Record<string, { key: string; id: string; name: string }> } =
       await fetch(
         `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/champion.json`,
+        { signal: AbortSignal.timeout(4000) }
       ).then((r) => r.json());
 
     const map = new Map<number, ChampionInfo>();

@@ -10,7 +10,7 @@ Ein leichtgewichtiger Microservice, der Champion-Statistiken von OP.GG und Data 
 - **Kumulative Plus-Ränge**: Unterstützt 7 Plus-Tiers (`iron_plus`, `bronze_plus`, `silver_plus`, `gold_plus`, `platinum_plus`, `emerald_plus`, `diamond_plus`).
   - `iron_plus` zieht alle Ränge (~865.000 Spiele).
   - `silver_plus` und `bronze_plus` werden mathematisch exakt gewichtet aggregiert (`Silver` + `Gold+`, `Bronze` + `Silver+`).
-- **Web Dashboard**: Interaktive Benutzeroberfläche unter `http://<host>:8080/` mit Live-Crawl-Balken, manuellen Crawl-Triggern, Patch-Checker und Champion-Explorer mit Rollenfilter.
+- **Web Dashboard**: Interaktive Benutzeroberfläche unter `http://<host>:8085/` mit Live-Crawl-Balken, manuellen Crawl-Triggern, Patch-Checker und Champion-Explorer mit Rollenfilter.
 - **Parallele Verarbeitung**: Bounded Concurrency (`CRAWL_CONCURRENCY = 6`) für schnelle Crawls ohne Rate-Limits.
 - **Persistent Storage**: Daten werden dauerhaft im gemounteten `/data`-Verzeichnis abgelegt.
 - **REST-API**:
@@ -37,7 +37,7 @@ Die Daten werden im Unterordner `./data` auf dem NAS gespeichert.
 ### 2. Konfigurations-Umgebungsvariablen
 
 In der `docker-compose.yml` oder im NAS-Container-Manager anpassbar:
-- `PORT`: Standard `8080`
+- `PORT`: Standard `8085`
 - `DATA_DIR`: Standard `/data`
 - `CRAWL_CONCURRENCY`: Anzahl gleichzeitiger Requests an OP.GG (Standard `6`)
 - `CRON_HOUR`: Stunde für den täglichen automatischen Refresh (Standard `4` für 04:00 Uhr)
@@ -50,4 +50,4 @@ In der `docker-compose.yml` oder im NAS-Container-Manager anpassbar:
 npm install
 npm start
 ```
-Der Server läuft dann unter `http://localhost:8080`.
+Der Server läuft dann unter `http://localhost:8085`.

@@ -8,7 +8,7 @@
     { value: "bronze_plus", label: "Bronze+" },
     { value: "silver_plus", label: "Silver+" },
     { value: "gold_plus", label: "Gold+" },
-    { value: "platinum_plus", label: "Platin+" },
+    { value: "platinum_plus", label: "Platinum+" },
     { value: "emerald_plus", label: "Emerald+" },
     { value: "diamond_plus", label: "Diamond+" },
   ];

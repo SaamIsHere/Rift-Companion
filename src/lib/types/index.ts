@@ -101,3 +101,130 @@ export interface ServerStatus {
   tiers: Record<string, { champions: number; updated_at: number }>;
   supported_tiers: string[];
 }
+
+export interface PerkStyleRef {
+  id?: number;
+  name?: string;
+}
+
+export interface RuneItemRef {
+  id?: number;
+  name?: string;
+}
+
+export interface RunePageStats {
+  id?: number;
+  play?: number;
+  pick_rate?: number;
+  win_rate?: number;
+  primary_style?: PerkStyleRef;
+  secondary_style?: PerkStyleRef;
+  primary_runes: RuneItemRef[];
+  secondary_runes: RuneItemRef[];
+  shards: RuneItemRef[];
+}
+
+export interface SummonerSpellStats {
+  ids: number[];
+  names: string[];
+  pick_rate?: number;
+  win_rate?: number;
+  play?: number;
+}
+
+export interface SkillOrderStats {
+  priority: string[];
+  order?: string[] | null;
+  pick_rate?: number;
+  win_rate?: number;
+  play?: number;
+}
+
+export interface StarterItemStats {
+  ids: number[];
+  names: string[];
+  pick_rate?: number;
+  win_rate?: number;
+  play?: number;
+}
+
+export interface BootsStats {
+  id: number;
+  name: string;
+  pick_rate?: number;
+  win_rate?: number;
+  play?: number;
+}
+
+export interface CoreItemStats {
+  ids: number[];
+  names: string[];
+  pick_rate?: number;
+  win_rate?: number;
+  play?: number;
+}
+
+export interface DepthItemStats {
+  id: number;
+  name: string;
+  pick_rate?: number;
+  win_rate?: number;
+  play?: number;
+}
+
+export interface ChampionBuildStats {
+  runes: RunePageStats[];
+  summoner_spells: SummonerSpellStats[];
+  skill_order?: SkillOrderStats | null;
+  starter_items: StarterItemStats[];
+  boots: BootsStats[];
+  core_items: CoreItemStats[];
+  fourth_items: DepthItemStats[];
+  fifth_items: DepthItemStats[];
+  sixth_items: DepthItemStats[];
+}
+
+export interface ChampionMatchupEntry {
+  champion_id: number;
+  name: string;
+  image: string;
+  winrate: number;
+  games: number;
+}
+
+export interface ChampionOverviewData {
+  champion_id: number;
+  name: string;
+  image: string;
+  damage: "physical" | "magic" | "mixed";
+  frontline: boolean;
+  roles: Role[];
+  selected_role: Role;
+  winrate: number;
+  games: number;
+  build?: ChampionBuildStats | null;
+  best_matchups: ChampionMatchupEntry[];
+  worst_matchups: ChampionMatchupEntry[];
+  all_matchups: ChampionMatchupEntry[];
+  best_synergies: ChampionMatchupEntry[];
+  all_synergies: ChampionMatchupEntry[];
+}
+
+export interface RoleChampionItem {
+  champion_id: number;
+  name: string;
+  image: string;
+  damage: "physical" | "magic" | "mixed";
+  frontline: boolean;
+  roles: Role[];
+  role: Role;
+  tier: string;
+  winrate: number;
+  pick_rate: number;
+  ban_rate: number;
+  games: number;
+  weak_against: ChampionMatchupEntry[];
+  has_build: boolean;
+}
+
+

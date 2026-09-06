@@ -135,6 +135,11 @@ pub fn run() {
             commands::force_refresh_data,
             commands::get_pairwise_stat,
             commands::test_server_connection,
+            commands::open_in_browser,
+            commands::get_latest_patch_info,
+            commands::get_champion_build,
+            commands::get_champion_overview,
+            commands::get_champions_by_role,
         ])
         .setup(move |app| {
             // Apply the persisted always-on-top preference to the freshly created window and ensure it is shown.
@@ -164,6 +169,10 @@ pub fn run() {
                     match opgg::remote::fetch_stats(&s_url, tier).await {
                         Ok(champions) => {
                             let count = champions.len();
+                            if let Ok(json) = serde_json::to_string(&champions) {
+                                let path = data::store::default_data_path();
+                                let _ = std::fs::write(&path, json);
+                            }
                             let repo = Repository::from_champions(champions);
                             *shared.repo.lock().unwrap() = Arc::new(repo);
                             tracing::info!(tier = tier.as_opgg_tier(), champions = count, "seeded champion stats from Rift Server");

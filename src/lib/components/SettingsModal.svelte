@@ -50,7 +50,7 @@
 
   async function handleTestConnection() {
     if (!$settings.server_url?.trim()) {
-      testResult = { success: false, message: "Bitte gib eine Server-URL ein (z. B. http://192.168.1.100:8080)" };
+      testResult = { success: false, message: "Please enter a server URL (e.g. http://192.168.1.100:8080)" };
       return;
     }
     testing = true;
@@ -60,13 +60,13 @@
       const tierCount = status.tiers ? Object.keys(status.tiers).length : 0;
       testResult = {
         success: true,
-        message: `Verbunden! Patch: ${status.patch ?? "Unbekannt"} • ${tierCount} Ränge gecrawlt`,
+        message: `Connected! Patch: ${status.patch ?? "Unknown"} • ${tierCount} tiers crawled`,
       };
       push();
     } catch (err: any) {
       testResult = {
         success: false,
-        message: `Verbindung fehlgeschlagen: ${err?.message || err}`,
+        message: `Connection failed: ${err?.message || err}`,
       };
     } finally {
       testing = false;
@@ -113,19 +113,19 @@
               type="checkbox"
               checked={$settings.compact_density}
               on:change={onCompactDensityChange}
-              class="h-4 w-4 accent-hextech-cyan"
+              class="h-4 w-4 accent-purple-500"
             />
           </label>
         </section>
 
         <!-- Behavior -->
         <section>
-          <h3 class="mb-2 text-xs uppercase tracking-wide text-slate-500">Behavior</h3>
+          <h3 class="mb-2 text-xs uppercase tracking-wide text-purple-300/70">Behavior</h3>
           <div class="flex flex-col gap-3">
             <div>
               <div class="mb-1 flex items-center justify-between">
                 <span class="text-slate-300">Team-comp weight</span>
-                <span class="tabular-nums text-slate-400">{$settings.comp_weight.toFixed(2)}</span>
+                <span class="tabular-nums text-purple-300 font-semibold">{$settings.comp_weight.toFixed(2)}</span>
               </div>
               <input
                 type="range"
@@ -135,7 +135,7 @@
                 value={$settings.comp_weight}
                 on:input={onCompWeightInput}
                 on:change={onCompWeightChange}
-                class="w-full accent-hextech-cyan"
+                class="w-full accent-purple-500"
               />
             </div>
             <label class="flex items-center justify-between gap-3 py-1">
@@ -144,7 +144,7 @@
                 type="checkbox"
                 checked={$settings.always_on_top}
                 on:change={onAlwaysOnTopChange}
-                class="h-4 w-4 accent-hextech-cyan"
+                class="h-4 w-4 accent-purple-500"
               />
             </label>
           </div>
@@ -153,8 +153,8 @@
         <!-- NAS / Rift Server Configuration -->
         <section>
           <div class="mb-2 flex items-center justify-between">
-            <h3 class="text-xs uppercase tracking-wide text-slate-500">NAS / Data Server</h3>
-            <span class="text-[10px] text-hextech-cyan/80">Kein lokaler Festplatten-Dump</span>
+            <h3 class="text-xs uppercase tracking-wide text-purple-300/70">NAS / Data Server</h3>
+            <span class="text-[10px] text-purple-300">No local disk writes</span>
           </div>
           <div class="flex flex-col gap-2">
             <div class="flex gap-2">
@@ -164,14 +164,14 @@
                 value={$settings.server_url || ""}
                 on:input={onServerUrlInput}
                 on:change={onServerUrlChange}
-                class="glass-soft flex-1 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-hextech-cyan"
+                class="glass-soft flex-1 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-400"
               />
               <button
                 class="glass-soft shrink-0 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 transition hover:bg-white/10 disabled:opacity-50"
                 disabled={testing}
                 on:click={handleTestConnection}
               >
-                {testing ? "Testen…" : "Testen"}
+                {testing ? "Testing…" : "Test"}
               </button>
             </div>
             {#if testResult}
@@ -184,7 +184,7 @@
               </div>
             {:else if $settings.server_url}
               <p class="text-[11px] text-slate-400">
-                Daten werden direkt über das lokale Netzwerk in den RAM gestreamt.
+                Dataset is streamed directly over the local network into RAM.
               </p>
             {/if}
           </div>
@@ -192,7 +192,7 @@
 
         <!-- Data Controls -->
         <section>
-          <h3 class="mb-2 text-xs uppercase tracking-wide text-slate-500">Data Controls</h3>
+          <h3 class="mb-2 text-xs uppercase tracking-wide text-purple-300/70">Data Controls</h3>
           <div class="flex items-center gap-3">
             <button
               class="glass-soft rounded-lg px-3 py-1.5 text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
@@ -202,7 +202,7 @@
               {$rankRefreshing ? "Refreshing…" : "Refresh data now"}
             </button>
             {#if $rankRefreshing && $rankRefreshProgress}
-              <span class="text-[11px] tabular-nums text-hextech-cyan">
+              <span class="text-[11px] tabular-nums text-purple-300">
                 {$rankRefreshProgress.done}/{$rankRefreshProgress.total}
               </span>
             {/if}

@@ -87,6 +87,11 @@ impl Repository {
             .values()
             .filter(move |c| c.roles.contains(&role))
     }
+
+    /// All champions indexed in the repository.
+    pub fn all_champions(&self) -> impl Iterator<Item = &Champion> {
+        self.champions.values()
+    }
 }
 
 #[cfg(test)]

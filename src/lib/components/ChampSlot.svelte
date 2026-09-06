@@ -7,7 +7,7 @@
   import { referenceChampionId } from "../stores/preselect";
 
   export let pick: DraftPick;
-  export let accent: "cyan" | "rose";
+  export let accent: "cyan" | "rose" | "purple";
   /** Enemy cards allow correcting the guessed role; ally cards do not. */
   export let editable = false;
 
@@ -66,7 +66,7 @@
 <div
   role="group"
   class="glass-soft relative flex items-center gap-3 rounded-xl p-2 {pick.is_local
-    ? 'ring-1 ring-hextech-cyan/60'
+    ? 'ring-1 ring-purple-400/80 shadow-[0_0_12px_rgba(168,85,247,0.3)]'
     : ''}"
   on:mouseenter={() => (hovering = true)}
   on:mouseleave={() => (hovering = false)}
@@ -88,7 +88,7 @@
               ? 'text-rose-300'
               : 'text-slate-300'}"
         >
-          {Math.round(stat.winrate * 100)}% win rate ({stat.games} games)
+          {(stat.winrate * 100).toFixed(2)}% win rate ({stat.games} games)
         </p>
       {:else}
         <p class="text-slate-500">Not enough data yet</p>
@@ -96,17 +96,19 @@
     </div>
   {/if}
   {#if info && !imgError}
-    <img
-      src={squareIconUrl(info.key, $ddragonVersion)}
-      alt={name}
-      class="h-9 w-9 rounded-lg object-cover ring-1 ring-white/10"
-      on:error={() => (imgError = true)}
-    />
+    <div class="relative h-9 w-9 rounded-lg overflow-hidden ring-1 ring-purple-500/30 bg-[#120924] shrink-0">
+      <img
+        src={squareIconUrl(info.key, $ddragonVersion)}
+        alt={name}
+        class="h-full w-full object-cover scale-[1.14]"
+        on:error={() => (imgError = true)}
+      />
+    </div>
   {:else}
     <div
       class="grid h-9 w-9 place-items-center rounded-lg bg-white/10 text-[10px] {accent ===
-      'cyan'
-        ? 'text-hextech-cyan'
+      'cyan' || accent === 'purple'
+        ? 'text-purple-300'
         : 'text-rose-300'}"
     >
       {pick.champion_id}
@@ -114,10 +116,10 @@
   {/if}
 
   <div class="flex flex-col">
-    <span class="text-sm">{name}</span>
+    <span class="text-sm font-medium text-slate-200">{name}</span>
     {#if editable}
       <select
-        class="mt-0.5 w-fit rounded bg-white/5 px-1 py-0.5 text-[11px] uppercase text-slate-300 ring-1 ring-white/10 focus:outline-none focus:ring-1 focus:ring-hextech-cyan/60"
+        class="mt-0.5 w-fit rounded bg-purple-950/50 px-1 py-0.5 text-[11px] uppercase text-purple-200 ring-1 ring-purple-500/30 focus:outline-none focus:ring-1 focus:ring-purple-400"
         value={pick.role ?? ""}
         on:change={onRoleChange}
       >
@@ -127,10 +129,10 @@
         {/each}
       </select>
     {:else if pick.role}
-      <span class="text-[11px] uppercase text-slate-400">{pick.role}</span>
+      <span class="text-[11px] uppercase text-purple-300/70 font-semibold">{pick.role}</span>
     {/if}
   </div>
   {#if pick.is_local}
-    <span class="ml-auto text-[10px] uppercase text-hextech-cyan">You</span>
+    <span class="ml-auto rounded bg-purple-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-purple-300 ring-1 ring-purple-400/40">You</span>
   {/if}
 </div>

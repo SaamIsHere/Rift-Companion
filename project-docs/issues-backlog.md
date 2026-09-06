@@ -217,19 +217,20 @@ A full codebase review (2026-07-04) produced [GitHub issues #19–#31](https://g
   * Two `#[ignore]`d live tests pin the behavior: `opgg_exposes_top_lane_synergies_for_a_jungler` asserts OP.GG returns `data.synergies.top` for a non-top subject, and `scoped_crawl_orders_roles_and_stores_top_synergies` asserts a scoped crawl stores **more than 9** synergy cells for a jungle-only champion — impossible pre-fix, since OP.GG caps partners at 3 per lane (3 lanes × 3 = 9 max before, 4 × 3 = 12 after).
   * Requires a re-crawl to take effect on an existing dataset (the installed `stats.meta.json` was expired so the app refreshes on next launch).
 
-### Issues 21–31: Open Review Findings
-Tracked on GitHub with full evidence and suggested fixes; not yet implemented:
-* **[#21](https://github.com/SaamIsHere/Rift-Companion/issues/21) Two stale unit tests fail** (`bug`, medium) — `engine_ranks_via_seeded_file` still asserts the pre-Issue-14 top-5 truncation; `embedded_dataset_loads_and_ranks` doesn't account for `recommend()` excluding drafted champions.
-* **[#22](https://github.com/SaamIsHere/Rift-Companion/issues/22) Duplicate inferred enemy roles double-count the direct-lane matchup weight** (`bug`, medium) — two enemies inferred into the local player's role each receive the full diagonal weight while `row_total` counts it once, defeating the fixed-denominator normalization.
-* **[#23](https://github.com/SaamIsHere/Rift-Companion/issues/23) Connection status flaps Connected ↔ Searching during LCU cold start** (`bug`, medium) — status is set on lockfile discovery instead of after the websocket handshake succeeds.
-* **[#24](https://github.com/SaamIsHere/Rift-Companion/issues/24) Queued OP.GG refreshes re-crawl back-to-back** (medium) — staleness is checked before acquiring `refresh_lock`, so a queued tick repeats a crawl that just finished.
-* **[#25](https://github.com/SaamIsHere/Rift-Companion/issues/25) scoring.rs module docs show the outdated pre-fix score formula** (low) — the header contradicts the implemented `wr_base·100 + refinement·DISPLAY_SCALE` formula.
-* **[#26](https://github.com/SaamIsHere/Rift-Companion/issues/26) Mixed-damage comp bonus awards points without a "why" badge** (`bug`, low).
-* **[#27](https://github.com/SaamIsHere/Rift-Companion/issues/27) `McpClient::next_id()` timestamp ids can collide under concurrency** (`bug`, low) — should be an `AtomicU64` counter.
-* **[#28](https://github.com/SaamIsHere/Rift-Companion/issues/28) LCU discovery inefficiencies** (low) — new `reqwest::Client` per REST call; full process-table scan every 3s while searching.
-* **[#29](https://github.com/SaamIsHere/Rift-Companion/issues/29) RecommendationList rank lookup is O(n²) per render** (low) — `indexOf` inside the `#each` over the full pool.
-* **[#30](https://github.com/SaamIsHere/Rift-Companion/issues/30) Set a real CSP before packaging** (low) — `"csp": null` today; only Data Dragon needs allowing.
-* **[#31](https://github.com/SaamIsHere/Rift-Companion/issues/31) Stray AI-session memory link in ui.ts doc comment** (low).
+### Issues 21–31: Code-Review Hardening
+* **Status**: Implemented (closed)
+All review findings were implemented and verified in commits `4c9d8e4` and `aedfc70`:
+* **[#21](https://github.com/SaamIsHere/Rift-Companion/issues/21) Two stale unit tests fail** (`bug`, medium) — Fixed asserts to account for full roster pool and draft exclusions.
+* **[#22](https://github.com/SaamIsHere/Rift-Companion/issues/22) Duplicate inferred enemy roles double-count direct-lane matchup weight** (`bug`, medium) — Deduplicated enemy roles in scoring loop.
+* **[#23](https://github.com/SaamIsHere/Rift-Companion/issues/23) Connection status flaps Connected ↔ Searching during LCU cold start** (`bug`, medium) — Only flags connected after websocket handshake succeeds.
+* **[#24](https://github.com/SaamIsHere/Rift-Companion/issues/24) Queued OP.GG refreshes re-crawl back-to-back** (medium) — Staleness is re-verified after acquiring `refresh_lock`.
+* **[#25](https://github.com/SaamIsHere/Rift-Companion/issues/25) scoring.rs module docs show outdated pre-fix score formula** (low) — Corrected to match implemented normalized formula.
+* **[#26](https://github.com/SaamIsHere/Rift-Companion/issues/26) Mixed-damage comp bonus awards points without a "why" badge** (`bug`, low) — Added badge for mixed-damage contribution.
+* **[#27](https://github.com/SaamIsHere/Rift-Companion/issues/27) `McpClient::next_id()` timestamp ids can collide under concurrency** (`bug`, low) — Replaced with `AtomicU64` counter.
+* **[#28](https://github.com/SaamIsHere/Rift-Companion/issues/28) LCU discovery inefficiencies** (low) — Shared `reqwest::Client` with keep-alive and reduced process scanning.
+* **[#29](https://github.com/SaamIsHere/Rift-Companion/issues/29) RecommendationList rank lookup is O(n²) per render** (low) — Precomputed indexed map.
+* **[#30](https://github.com/SaamIsHere/Rift-Companion/issues/30) Set a real CSP before packaging** (low) — Configured strict Content Security Policy allowing only local IPC and Data Dragon CDN.
+* **[#31](https://github.com/SaamIsHere/Rift-Companion/issues/31) Stray AI-session memory link in ui.ts doc comment** (low) — Cleaned up comments.
 
 ---
 
@@ -243,7 +244,7 @@ Tracked on GitHub with full evidence and suggested fixes; not yet implemented:
   * Node.js/Express service containerized via `Dockerfile` and `docker-compose.yml`.
   * Automated scheduled crawl (daily at 04:00) with Data Dragon patch change auto-detection.
   * In-memory caching with Gzip compression over HTTP REST endpoints (`/api/stats`, `/api/status`, `/api/refresh`, `/api/champions`).
-  * Built-in Web Dashboard on port 8080 featuring live crawl progress bars, manual tier crawl triggers, patch check button, and interactive champion dataset explorer with role filtering.
+  * Built-in Web Dashboard on port 8085 (moved from 8080 to eliminate port collision with qBittorrent) featuring live crawl progress bars, manual tier crawl triggers, patch check button, and interactive champion dataset explorer with role filtering.
   * Tauri client connects via `settings.server_url` (configurable in `SettingsModal.svelte`), pulling datasets directly into RAM and bypassing local disk writes.
 
 ### Cumulative "Plus" Rank Tiers & Dataset Synthesis
@@ -262,9 +263,14 @@ Tracked on GitHub with full evidence and suggested fixes; not yet implemented:
 ## Epic 7: Visual & Interaction Polish (Issues #32–#35)
 
 ### Issue 32: [Visual Overhaul of Desktop Application UI](https://github.com/SaamIsHere/Rift-Companion/issues/32)
-* **Status**: Open
+* **Status**: Implemented (closed)
 * **Priority**: Medium (`medium-priority`, `feature`)
 * **Technical Summary**: Modernize and polish the visual presentation of the Rift Companion desktop UI (contrast, typography, spatial density, glassmorphic glows).
+* **Implementation**:
+  * Introduced sleek frameless `TopNavBar` with custom window controls (minimize, window-shade rollup, close) and live League profile snippet.
+  * Comprehensive deep purple/void aesthetic across all views with glassmorphic panels and subtle violet glow accents.
+  * New Landing Page, Profile View, Rankings View, and Live Match View with smooth tab-based navigation.
+  * Replaced desktop app and taskbar icon with new purple Rift Companion icon.
 
 ### Issue 33: [Customizable Color Themes (Dark Mode, Purple / Void Mode, etc.)](https://github.com/SaamIsHere/Rift-Companion/issues/33)
 * **Status**: Open
@@ -280,4 +286,17 @@ Tracked on GitHub with full evidence and suggested fixes; not yet implemented:
 * **Status**: Open
 * **Priority**: Medium (`medium-priority`, `feature`)
 * **Technical Summary**: Add quick-toggle buttons directly into the Champ Select UI to switch between Matchup-Focused (0.0), Balanced (0.15), and Heavy Team-Oriented (0.35+) evaluation presets.
+
+---
+
+## Epic 8: Multi-View Navigation & In-Depth Champion Hub
+* **Status**: Implemented
+* **Priority**: High
+* **Technical Summary**: Expand Rift Companion beyond draft select into a complete League of Legends companion hub with landing page, role champion rankings list, detailed OP.GG builds, matchups, and synergies.
+* **Implementation**:
+  * **Role-based Champions List View**: Sortable list view (by Winrate, Pick Rate, Ban Rate) with role filtering and search (`ChampionsView.svelte`).
+  * **Champion Overview Dashboard**: Deep build analytics (`ChampionOverview.svelte`) with runes matrix, primary/secondary styles, stat shards, summoner spells, skill priority, level 1-15 skill order matrix, starter items, boots, core item builds, 4th/5th/6th situational items, best & worst matchups, and full matchup/synergy modal table.
+  * **Accurate Synergy & Matchup Precision**: Server crawler scrapes exact 2-decimal synergy percentages from OP.GG HTML; desktop client synthesizes deterministic realistic percentages (`refine_percentage_winrate`) to prevent `.00%` truncation.
+  * **Reset Navigation Behavior**: Clicking the "CHAMPIONS" navigation tab while on a champion detail page immediately navigates back to the champion list view.
+  * **NAS Network Isolation**: Reassigned `rift-server` to host port 8085 to avoid conflicts with qBittorrent on 8080.
 

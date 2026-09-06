@@ -8,7 +8,7 @@ import { CrawlerScheduler } from "./scheduler.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const PORT = Number(process.env.PORT) || 8080;
+const PORT = Number(process.env.PORT) || 8085;
 const DATA_DIR = process.env.DATA_DIR || path.resolve(__dirname, "../data");
 const CONCURRENCY = Number(process.env.CRAWL_CONCURRENCY) || 6;
 const CRON_HOUR = Number(process.env.CRON_HOUR) || 4;

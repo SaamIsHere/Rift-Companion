@@ -15,7 +15,7 @@
 </script>
 
 <aside class="glass flex min-h-0 flex-col rounded-2xl p-5">
-  <h2 class="mb-4 text-sm uppercase tracking-widest text-slate-400">
+  <h2 class="mb-4 text-sm uppercase tracking-widest text-purple-300/70 font-semibold">
     Picks for you
   </h2>
 
@@ -27,7 +27,7 @@
         fill="none"
         stroke="currentColor"
         stroke-width="2"
-        class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
+        class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-purple-300/60"
       >
         <circle cx="11" cy="11" r="7" />
         <path d="m21 21-4.3-4.3" stroke-linecap="round" />
@@ -36,7 +36,7 @@
         type="text"
         bind:value={query}
         placeholder="Search champions…"
-        class="glass-soft w-full rounded-lg py-2 pl-9 pr-3 text-sm text-slate-100 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-hextech-cyan/50"
+        class="glass-soft w-full rounded-xl py-2 pl-9 pr-3 text-sm text-slate-100 placeholder:text-slate-400/60 focus:outline-none focus:ring-1 focus:ring-purple-400/50 focus:border-purple-400/40"
       />
     </div>
 

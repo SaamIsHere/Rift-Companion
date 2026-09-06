@@ -27,7 +27,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' https://ddragon.leagueoflegends.com; connect-src 'self' https://ddragon.leagueoflegends.com"
+      "csp": null
     }
   },
   "bundle": {

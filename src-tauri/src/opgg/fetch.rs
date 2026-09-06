@@ -204,7 +204,7 @@ pub async fn crawl(opts: &CrawlOpts, mut on_progress: impl FnMut(usize, usize)) 
             }
             rec.stats.insert(
                 pos.clone(),
-                RoleStats { global_winrate: round3(wr), games, matchups: HashMap::new(), synergies: HashMap::new() },
+                RoleStats { global_winrate: round3(wr), games, matchups: HashMap::new(), synergies: HashMap::new(), build: None },
             );
             work.push((id, pos.clone(), dd.key.clone()));
             n += 1;
@@ -399,9 +399,9 @@ mod tests {
             frontline: false,
             roles: vec![Role::Mid, Role::Adc, Role::Support],
             stats: HashMap::from([
-                ("mid".to_string(), RoleStats { global_winrate: 0.5, games: 64_688, matchups: HashMap::new(), synergies: HashMap::new() }),
-                ("adc".to_string(), RoleStats { global_winrate: 0.5, games: 5_141, matchups: HashMap::new(), synergies: HashMap::new() }),
-                ("support".to_string(), RoleStats { global_winrate: 0.5, games: 111_132, matchups: HashMap::new(), synergies: HashMap::new() }),
+                ("mid".to_string(), RoleStats { global_winrate: 0.5, games: 64_688, matchups: HashMap::new(), synergies: HashMap::new(), build: None }),
+                ("adc".to_string(), RoleStats { global_winrate: 0.5, games: 5_141, matchups: HashMap::new(), synergies: HashMap::new(), build: None }),
+                ("support".to_string(), RoleStats { global_winrate: 0.5, games: 111_132, matchups: HashMap::new(), synergies: HashMap::new(), build: None }),
             ]),
         };
         order_roles_by_play(&mut c);
