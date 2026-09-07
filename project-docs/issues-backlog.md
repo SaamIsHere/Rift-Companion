@@ -7,10 +7,13 @@ This backlog structures and analyzes the open GitHub issues for the Rift Compani
 ## Index of Backlog Categories
 
 * [Epic 1: Algorithmic & Engine Improvements (Issues 2, 6, 7)](#epic-1-algorithmic--engine-improvements)
-* [Epic 2: Core UX & Client Integrations (Issues 9, 13, 15)](#epic-2-core-ux--client-integrations)
+* [Epic 2: Core UX & Client Integrations (Issues 9, 13, 15, 40)](#epic-2-core-ux--client-integrations)
 * [Epic 3: New Feature Modules (Issues 4, 5, 10, 11, 12, 14)](#epic-3-new-feature-modules)
 * [Epic 4: Deployment & Tooling (Issue 8)](#epic-4-deployment--tooling)
 * [Epic 5: Code-Review Hardening (Issues 19–31)](#epic-5-code-review-hardening-issues-19-31)
+* [Epic 6: NAS Data Server & Cumulative Plus Tiers](#epic-6-nas-data-server--cumulative-plus-tiers)
+* [Epic 7: Visual & Interaction Polish (Issues #32–#38)](#epic-7-visual--interaction-polish-issues-3238)
+* [Epic 8: Multi-View Navigation & In-Depth Champion Hub](#epic-8-multi-view-navigation--in-depth-champion-hub)
 
 ---
 
@@ -111,6 +114,19 @@ This backlog structures and analyzes the open GitHub issues for the Rift Compani
 * **Resolved Design Decisions**:
   * *Presentation*: a modal overlay (not a slide-in side panel) — simplest to dismiss and doesn't disturb the compact draft/recommendations layout.
   * *No new capability permissions*: always-on-top is toggled from inside the Rust command using the `AppHandle`'s own window handle, not via a frontend-invoked `core:window:*` call, so `capabilities/default.json` needed no changes.
+
+### Issue 40: Persist Summoner Profile Across Sessions
+* **Status**: Implemented (closed)
+* **Priority**: Medium (`medium-priority`, `feature`)
+* **Technical Summary**: Retain the last connected summoner profile across app restarts and disconnects, displaying the remembered account until a new account signs in, while clearly indicating whether the League client is currently active or offline.
+* **Implementation**:
+  * Added `read_cached_profile()` and `write_cached_profile()` in [data/store.rs](../src-tauri/src/data/store.rs) saving to a `profile.json` sidecar in the app data directory.
+  * Derived `serde::Deserialize` on `Summoner` in [lcu/client.rs](../src-tauri/src/lcu/client.rs).
+  * In [lib.rs](../src-tauri/src/lib.rs), seeded `Shared.profile` with `data::store::read_cached_profile()` on startup so `get_profile` returns the cached account immediately on app launch.
+  * In [lcu/mod.rs](../src-tauri/src/lcu/mod.rs), cached the fetched summoner on connect, and stopped clearing `shared.profile` when transitioning back to `Searching` in `set_status`.
+  * Added `localStorage` caching to [stores/profile.ts](../src/lib/stores/profile.ts) for instant UI hydration before IPC completes.
+  * In [TopNavBar.svelte](../src/lib/components/TopNavBar.svelte), [ProfileView.svelte](../src/lib/components/ProfileView.svelte), and [ConnectionStatus.svelte](../src/lib/components/ConnectionStatus.svelte), updated UI states to show the remembered summoner with distinct online (emerald glow) vs offline (amber dot + `(offline)` label) indicators.
+  * **Rank Tier & Manual Selection Persistence**: Stored `rank_tier` and `rank_manual` in `Settings` ([store.rs](../src-tauri/src/data/store.rs)) and ensured `set_rank_tier` ([commands.rs](../src-tauri/src/commands.rs)) writes them to disk before any early return for remote server sync. On app startup, `lib.rs` restores `rank_manual: true` and the chosen tier, ensuring LCU auto-detection only acts as an initial fallback and never overwrites manual selections on restart. Cached `rankTier` in `localStorage` ([stores/rank.ts](../src/lib/stores/rank.ts)) for zero-flicker frontend hydration.
 
 ---
 
@@ -260,7 +276,7 @@ All review findings were implemented and verified in commits `4c9d8e4` and `aedf
 
 ---
 
-## Epic 7: Visual & Interaction Polish (Issues #32–#35)
+## Epic 7: Visual & Interaction Polish (Issues #32–#38)
 
 ### Issue 32: [Visual Overhaul of Desktop Application UI](https://github.com/SaamIsHere/Rift-Companion/issues/32)
 * **Status**: Implemented (closed)
@@ -286,6 +302,45 @@ All review findings were implemented and verified in commits `4c9d8e4` and `aedf
 * **Status**: Open
 * **Priority**: Medium (`medium-priority`, `feature`)
 * **Technical Summary**: Add quick-toggle buttons directly into the Champ Select UI to switch between Matchup-Focused (0.0), Balanced (0.15), and Heavy Team-Oriented (0.35+) evaluation presets.
+
+### Issue 36: Visual Glitch: White Divider Lines Popping Up in Champions List View on Search
+* **Status**: Implemented (closed)
+* **Priority**: Medium (`medium-priority`, `bug`)
+* **Technical Summary**: In `ChampionsView.svelte`, typing into or clearing the search query caused temporary white horizontal lines to appear between champion rows before fading out.
+* **Root Cause**:
+  * The champion table body used Tailwind's `divide-y divide-purple-500/10`, which dynamically injects `border-top` via the sibling selector `> :not([hidden]) ~ :not([hidden])`.
+  * Champion row items had `transition-all duration-150`.
+  * In Tailwind preflight, `borderColor.DEFAULT` defaulted to light gray (`#e5e7eb`).
+  * When filtering, items shifting positions or newly entering the DOM had their border property transition from the preflight light-gray default to `divide-purple-500/10` over 150ms, producing a transient white flash.
+* **Implementation**:
+  * Replaced `divide-y divide-purple-500/10` on the container with explicit `border-b border-purple-500/10` on each champion row item, eliminating sibling-selector recalculations.
+  * Narrowed row transition from `transition-all duration-150` to `transition-colors duration-150`, targeting only the background color change on hover.
+  * Configured `borderColor.DEFAULT: "rgba(168, 85, 247, 0.15)"` in `tailwind.config.js` to ensure the global fallback border color aligns with the dark void theme.
+  * Applied the same divider hardening to the Matchups & Synergies modal table in `ChampionOverview.svelte`.
+
+### Issue 37: Uniform Statistics Presentation (Winrate, Pickrate, Games) Across Champion Overview
+* **Status**: Implemented (closed)
+* **Priority**: Medium (`medium-priority`, `enhancement`)
+* **Technical Summary**: Unify the visual representation of winrate, pickrate, and tracked games count across all build cards and sections in `ChampionOverview.svelte`.
+* **Implementation**:
+  * Standardized `formatPercent` and `formatWinrate` to strictly 2 decimal places (`XX.XX%`) using `refineTwoDecimals` to prevent loss of precision or artificial zeroes from legacy 3-decimal rounding.
+  * Hardened all number formatters against `null`, `undefined`, and `NaN`.
+  * Standardized games count formatting to whole integer with US locale thousands separators and consistent `" Games"` label everywhere (including Hero Banner, Modal Table, and Matchups).
+  * Harmonized the statistics column layout across Summoner Spells, Starter Items, Recommended Core Items, and Situational Items into a consistent 2-column pattern: `Pick Rate` (`w-20 text-right`) and `Winrate` (`w-14 text-right`).
+  * Aligned the card header columns pixel-perfectly over data rows by matching `px-2` horizontal container padding.
+  * Dynamically calculate situational item percentage pick rate (`item.play / overview.games`).
+  * Ability Max Order header updated to display solely `{formatPercent(skillOrder.pick_rate)} Pick` (omitting winrate as requested).
+
+### Issue 38: Rune Page Switcher Button Stats & Clean Icon-Only Item/Spell Displays
+* **Status**: Implemented (closed)
+* **Priority**: Medium (`medium-priority`, `enhancement`)
+* **Technical Summary**: Display Winrate % and Pickrate % directly on the top-level Rune Page selection buttons, and eliminate redundant text names from Starter Items and Summoner Spells in favor of clean icon layouts with hover tooltips.
+* **Implementation**:
+  * **Rune Page Selector Buttons**: Enriched the switcher buttons with Keystone and Secondary tree icons plus 2-line stat display showing Winrate in emerald green (`text-[10px] font-bold text-emerald-400`) and Pickrate in light slate (`text-[9px] font-semibold text-slate-300`), along with full hover tooltip details.
+  * **Rune Tree Summary Badges**: Removed redundant winrate and pickrate displays from the Primary and Secondary Tree badges below the buttons to keep the focus clean on the path and style names.
+  * **Crawler Fix**: Resolved missing rune page win rates by updating `server/src/crawler.mjs` to read `(page.win_rate ?? b.win_rate)` with 4-decimal precision (`round4`) rather than relying on the undefined `b.win_rate` in Next.js JSON streams; added frontend fallback `getRunePageWinrate` and backfilled local dataset.
+  * **Summoner Spells**: Removed text name concatenations (`(spellPair.names || []).join(" + ")`), rendering only spell icons with `title` attributes and right-aligned pick/win/games stats.
+  * **Starter Items**: Removed text name concatenations (`(starter.names || []).join(" + ")`), rendering clean item icon rows with `title` tooltips and right-aligned pick/win/games stats.
 
 ---
 

@@ -96,22 +96,28 @@ pub fn run() {
         .expect("failed to load champion dataset");
     let repo = Arc::new(Mutex::new(Arc::new(repo)));
 
-    // Seed the rank-tier selection from the last persisted dataset metadata
-    // (if any) so a manual choice survives a restart.
-    let meta = data::store::read_meta();
-    let rank_tier = meta.as_ref().map(|m| m.tier).unwrap_or_default();
-    let rank_manual = meta.as_ref().map(|m| m.manual).unwrap_or(false);
-
-    // Seed persisted user settings (Issue #15); comp-weight rides along on `weights`.
+    // Seed persisted user settings (Issue #15 & #40); comp-weight rides along on `weights`.
     let settings = data::store::read_settings().unwrap_or_default();
     let always_on_top = settings.always_on_top;
+
+    // Seed the rank-tier selection from settings.json first, falling back to stats.meta.json
+    // so a manual choice survives a restart even when remote server is configured (Issue #40).
+    let meta = data::store::read_meta();
+    let rank_tier = settings
+        .rank_tier
+        .or_else(|| meta.as_ref().map(|m| m.tier))
+        .unwrap_or_default();
+    let rank_manual = settings.rank_manual || meta.as_ref().map(|m| m.manual).unwrap_or(false);
+
+    // Seed cached summoner profile (Issue #40) so the last known user survives restart.
+    let cached_profile = data::store::read_cached_profile();
 
     let shared = Shared {
         repo,
         weights: Arc::new(Mutex::new(Weights { comp: settings.comp_weight })),
         latest_draft: Arc::new(Mutex::new(None)),
         connection: Arc::new(Mutex::new(ConnectionStatus::Searching)),
-        profile: Arc::new(Mutex::new(None)),
+        profile: Arc::new(Mutex::new(cached_profile)),
         enemy_role_overrides: Arc::new(Mutex::new(HashMap::new())),
         rank_tier: Arc::new(Mutex::new(rank_tier)),
         rank_manual: Arc::new(Mutex::new(rank_manual)),

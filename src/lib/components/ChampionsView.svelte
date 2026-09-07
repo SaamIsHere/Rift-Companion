@@ -204,7 +204,7 @@
       </div>
 
       <!-- Table Body Rows -->
-      <div class="min-h-0 flex-1 overflow-y-auto divide-y divide-purple-500/10">
+      <div class="min-h-0 flex-1 overflow-y-auto">
         {#if loadingRoleData}
           <div class="flex h-64 flex-col items-center justify-center gap-2">
             <div class="h-8 w-8 animate-spin rounded-full border-2 border-purple-500 border-t-transparent"></div>
@@ -217,7 +217,7 @@
               tabindex="0"
               on:click={() => openChampion(champ)}
               on:keydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openChampion(champ); } }}
-              class="grid grid-cols-12 gap-2 items-center px-5 py-2.5 transition-all duration-150 hover:bg-purple-900/25 cursor-pointer group text-left"
+              class="grid grid-cols-12 gap-2 items-center px-5 py-2.5 border-b border-purple-500/10 transition-colors duration-150 hover:bg-purple-900/25 cursor-pointer group text-left"
             >
               <!-- Rank -->
               <div class="col-span-1 text-center text-xs font-semibold text-slate-400 group-hover:text-slate-200">

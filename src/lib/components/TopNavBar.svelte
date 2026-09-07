@@ -100,21 +100,38 @@
       class="group flex items-center gap-2.5 text-right transition hover:opacity-80 focus:outline-none"
       title="View Profile"
     >
-      {#if $connection === "connected" && $profile}
+      {#if $profile}
         <div class="flex flex-col">
-          <span class="text-xs font-bold text-slate-100 leading-tight group-hover:text-purple-200 transition">
-            {$profile.display_name}
-          </span>
-          <span class="text-[10px] font-semibold uppercase tracking-wider text-purple-300/80 leading-none">
-            {formatRank($rankTier)}
-          </span>
+          <div class="flex items-center justify-end gap-1.5">
+            <span class="text-xs font-bold text-slate-100 leading-tight group-hover:text-purple-200 transition">
+              {$profile.display_name}
+            </span>
+          </div>
+          <div class="flex items-center justify-end gap-1.5 text-[10px] font-semibold uppercase tracking-wider leading-none">
+            <span class="text-purple-300/80">{formatRank($rankTier)}</span>
+            {#if $connection === "connected"}
+              <span class="text-emerald-400 font-bold lowercase tracking-normal text-[9px]">online</span>
+            {:else}
+              <span class="text-amber-400/80 font-normal lowercase tracking-normal text-[9px]">(offline)</span>
+            {/if}
+          </div>
         </div>
-        <img
-          src={profileIconUrl($profile.profile_icon_id, $ddragonVersion)}
-          alt="Summoner Avatar"
-          draggable="false"
-          class="h-7 w-7 rounded-full object-cover ring-1 ring-purple-400/50 shadow-[0_0_8px_rgba(168,85,247,0.35)] transition group-hover:ring-purple-300"
-        />
+        <div class="relative">
+          <img
+            src={profileIconUrl($profile.profile_icon_id, $ddragonVersion)}
+            alt="Summoner Avatar"
+            draggable="false"
+            class="h-7 w-7 rounded-full object-cover ring-1 {$connection === 'connected'
+              ? 'ring-purple-400/50 shadow-[0_0_8px_rgba(168,85,247,0.35)]'
+              : 'ring-purple-500/20 opacity-85'} transition group-hover:ring-purple-300"
+          />
+          <span
+            class="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-[#0c061a] {$connection === 'connected'
+              ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]'
+              : 'bg-amber-400/85'}"
+            title={$connection === 'connected' ? 'Client connected' : 'Client offline (last active account)'}
+          ></span>
+        </div>
       {:else}
         <div class="flex flex-col">
           <span class="text-xs font-bold text-slate-300 leading-tight group-hover:text-purple-200 transition">

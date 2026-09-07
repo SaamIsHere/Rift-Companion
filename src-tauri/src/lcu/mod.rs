@@ -42,11 +42,14 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                 set_status(&app, &shared, ConnectionStatus::Connected);
 
                 // Fetch the active account's profile for the title bar (Issue #9).
+                // Persist to disk so it is remembered across sessions (Issue #40).
                 match client::get_current_summoner(&lock).await {
-                    Ok(profile) => {
-                        *shared.profile.lock().unwrap() = profile.clone();
+                    Ok(Some(profile)) => {
+                        let _ = crate::data::store::write_cached_profile(&profile);
+                        *shared.profile.lock().unwrap() = Some(profile.clone());
                         let _ = app.emit("lcu://profile", &profile);
                     }
+                    Ok(None) => tracing::debug!("current summoner not available yet"),
                     Err(e) => tracing::warn!("failed to fetch current summoner: {e}"),
                 }
 
@@ -62,6 +65,15 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                             tracing::info!(tier = detected.as_opgg_tier(), "auto-detected rank tier from LCU profile");
                             *shared.rank_tier.lock().unwrap() = detected;
                             let _ = app.emit("rank://update", detected);
+
+                            // Persist detected rank tier
+                            {
+                                let mut settings = shared.settings.lock().unwrap();
+                                settings.rank_tier = Some(detected);
+                                let _ = crate::data::store::write_settings(&settings);
+                            }
+                            let patch = crate::data::store::read_meta().map(|m| m.patch).unwrap_or_default();
+                            let _ = crate::data::store::write_meta(&patch, crate::data::store::now_unix(), detected, false);
 
                             let server_url = shared.settings.lock().unwrap().server_url.clone();
                             if !server_url.trim().is_empty() {
@@ -179,12 +191,8 @@ fn handle_session(app: &AppHandle, shared: &Shared, data: serde_json::Value) {
 }
 
 fn set_status(app: &AppHandle, shared: &Shared, status: ConnectionStatus) {
-    // The profile is only ever valid while connected; drop it as soon as we
-    // go back to searching so the UI doesn't show a stale name/icon.
-    if matches!(status, ConnectionStatus::Searching) {
-        *shared.profile.lock().unwrap() = None;
-        let _ = app.emit("lcu://profile", &None::<client::Summoner>);
-    }
+    // Note (Issue #40): Do not drop `shared.profile` on disconnect.
+    // The last connected account is preserved across sessions until a new account logs in.
     *shared.connection.lock().unwrap() = status.clone();
     let _ = app.emit("lcu://connection", &status);
 }

@@ -18,7 +18,7 @@ export const SUPPORTED_TIERS = [
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const round3 = (x) => Math.round(x * 1000) / 1000;
+const round3 = (x) => Math.round(x * 10000) / 10000;
 const round4 = (x) => Math.round(x * 10000) / 10000;
 const mapDamage = (d) => (d === "AP" ? "magic" : d === "BOTH" ? "mixed" : "physical");
 
@@ -394,8 +394,10 @@ export async function fetchOpggBuildData(championKey, role, tier, dd) {
             result.runes.push({
               id: page.id,
               play: page.play,
-              pick_rate: page.pick_rate ? round3(page.pick_rate) : null,
-              win_rate: b.win_rate ? round3(b.win_rate) : null,
+              pick_rate: page.pick_rate != null ? round4(page.pick_rate) : null,
+              win_rate: (page.win_rate ?? b.win_rate) != null
+                ? round4(page.win_rate ?? b.win_rate)
+                : (page.win != null && page.play ? round4(page.win / page.play) : null),
               primary_style: {
                 id: b.primary_perk_style?.id,
                 name: b.primary_perk_style?.name,

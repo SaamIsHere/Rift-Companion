@@ -105,6 +105,19 @@ pub fn set_rank_tier(state: State<Shared>, tier: RankTier, app: AppHandle) {
     *state.rank_tier.lock().unwrap() = tier;
     *state.rank_manual.lock().unwrap() = true;
 
+    // Persist manual rank choice to settings.json immediately so it survives restarts,
+    // regardless of whether a remote server or local crawl is active (Issue #40).
+    {
+        let mut settings = state.settings.lock().unwrap();
+        settings.rank_tier = Some(tier);
+        settings.rank_manual = true;
+        let _ = store::write_settings(&settings);
+    }
+
+    // Also update stats.meta.json so local crawler metadata is in sync
+    let patch = store::read_meta().map(|m| m.patch).unwrap_or_default();
+    let _ = store::write_meta(&patch, store::now_unix(), tier, true);
+
     let server_url = state.settings.lock().unwrap().server_url.clone();
     if !server_url.trim().is_empty() {
         let state_clone = state.inner().clone();
@@ -131,9 +144,6 @@ pub fn set_rank_tier(state: State<Shared>, tier: RankTier, app: AppHandle) {
         return;
     }
 
-    let patch = store::read_meta().map(|m| m.patch).unwrap_or_default();
-    let _ = store::write_meta(&patch, store::now_unix(), tier, true);
-
     opgg::refresh::trigger_refresh(app, state.inner().clone(), tier);
 }
 
@@ -149,6 +159,16 @@ pub fn get_settings(state: State<Shared>) -> Settings {
 pub fn set_settings(state: State<Shared>, settings: Settings, app: AppHandle) -> Vec<Recommendation> {
     let mut settings = settings;
     settings.comp_weight = settings.comp_weight.clamp(0.0, 1.0);
+
+    // Preserve persistent rank tier and manual flag across general settings updates (Issue #40)
+    let current_rank_tier = state.settings.lock().unwrap().rank_tier;
+    let current_rank_manual = state.settings.lock().unwrap().rank_manual;
+    if settings.rank_tier.is_none() {
+        settings.rank_tier = current_rank_tier;
+    }
+    if !settings.rank_manual {
+        settings.rank_manual = current_rank_manual;
+    }
 
     let old_server_url = state.settings.lock().unwrap().server_url.clone();
     let new_server_url = settings.server_url.clone();

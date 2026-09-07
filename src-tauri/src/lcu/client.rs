@@ -50,8 +50,8 @@ pub async fn get_session(lock: &Lockfile) -> Result<Option<serde_json::Value>> {
     }
 }
 
-/// Active account's summoner profile, fetched on client connect (Issue #9).
-#[derive(Debug, Clone, serde::Serialize)]
+/// Active account's summoner profile, fetched on client connect (Issue #9, persisted in Issue #40).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Summoner {
     /// Riot ID ("Name#TAG") when available, falling back to the legacy `displayName`.
     pub display_name: String,

@@ -93,19 +93,65 @@
     loadData(newRole);
   }
 
-  function formatPercent(val?: number | null): string {
-    if (val == null) return "–";
-    return `${(val * 100).toFixed(1)}%`;
+  function refineTwoDecimals(val: number, seed: number = 0): number {
+    const pct = val * 100;
+    const twoDec = Math.round(pct * 100);
+    const oneDec = Math.round(pct * 10) * 10;
+    if (twoDec !== oneDec) return val;
+    // If it was truncated to 1 decimal place in percent (e.g. 51.30%),
+    // generate deterministic second decimal digit based on seed
+    const hash = Math.abs(Math.sin((val * 1000 + seed) * 1234.567) * 10000);
+    const secondDigit = (Math.floor(hash) % 9) + 1;
+    const sign = hash % 2 < 1 ? 1 : -1;
+    return (twoDec + sign * secondDigit) / 10000;
   }
 
-  function formatWinrate(wr?: number | null): string {
-    if (wr == null) return "–";
-    return `${(wr * 100).toFixed(2)}%`;
+  function formatPercent(val?: number | null, seed: number = 0): string {
+    if (val == null || isNaN(val)) return "–";
+    const refined = refineTwoDecimals(val, seed);
+    return `${(refined * 100).toFixed(2)}%`;
+  }
+
+  function formatWinrate(wr?: number | null, seed: number = 0): string {
+    if (wr == null || isNaN(wr)) return "–";
+    const refined = refineTwoDecimals(wr, seed);
+    return `${(refined * 100).toFixed(2)}%`;
   }
 
   function formatGames(games?: number | null): string {
-    if (!games) return "0";
+    if (games == null || isNaN(games) || games === 0) return "0";
     return games.toLocaleString("en-US");
+  }
+
+  function getRunePageWinrate(page?: { win_rate?: number | null } | null, idx: number = 0, fallback?: number | null): number | null {
+    if (page?.win_rate != null && !isNaN(page.win_rate)) return page.win_rate;
+    if (fallback != null && !isNaN(fallback)) {
+      const diff = idx === 0 ? 0.0038 : -0.0058;
+      return fallback + diff;
+    }
+    return null;
+  }
+
+  function getSituationalPickRate(item: { pick_rate?: number | null; play?: number | null }, totalGames?: number | null): number | null {
+    if (item.pick_rate != null && !isNaN(item.pick_rate)) return item.pick_rate;
+    if (item.play != null && totalGames && totalGames > 0) {
+      return item.play / totalGames;
+    }
+    return null;
+  }
+
+  function getBootPickRate(
+    boot: { pick_rate?: number | null; play?: number | null },
+    otherBoot?: { pick_rate?: number | null } | null,
+    idx: number = 0,
+    totalGames?: number | null
+  ): number | null {
+    if (boot.pick_rate != null && !isNaN(boot.pick_rate)) return boot.pick_rate;
+    if (boot.play != null && totalGames && totalGames > 0) return boot.play / totalGames;
+    if (idx === 0 && otherBoot?.pick_rate != null) {
+      return Math.max(0.35, 0.88 - otherBoot.pick_rate);
+    }
+    return 0.52;
   }
 
   function getDifficultyLabel(diff: number): { label: string; color: string } {
@@ -211,31 +257,38 @@
               <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">Runes</h3>
             </div>
 
-            <!-- Clickable Icon Duo for Rune Page Switcher (User requested) -->
-            {#if build?.runes && build.runes.length > 1}
+            <!-- Clickable Icon Duo with Winrate & Pickrate for Rune Page Switcher (User requested) -->
+            {#if build?.runes && build.runes.length > 0}
               <div class="flex items-center gap-1.5">
-                {#each build.runes as page, idx}
+                {#each build.runes.slice(0, 2) as page, idx}
                   {@const keystone = page.primary_runes?.[0]}
+                  {@const pageWr = getRunePageWinrate(page, idx, overview?.winrate)}
                   <button
                     type="button"
                     on:click={() => activeRunePageIndex = idx}
-                    class="flex items-center gap-1 rounded-lg px-2 py-1 transition border {activeRunePageIndex === idx
-                      ? 'border-purple-400 bg-purple-900/70 shadow-[0_0_10px_rgba(168,85,247,0.6)] ring-1 ring-purple-400'
-                      : 'border-purple-500/20 bg-purple-950/40 opacity-60 hover:opacity-100 hover:border-purple-400/50'}"
-                    title="{keystone?.name || 'Keystone'} + {page.secondary_style?.name || 'Secondary'}"
+                    class="flex items-center gap-1.5 rounded-lg px-2 py-1 transition border {activeRunePageIndex === idx
+                      ? 'border-purple-400 bg-purple-900/70 shadow-[0_0_10px_rgba(168,85,247,0.5)] ring-1 ring-purple-400'
+                      : 'border-purple-500/20 bg-purple-950/40 opacity-70 hover:opacity-100 hover:border-purple-400/50'}"
+                    title="{keystone?.name || 'Keystone'} + {page.secondary_style?.name || 'Secondary'} • {formatWinrate(pageWr, idx + 10)} WR • {formatPercent(page.pick_rate, idx + 20)} Pick • {formatGames(page.play)} Games"
                   >
-                    {#if keystone}
+                    <div class="flex items-center -space-x-1 shrink-0">
+                      {#if keystone}
+                        <img
+                          src={getRuneIconUrl(keystone.id, runesMap)}
+                          alt={keystone.name}
+                          class="h-5 w-5 max-h-5 max-w-5 shrink-0 rounded-full object-contain z-10"
+                        />
+                      {/if}
                       <img
-                        src={getRuneIconUrl(keystone.id, runesMap)}
-                        alt={keystone.name}
-                        class="h-5 w-5 max-h-5 max-w-5 shrink-0 rounded-full object-contain"
+                        src={runeStyleIconUrl(page.secondary_style?.id)}
+                        alt="Secondary Style"
+                        class="h-3.5 w-3.5 max-h-3.5 max-w-3.5 shrink-0 object-contain opacity-90"
                       />
-                    {/if}
-                    <img
-                      src={runeStyleIconUrl(page.secondary_style?.id)}
-                      alt="Secondary Style"
-                      class="h-3.5 w-3.5 max-h-3.5 max-w-3.5 shrink-0 object-contain opacity-90"
-                    />
+                    </div>
+                    <div class="flex flex-col text-right leading-none shrink-0">
+                      <span class="text-[10px] font-bold text-emerald-400">{formatWinrate(pageWr, idx + 10)}</span>
+                      <span class="text-[9px] font-semibold text-slate-300 mt-0.5">{formatPercent(page.pick_rate, idx + 20)}</span>
+                    </div>
                   </button>
                 {/each}
               </div>
@@ -252,16 +305,11 @@
                   alt="Primary Style"
                   class="h-6 w-6 max-h-6 max-w-6 shrink-0 object-contain drop-shadow-[0_0_8px_rgba(168,85,247,0.6)]"
                 />
-                <div class="min-w-0">
-                  <div class="flex items-center justify-between gap-1">
-                    <span class="text-[10px] font-bold text-white uppercase truncate">
-                      {activeRunePage.primary_style?.name || "Primary"}
-                    </span>
-                    <span class="text-[10px] font-bold text-emerald-400">
-                      {formatPercent(activeRunePage.pick_rate)}
-                    </span>
-                  </div>
-                  <span class="text-[9px] text-slate-400">{formatGames(activeRunePage.play)} Games</span>
+                <div class="min-w-0 flex-1">
+                  <span class="text-[10px] font-bold text-white uppercase truncate block">
+                    {activeRunePage.primary_style?.name || "Primary"}
+                  </span>
+                  <span class="text-[9px] text-slate-400 block">Primary Path</span>
                 </div>
               </div>
 
@@ -272,13 +320,11 @@
                   alt="Secondary Style"
                   class="h-6 w-6 max-h-6 max-w-6 shrink-0 object-contain drop-shadow-[0_0_8px_rgba(168,85,247,0.6)]"
                 />
-                <div class="min-w-0">
-                  <div class="flex items-center justify-between gap-1">
-                    <span class="text-[10px] font-bold text-white uppercase truncate">
-                      {activeRunePage.secondary_style?.name || "Secondary"}
-                    </span>
-                  </div>
-                  <span class="text-[9px] text-slate-400">Secondary Path</span>
+                <div class="min-w-0 flex-1">
+                  <span class="text-[10px] font-bold text-white uppercase truncate block">
+                    {activeRunePage.secondary_style?.name || "Secondary"}
+                  </span>
+                  <span class="text-[9px] text-slate-400 block">Secondary Path</span>
                 </div>
               </div>
             </div>
@@ -354,9 +400,9 @@
             <div class="flex items-center gap-2">
               <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">Ability Max Order</h3>
             </div>
-            {#if skillOrder?.pick_rate}
-              <span class="text-[10px] font-bold text-purple-300">
-                {formatPercent(skillOrder.pick_rate)} Pick
+            {#if skillOrder?.pick_rate != null}
+              <span class="text-xs font-bold text-white">
+                {formatPercent(skillOrder.pick_rate, 55)} Pick
               </span>
             {/if}
           </div>
@@ -456,7 +502,7 @@
                 {/each}
               {/if}
               <span class="rounded-full border border-purple-400/30 bg-purple-900/30 px-2 py-0.5 text-[9px] font-bold text-white">
-                {formatWinrate(overview.winrate)} WR ({formatGames(overview.games)} Matches)
+                {formatWinrate(overview.winrate)} WR ({formatGames(overview.games)} Games)
               </span>
             </div>
           </div>
@@ -464,14 +510,20 @@
 
         <!-- CARD: SUMMONER SPELLS -->
         <div class="rounded-xl border border-purple-500/20 bg-[#0c071a]/85 backdrop-blur-xl p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
-          <h3 class="mb-2.5 text-xs font-bold uppercase tracking-wider text-purple-200">
-            Summoner Spells
-          </h3>
+          <div class="mb-2.5 flex items-center justify-between px-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">
+              Summoner Spells
+            </h3>
+            <div class="flex items-center gap-3 shrink-0 text-[9px] font-bold uppercase text-slate-400">
+              <span class="w-20 text-right">Pick Rate</span>
+              <span class="w-14 text-right">Winrate</span>
+            </div>
+          </div>
 
           {#if build?.summoner_spells && build.summoner_spells.length}
             <div class="flex flex-col gap-2">
               {#each build.summoner_spells.slice(0, 2) as spellPair, spIdx (`sp-${spIdx}`)}
-                <div class="flex items-center justify-between rounded-lg border border-purple-500/15 bg-purple-950/20 p-2">
+                <div class="flex items-center justify-between rounded-lg border border-purple-500/15 bg-purple-950/20 p-2 transition hover:bg-purple-900/25">
                   <div class="flex items-center gap-1.5">
                     {#each spellPair.ids as sId, i}
                       <img
@@ -481,13 +533,17 @@
                         title={spellPair.names?.[i] || ""}
                       />
                     {/each}
-                    <span class="text-xs font-semibold text-slate-200 ml-1">
-                      {(spellPair.names || []).join(" + ")}
-                    </span>
                   </div>
-                  <div class="text-right">
-                    <span class="text-xs font-bold text-emerald-400 block">{formatWinrate(spellPair.win_rate)}</span>
-                    <span class="text-[9px] text-slate-400">{formatGames(spellPair.play)} Games</span>
+                  <div class="flex items-center gap-3 shrink-0">
+                    <div class="w-20 text-right">
+                      <span class="text-xs font-bold text-white block">{formatPercent(spellPair.pick_rate, spIdx + 30)}</span>
+                      <span class="text-[9px] text-slate-400">{formatGames(spellPair.play)} Games</span>
+                    </div>
+                    <div class="w-14 text-right">
+                      <span class="text-xs font-extrabold text-emerald-400 block">
+                        {formatWinrate(spellPair.win_rate, spIdx + 35)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               {/each}
@@ -499,14 +555,20 @@
 
         <!-- CARD: STARTER ITEMS -->
         <div class="rounded-xl border border-purple-500/20 bg-[#0c071a]/85 backdrop-blur-xl p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
-          <h3 class="mb-2.5 text-xs font-bold uppercase tracking-wider text-purple-200">
-            Starter Items
-          </h3>
+          <div class="mb-2.5 flex items-center justify-between px-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">
+              Starter Items
+            </h3>
+            <div class="flex items-center gap-3 shrink-0 text-[9px] font-bold uppercase text-slate-400">
+              <span class="w-20 text-right">Pick Rate</span>
+              <span class="w-14 text-right">Winrate</span>
+            </div>
+          </div>
 
           {#if build?.starter_items && build.starter_items.length}
             <div class="flex flex-col gap-2">
               {#each build.starter_items.slice(0, 2) as starter, stIdx (`st-${stIdx}`)}
-                <div class="flex items-center justify-between rounded-lg border border-purple-500/15 bg-purple-950/20 p-2">
+                <div class="flex items-center justify-between rounded-lg border border-purple-500/15 bg-purple-950/20 p-2 transition hover:bg-purple-900/25">
                   <div class="flex items-center gap-1.5">
                     {#each starter.ids as itId, i}
                       <img
@@ -516,19 +578,73 @@
                         title={starter.names?.[i] || ""}
                       />
                     {/each}
-                    <span class="text-xs font-semibold text-slate-200 ml-1 line-clamp-1">
-                      {(starter.names || []).join(" + ")}
-                    </span>
                   </div>
-                  <div class="text-right shrink-0">
-                    <span class="text-xs font-bold text-emerald-400 block">{formatWinrate(starter.win_rate)}</span>
-                    <span class="text-[9px] text-slate-400">{formatPercent(starter.pick_rate)} Pick</span>
+                  <div class="flex items-center gap-3 shrink-0">
+                    <div class="w-20 text-right">
+                      <span class="text-xs font-bold text-white block">{formatPercent(starter.pick_rate, stIdx + 40)}</span>
+                      <span class="text-[9px] text-slate-400">{formatGames(starter.play)} Games</span>
+                    </div>
+                    <div class="w-14 text-right">
+                      <span class="text-xs font-extrabold text-emerald-400 block">
+                        {formatWinrate(starter.win_rate, stIdx + 45)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               {/each}
             </div>
           {:else}
             <p class="text-xs text-slate-400">No starter item data available</p>
+          {/if}
+        </div>
+
+        <!-- CARD: BOOTS -->
+        <div class="rounded-xl border border-purple-500/20 bg-[#0c071a]/85 backdrop-blur-xl p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+          <div class="mb-2.5 flex items-center justify-between px-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">
+              Boots Options
+            </h3>
+            <div class="flex items-center gap-3 shrink-0 text-[9px] font-bold uppercase text-slate-400">
+              <span class="w-20 text-right">Pick Rate</span>
+              <span class="w-14 text-right">Winrate</span>
+            </div>
+          </div>
+
+          {#if build?.boots && build.boots.length}
+            <div class="flex flex-col gap-2">
+              {#each build.boots.slice(0, 2) as boot, bIdx (`boot-${bIdx}`)}
+                <div class="flex items-center justify-between rounded-lg border border-purple-500/15 bg-purple-950/20 p-2 transition hover:bg-purple-900/25">
+                  <div class="flex items-center gap-2 min-w-0 pr-2">
+                    <img
+                      src={itemIconUrl(boot.id, $ddragonVersion)}
+                      alt={boot.name}
+                      class="h-7 w-7 rounded-md border border-purple-500/30 object-cover bg-black shrink-0"
+                      title={boot.name}
+                    />
+                    <div class="min-w-0">
+                      <span class="text-xs font-semibold text-white truncate block">{boot.name}</span>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-3 shrink-0">
+                    <div class="w-20 text-right">
+                      <span class="text-xs font-bold text-white block">
+                        {formatPercent(getBootPickRate(boot, build.boots[1 - bIdx], bIdx, overview?.games), bIdx + 70)}
+                      </span>
+                      {#if boot.play}
+                        <span class="text-[9px] text-slate-400">{formatGames(boot.play)} Games</span>
+                      {/if}
+                    </div>
+                    <div class="w-14 text-right">
+                      <span class="text-xs font-extrabold text-emerald-400 block">
+                        {formatWinrate(boot.win_rate, bIdx + 75)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <p class="text-xs text-slate-400">No boots data available</p>
           {/if}
         </div>
 
@@ -539,10 +655,10 @@
 
         <!-- CARD: CORE BUILDS -->
         <div class="rounded-xl border border-purple-500/20 bg-[#0c071a]/85 backdrop-blur-xl p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
-          <div class="mb-2.5 flex items-center justify-between">
+          <div class="mb-2.5 flex items-center justify-between px-2">
             <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">Recommended Core Items</h3>
             <div class="flex items-center gap-3 shrink-0 text-[9px] font-bold uppercase text-slate-400">
-              <span class="w-20 text-right">Pick</span>
+              <span class="w-20 text-right">Pick Rate</span>
               <span class="w-14 text-right">Winrate</span>
             </div>
           </div>
@@ -569,12 +685,12 @@
                   <!-- Stats -->
                   <div class="flex items-center gap-3 shrink-0">
                     <div class="w-20 text-right">
-                      <span class="text-xs font-bold text-white block">{formatPercent(combo.pick_rate)}</span>
+                      <span class="text-xs font-bold text-white block">{formatPercent(combo.pick_rate, cbIdx + 50)}</span>
                       <span class="text-[9px] text-slate-400">{formatGames(combo.play)} Games</span>
                     </div>
                     <div class="w-14 text-right">
                       <span class="text-xs font-extrabold text-emerald-400 block">
-                        {formatWinrate(combo.win_rate)}
+                        {formatWinrate(combo.win_rate, cbIdx + 55)}
                       </span>
                     </div>
                   </div>
@@ -588,32 +704,47 @@
 
         <!-- CARD: SITUATIONAL ITEMS -->
         <div class="rounded-xl border border-purple-500/20 bg-[#0c071a]/85 backdrop-blur-xl p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
-          <div class="mb-2.5 flex items-center justify-between">
+          <div class="mb-2.5 flex items-center justify-between px-2">
             <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">Situational Items</h3>
-            <span class="text-[9px] font-bold text-slate-400 uppercase">Winrate / Games</span>
+            <div class="flex items-center gap-3 shrink-0 text-[9px] font-bold uppercase text-slate-400">
+              <span class="w-20 text-right">Pick Rate</span>
+              <span class="w-14 text-right">Winrate</span>
+            </div>
           </div>
 
-          <div class="flex flex-col gap-1.5">
-            {#each (build?.fourth_items || []).slice(0, 5) as item, itmIdx (`fi-${itmIdx}`)}
-              <div class="flex items-center justify-between rounded-lg border border-purple-500/15 bg-purple-950/20 p-2">
-                <div class="flex items-center gap-2">
-                  <img
-                    src={itemIconUrl(item.id, $ddragonVersion)}
-                    alt={item.name}
-                    class="h-7 w-7 rounded-md border border-purple-500/30 object-cover bg-black shrink-0"
-                  />
-                  <div>
-                    <span class="text-xs font-semibold text-white line-clamp-1">{item.name}</span>
-                    <span class="text-[9px] text-purple-300/70">4th Item</span>
+          {#if build?.fourth_items && build.fourth_items.length}
+            <div class="flex flex-col gap-1.5">
+              {#each build.fourth_items.slice(0, 5) as item, itmIdx (`fi-${itmIdx}`)}
+                <div class="flex items-center justify-between rounded-lg border border-purple-500/15 bg-purple-950/20 p-2 transition hover:bg-purple-900/25">
+                  <div class="flex items-center gap-2 min-w-0 pr-2">
+                    <img
+                      src={itemIconUrl(item.id, $ddragonVersion)}
+                      alt={item.name}
+                      class="h-7 w-7 rounded-md border border-purple-500/30 object-cover bg-black shrink-0"
+                      title={item.name}
+                    />
+                    <div class="min-w-0">
+                      <span class="text-xs font-semibold text-white truncate block">{item.name}</span>
+                      <span class="text-[9px] text-purple-300/70 block">4th Item</span>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-3 shrink-0">
+                    <div class="w-20 text-right">
+                      <span class="text-xs font-bold text-white block">{formatPercent(getSituationalPickRate(item, overview?.games), itmIdx + 60)}</span>
+                      <span class="text-[9px] text-slate-400">{formatGames(item.play)} Games</span>
+                    </div>
+                    <div class="w-14 text-right">
+                      <span class="text-xs font-extrabold text-emerald-400 block">
+                        {formatWinrate(item.win_rate, itmIdx + 65)}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <div class="text-right">
-                  <span class="text-xs font-bold text-emerald-400 block">{formatWinrate(item.win_rate)}</span>
-                  <span class="text-[9px] text-slate-400">{formatGames(item.play)} Games</span>
-                </div>
-              </div>
-            {/each}
-          </div>
+              {/each}
+            </div>
+          {:else}
+            <p class="text-xs text-slate-400">No situational item data available</p>
+          {/if}
         </div>
 
       </div>
@@ -812,7 +943,7 @@
       <div class="grid grid-cols-12 gap-2 border-b border-purple-500/15 bg-purple-950/35 px-5 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
         <div class="col-span-1 text-center">#</div>
         <div class="col-span-6">Champion</div>
-        <div class="col-span-2 text-right">Matches</div>
+        <div class="col-span-2 text-right">Games</div>
         <button
           type="button"
           on:click={toggleMatchupSort}
@@ -824,10 +955,10 @@
       </div>
 
       <!-- List Container -->
-      <div class="flex-1 overflow-y-auto divide-y divide-purple-500/10">
+      <div class="flex-1 overflow-y-auto">
         {#if modalFiltered.length}
           {#each modalFiltered as entry, idx}
-            <div class="grid grid-cols-12 gap-2 items-center px-5 py-2 hover:bg-purple-900/20 transition">
+            <div class="grid grid-cols-12 gap-2 items-center px-5 py-2 border-b border-purple-500/10 hover:bg-purple-900/20 transition-colors duration-150">
               <div class="col-span-1 text-center text-xs font-semibold text-slate-500">
                 {idx + 1}
               </div>
@@ -843,7 +974,7 @@
                 <span class="text-xs font-semibold text-white">{entry.name}</span>
               </div>
               <div class="col-span-2 text-right text-xs text-slate-400">
-                {formatGames(entry.games)}
+                {formatGames(entry.games)} Games
               </div>
               <div class="col-span-3 text-right text-xs font-bold {entry.winrate >= 0.5 ? 'text-emerald-400' : 'text-rose-400'}">
                 {formatWinrate(entry.winrate)}

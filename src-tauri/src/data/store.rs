@@ -76,6 +76,12 @@ pub struct Settings {
     /// Data Source: Optional Rift Server URL on local NAS (e.g. "http://192.168.1.100:8080").
     #[serde(default)]
     pub server_url: String,
+    /// Selected rank tier (Issue #13 & #40).
+    #[serde(default)]
+    pub rank_tier: Option<RankTier>,
+    /// Whether rank tier was set manually by the user (Issue #40).
+    #[serde(default)]
+    pub rank_manual: bool,
 }
 
 fn default_comp_weight() -> f64 {
@@ -89,6 +95,8 @@ impl Default for Settings {
             always_on_top: false,
             comp_weight: default_comp_weight(),
             server_url: String::new(),
+            rank_tier: None,
+            rank_manual: false,
         }
     }
 }
@@ -109,3 +117,23 @@ pub fn write_settings(settings: &Settings) -> std::io::Result<()> {
     }
     std::fs::write(settings_path(), serde_json::to_string_pretty(settings).unwrap_or_default())
 }
+
+fn profile_path() -> PathBuf {
+    let mut p = default_data_path();
+    p.set_file_name("profile.json");
+    p
+}
+
+/// Read the last known summoner profile (Issue #40) cached from an earlier session.
+pub fn read_cached_profile() -> Option<crate::lcu::client::Summoner> {
+    serde_json::from_str(&std::fs::read_to_string(profile_path()).ok()?).ok()
+}
+
+/// Persist the active summoner profile to disk so it survives app restarts.
+pub fn write_cached_profile(profile: &crate::lcu::client::Summoner) -> std::io::Result<()> {
+    if let Some(parent) = profile_path().parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    std::fs::write(profile_path(), serde_json::to_string_pretty(profile).unwrap_or_default())
+}
+

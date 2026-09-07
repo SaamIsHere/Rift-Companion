@@ -3,6 +3,9 @@ export default {
   content: ["./index.html", "./src/**/*.{svelte,ts,js}"],
   theme: {
     extend: {
+      borderColor: {
+        DEFAULT: "rgba(168, 85, 247, 0.15)",
+      },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
       },
