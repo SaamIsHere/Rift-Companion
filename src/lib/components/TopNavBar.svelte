@@ -2,7 +2,7 @@
   import { activeTab, type NavTab, resetChampionsView } from "../stores/navigation";
   import { draft } from "../stores/draft";
   import { connection } from "../stores/connection";
-  import { profile } from "../stores/profile";
+  import { profile, loadPlayerProfile } from "../stores/profile";
   import { rankTier } from "../stores/rank";
   import { ddragonVersion } from "../stores/champions";
   import { profileIconUrl } from "../utils/ddragon";
@@ -63,6 +63,8 @@
         on:click={() => {
           if (tab.id === "champions") {
             resetChampionsView();
+          } else if (tab.id === "profil") {
+            loadPlayerProfile();
           }
           activeTab.set(tab.id);
         }}
@@ -96,7 +98,10 @@
     <!-- User Profile Snippet (frameless, matching mockup) -->
     <button
       type="button"
-      on:click={() => activeTab.set("profil")}
+      on:click={() => {
+        loadPlayerProfile();
+        activeTab.set("profil");
+      }}
       class="group flex items-center gap-2.5 text-right transition hover:opacity-80 focus:outline-none"
       title="View Profile"
     >

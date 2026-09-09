@@ -1,83 +1,1027 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import { connection } from "../stores/connection";
-  import { profile } from "../stores/profile";
-  import { rankTier } from "../stores/rank";
-  import { ddragonVersion } from "../stores/champions";
-  import { profileIconUrl } from "../utils/ddragon";
+  import {
+    profile,
+    viewedProfile,
+    viewedMatches,
+    viewedProfileLoading,
+    viewedMatchesLoading,
+    viewedProfileError,
+    recentSearches,
+    loadPlayerProfile,
+    loadMatchDetail,
+    type RecentSearchItem,
+  } from "../stores/profile";
+  import { championCatalog, ddragonVersion } from "../stores/champions";
+  import {
+    profileIconUrl,
+    squareIconUrl,
+    itemIconUrl,
+    summonerSpellIconUrl,
+    getRuneIconUrl,
+    tierMedalUrl,
+    formatTimeAgo,
+    formatDuration,
+    loadRunesReforged,
+  } from "../utils/ddragon";
+  import type { PlayerMatch } from "../types";
 
-  function formatRank(tier: string): string {
-    return tier
-      .replace("_plus", "+")
-      .replace("_", " ")
-      .toUpperCase();
+  const REGIONS = [
+    { code: "EUW", label: "Europe West (EUW)" },
+    { code: "NA", label: "North America (NA)" },
+    { code: "KR", label: "Korea (KR)" },
+    { code: "EUNE", label: "Europe Nordic & East (EUNE)" },
+    { code: "OCE", label: "Oceania (OCE)" },
+    { code: "LAN", label: "Latin America North (LAN)" },
+    { code: "LAS", label: "Latin America South (LAS)" },
+    { code: "BR", label: "Brazil (BR)" },
+    { code: "JP", label: "Japan (JP)" },
+  ];
+
+  let searchQuery = "";
+  let selectedRegion = "EUW";
+  let activeQueueFilter: "all" | "solo" | "flex" | "other" = "all";
+  let expandedMatchIds = new Set<string>();
+  let loadingMatchDetailIds = new Set<string>();
+  let runesMap: Map<number, any> | null = null;
+  let scrollContainer: HTMLDivElement | null = null;
+
+  onMount(() => {
+    loadRunesReforged($ddragonVersion).then((map) => {
+      runesMap = map;
+    });
+
+    // If local profile is already connected or remembered, load it automatically;
+    // otherwise do not make a failing query so the search landing is displayed.
+    if (!$viewedProfile) {
+      loadPlayerProfile(undefined, undefined, selectedRegion);
+    }
+  });
+
+  // Automatically load profile once League client connects if no profile is viewed
+  $: if ($profile && !$viewedProfile && !$viewedProfileLoading) {
+    loadPlayerProfile(undefined, undefined, selectedRegion);
+  }
+
+  // Keep search bar populated with active profile if empty
+  $: if (!searchQuery && $viewedProfile) {
+    searchQuery = $viewedProfile.display_name;
+    selectedRegion = $viewedProfile.region || "EUW";
+  }
+
+  function handleSearch() {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return;
+
+    let gn = trimmed;
+    let tl = selectedRegion;
+
+    if (trimmed.includes("#")) {
+      const parts = trimmed.split("#");
+      gn = parts[0].trim();
+      tl = parts[1].trim() || selectedRegion;
+    }
+
+    if (scrollContainer) {
+      scrollContainer.scrollTo({ top: 0, behavior: "auto" });
+    }
+    loadPlayerProfile(gn, tl, selectedRegion, true);
+  }
+
+  function handleKeyDown(e: KeyboardEvent) {
+    if (e.key === "Enter") {
+      handleSearch();
+    }
+  }
+
+  function selectRecent(item: RecentSearchItem) {
+    searchQuery = item.riot_id;
+    selectedRegion = item.region;
+    handleSearch();
+  }
+
+  function returnToMyAccount() {
+    if (scrollContainer) {
+      scrollContainer.scrollTo({ top: 0, behavior: "auto" });
+    }
+    if ($profile) {
+      searchQuery = $profile.display_name;
+      const parts = $profile.display_name.split("#");
+      const gn = parts[0];
+      const tl = parts[1] || selectedRegion;
+      loadPlayerProfile(gn, tl, selectedRegion, true);
+    } else {
+      loadPlayerProfile(undefined, undefined, selectedRegion, true);
+    }
+  }
+
+  function selectQueueFilter(filter: "all" | "solo" | "flex" | "other") {
+    activeQueueFilter = filter;
+    if (scrollContainer) {
+      scrollContainer.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
+  async function toggleMatchDetails(match: PlayerMatch) {
+    if (expandedMatchIds.has(match.id)) {
+      expandedMatchIds.delete(match.id);
+      expandedMatchIds = new Set(expandedMatchIds);
+    } else {
+      expandedMatchIds.add(match.id);
+      expandedMatchIds = new Set(expandedMatchIds);
+
+      // If match has fewer than 2 participants (e.g. OP.GG match list summary), fetch full game detail
+      if (!match.participants || match.participants.length < 2) {
+        loadingMatchDetailIds.add(match.id);
+        loadingMatchDetailIds = new Set(loadingMatchDetailIds);
+        try {
+          await loadMatchDetail(
+            match.id,
+            selectedRegion,
+            match.raw_created_at || match.game_creation,
+            $viewedProfile?.display_name
+          );
+        } finally {
+          loadingMatchDetailIds.delete(match.id);
+          loadingMatchDetailIds = new Set(loadingMatchDetailIds);
+        }
+      }
+    }
+  }
+
+  // Filtered matches
+  $: filteredMatches = $viewedMatches.filter((m) => {
+    if (activeQueueFilter === "all") return true;
+    const label = m.queue_label.toLowerCase();
+    if (activeQueueFilter === "solo") return label.includes("solo");
+    if (activeQueueFilter === "flex") return label.includes("flex");
+    if (activeQueueFilter === "other") return !label.includes("solo") && !label.includes("flex");
+    return true;
+  });
+
+  // Recent 20 summary metrics
+  $: recentStats = (() => {
+    const matches = $viewedMatches;
+    if (!matches.length) return null;
+    let wins = 0;
+    let kills = 0;
+    let deaths = 0;
+    let assists = 0;
+    for (const m of matches) {
+      if (m.win) wins++;
+      kills += m.kills;
+      deaths += m.deaths;
+      assists += m.assists;
+    }
+    const count = matches.length;
+    const winrate = Math.round((wins / count) * 1000) / 10;
+    const avgK = Math.round((kills / count) * 10) / 10;
+    const avgD = Math.round((deaths / count) * 10) / 10;
+    const avgA = Math.round((assists / count) * 10) / 10;
+    const kdaRatio = deaths > 0 ? Math.round(((kills + assists) / deaths) * 100) / 100 : kills + assists;
+    return {
+      count,
+      wins,
+      losses: count - wins,
+      winrate,
+      avgK,
+      avgD,
+      avgA,
+      kdaRatio,
+    };
+  })();
+
+  function getChampInfo(champId: number) {
+    const info = $championCatalog.get(champId);
+    if (info) return info;
+    return { id: champId, key: String(champId), name: `Champion ${champId}` };
+  }
+
+  function formatPct(val?: number | null): string {
+    if (val == null || isNaN(val)) return "0.00%";
+    return (val * 100).toFixed(2) + "%";
+  }
+
+  function getKdaColor(kda: number): string {
+    if (kda >= 4.5) return "text-amber-300 font-black";
+    if (kda >= 3.0) return "text-emerald-400 font-extrabold";
+    if (kda >= 2.0) return "text-cyan-300 font-bold";
+    return "text-slate-300 font-medium";
   }
 </script>
 
-<div class="flex flex-1 flex-col items-center justify-center p-8 select-none">
-  <div class="glass flex w-full max-w-lg flex-col items-center rounded-2xl p-8 text-center">
-    {#if $profile}
-      <div class="relative mb-4">
-        <img
-          src={profileIconUrl($profile.profile_icon_id, $ddragonVersion)}
-          alt="Summoner Icon"
-          class="h-24 w-24 rounded-full border-2 {$connection === 'connected'
-            ? 'border-purple-500/60 shadow-[0_0_24px_rgba(168,85,247,0.5)]'
-            : 'border-purple-500/30 opacity-85 shadow-[0_0_16px_rgba(168,85,247,0.25)]'}"
-        />
-        <span class="absolute bottom-0 right-0 rounded-full bg-purple-950 border border-purple-400/50 px-2 py-0.5 text-xs font-bold text-purple-200">
-          Lv. {$profile.level}
-        </span>
+<div
+  bind:this={scrollContainer}
+  class="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-5 select-none text-slate-100 scroll-smooth"
+>
+  <!-- SEARCH BAR & ACCOUNT ACTIONS HEADER -->
+  <div class="sticky top-0 z-30 shrink-0 block glass mb-5 rounded-2xl border border-purple-500/20 bg-[#0c071a]/95 p-4 shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <!-- Search Form -->
+      <div class="flex flex-1 items-center gap-2 min-w-[300px] max-w-2xl">
+        <!-- Region Picker -->
+        <select
+          bind:value={selectedRegion}
+          class="rounded-xl border border-purple-500/30 bg-purple-950/50 px-3 py-2 text-xs font-bold text-purple-200 outline-none transition focus:border-purple-400 cursor-pointer"
+        >
+          {#each REGIONS as reg}
+            <option value={reg.code} class="bg-[#120a26] text-white">{reg.code}</option>
+          {/each}
+        </select>
+
+        <!-- Search Input -->
+        <div class="relative flex-1">
+          <input
+            type="text"
+            bind:value={searchQuery}
+            on:keydown={handleKeyDown}
+            placeholder="Search summoner (e.g. Agurin#EUW, Faker#KR1)..."
+            class="w-full rounded-xl border border-purple-500/30 bg-purple-950/40 px-4 py-2 text-xs font-semibold text-white placeholder-purple-300/40 outline-none transition focus:border-purple-400 focus:bg-purple-950/60 focus:shadow-[0_0_16px_rgba(168,85,247,0.3)]"
+          />
+          {#if searchQuery}
+            <button
+              type="button"
+              on:click={() => (searchQuery = "")}
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-purple-400/60 hover:text-white"
+            >
+              ✕
+            </button>
+          {/if}
+        </div>
+
+        <!-- Search Button -->
+        <button
+          type="button"
+          on:click={handleSearch}
+          disabled={$viewedProfileLoading}
+          class="inline-flex items-center gap-1.5 rounded-xl border border-purple-400/40 bg-purple-600/30 px-4 py-2 text-xs font-bold text-white transition hover:bg-purple-600/50 hover:shadow-[0_0_16px_rgba(168,85,247,0.5)] active:scale-95 disabled:opacity-50"
+        >
+          {#if $viewedProfileLoading}
+            <div class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+            <span>Searching…</span>
+          {:else}
+            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="11" cy="11" r="8" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <span>Search</span>
+          {/if}
+        </button>
       </div>
 
-      <h2 class="text-2xl font-extrabold text-white tracking-wide">
-        {$profile.display_name}
-      </h2>
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-2">
+        {#if $profile && $viewedProfile && $viewedProfile.display_name.toLowerCase() !== $profile.display_name.toLowerCase()}
+          <button
+            type="button"
+            on:click={returnToMyAccount}
+            class="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-950/30 px-3.5 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-900/40 active:scale-95"
+            title="Return to connected / remembered local account"
+          >
+            <span>★</span>
+            <span>My Account</span>
+          </button>
+        {/if}
 
-      {#if $connection === "connected"}
-        <div class="mt-2 inline-flex items-center gap-2 rounded-full border border-purple-500/30 bg-purple-950/40 px-3.5 py-1 text-xs font-semibold text-purple-200">
-          <span class="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"></span>
-          <span>League Client Connected</span>
-        </div>
-      {:else}
-        <div class="mt-2 inline-flex items-center gap-2 rounded-full border border-amber-500/30 bg-amber-950/20 px-3.5 py-1 text-xs font-semibold text-amber-300">
-          <span class="h-2 w-2 rounded-full bg-amber-400 animate-pulse"></span>
-          <span>Client Offline · Remembered Account</span>
-        </div>
-      {/if}
-
-      <div class="mt-6 grid w-full grid-cols-2 gap-4 text-left">
-        <div class="glass-soft rounded-xl p-4">
-          <span class="text-xs uppercase tracking-wider text-purple-300/70">Active Rank</span>
-          <p class="mt-1 text-lg font-bold text-white">{formatRank($rankTier)}</p>
-        </div>
-        <div class="glass-soft rounded-xl p-4">
-          <span class="text-xs uppercase tracking-wider text-purple-300/70">Data Dragon</span>
-          <p class="mt-1 text-lg font-bold text-white">v{$ddragonVersion}</p>
-        </div>
+        <button
+          type="button"
+          on:click={() => loadPlayerProfile(undefined, undefined, selectedRegion, true)}
+          disabled={$viewedProfileLoading}
+          class="inline-flex items-center gap-1.5 rounded-xl border border-purple-500/30 bg-purple-950/40 px-3.5 py-2 text-xs font-bold text-purple-200 transition hover:bg-purple-900/40 hover:text-white active:scale-95 disabled:opacity-50"
+          title="Force fresh data sync"
+        >
+          <span class="text-sm {$viewedProfileLoading ? 'animate-spin' : ''}">↻</span>
+          <span>Refresh</span>
+        </button>
       </div>
+    </div>
 
-      {#if $connection !== "connected"}
-        <p class="mt-5 text-xs text-purple-200/50 max-w-sm">
-          Launch the League of Legends client to synchronize live champion select and detect account switches.
-        </p>
-      {/if}
-    {:else}
-      <div class="mb-4 flex h-20 w-20 items-center justify-center rounded-full border border-purple-500/30 bg-purple-950/40 text-purple-400">
-        <svg class="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-          <circle cx="12" cy="8" r="4" />
-          <path d="M6 21v-2a6 6 0 0 1 12 0v2" />
-        </svg>
-      </div>
-
-      <h2 class="text-xl font-bold text-white">No Profile Connected</h2>
-      <p class="mt-2 text-sm text-slate-400 max-w-sm">
-        Launch the League of Legends client to automatically detect your summoner name, level, and profile icon.
-      </p>
-
-      <div class="mt-6 flex items-center gap-2 text-xs text-amber-400/90 font-medium bg-amber-400/10 border border-amber-400/20 rounded-lg px-3 py-1.5">
-        <span class="h-2 w-2 rounded-full bg-amber-400 animate-pulse"></span>
-        <span>Waiting for League client WebSocket...</span>
+    <!-- Recent Searches Chips -->
+    {#if $recentSearches.length > 0}
+      <div class="mt-3.5 flex flex-wrap items-center gap-2 border-t border-purple-500/15 pt-3">
+        <span class="text-[10px] font-bold uppercase tracking-wider text-purple-300/60">Recent:</span>
+        {#each $recentSearches as recent}
+          <button
+            type="button"
+            on:click={() => selectRecent(recent)}
+            class="group inline-flex items-center gap-1.5 rounded-lg border border-purple-500/20 bg-purple-950/30 px-2.5 py-1 text-[11px] font-semibold text-purple-200 transition hover:border-purple-400/40 hover:bg-purple-900/40 hover:text-white"
+          >
+            {#if recent.tier}
+              <img src={tierMedalUrl(recent.tier)} alt="Rank" class="h-3.5 w-3.5 object-contain" />
+            {/if}
+            <span>{recent.riot_id}</span>
+            <span class="rounded bg-purple-900/50 px-1 text-[9px] text-purple-300/70">{recent.region}</span>
+          </button>
+        {/each}
       </div>
     {/if}
   </div>
+
+  <!-- PROFILE HEADER CARD -->
+  {#if $viewedProfile}
+    <div class="relative shrink-0 block glass mb-5 min-h-[150px] overflow-hidden rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-6 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+      <!-- Ambient background decoration -->
+      <div class="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-purple-600/10 blur-3xl"></div>
+      <div class="pointer-events-none absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-indigo-600/10 blur-3xl"></div>
+
+      <div class="relative z-10 flex flex-wrap items-center justify-between gap-6">
+        <!-- Identity -->
+        <div class="flex items-center gap-4">
+          <!-- Icon with level badge -->
+          <div class="relative shrink-0">
+            <img
+              src={$viewedProfile.profile_icon_url ||
+                profileIconUrl($viewedProfile.profile_icon_id || 1, $ddragonVersion)}
+              alt="Summoner Icon"
+              class="h-20 w-20 rounded-2xl border-2 border-purple-500/40 object-cover shadow-[0_0_24px_rgba(168,85,247,0.35)]"
+            />
+            <span class="absolute -bottom-2 -right-2 rounded-lg border border-purple-400/50 bg-[#120726] px-2 py-0.5 text-[10px] font-black text-purple-200 shadow-md">
+              {$viewedProfile.level}
+            </span>
+          </div>
+
+          <!-- Name, Tag, Region & Status -->
+          <div>
+            <div class="flex items-center gap-2.5">
+              <h1 class="text-2xl font-black text-white tracking-wide">
+                {$viewedProfile.game_name}
+              </h1>
+              <span class="text-lg font-bold text-purple-300/60">
+                #{$viewedProfile.tag_line}
+              </span>
+              <span class="rounded-md border border-purple-500/30 bg-purple-950/40 px-2 py-0.5 text-[10px] font-bold uppercase text-purple-300">
+                {$viewedProfile.region}
+              </span>
+            </div>
+
+            <!-- Source & Connection status -->
+            <div class="mt-2 flex items-center gap-2">
+              {#if $viewedProfile.source === "lcu"}
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-950/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
+                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"></span>
+                  <span>Live League Client</span>
+                </span>
+              {:else if $profile && $viewedProfile.display_name.toLowerCase() === $profile.display_name.toLowerCase()}
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-950/30 px-2.5 py-0.5 text-[10px] font-bold text-amber-300">
+                  <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
+                  <span>Remembered Local Account</span>
+                </span>
+              {:else}
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-purple-500/30 bg-purple-950/30 px-2.5 py-0.5 text-[10px] font-bold text-purple-300">
+                  <span class="h-1.5 w-1.5 rounded-full bg-purple-400"></span>
+                  <span>OP.GG Remote Profile</span>
+                </span>
+              {/if}
+
+              <span class="text-[10px] text-slate-400">
+                Updated {formatTimeAgo($viewedProfile.updated_at)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ranked Emblems (Solo & Flex) -->
+        <div class="flex flex-wrap items-center gap-4">
+          <!-- Ranked Solo/Duo Card -->
+          <div class="glass-soft flex min-w-[200px] items-center gap-3.5 rounded-xl border border-purple-500/20 bg-purple-950/30 p-3.5">
+            <img
+              src={tierMedalUrl($viewedProfile.solo_rank?.tier || "UNRANKED")}
+              alt="Solo Rank"
+              class="h-14 w-14 object-contain drop-shadow-[0_0_12px_rgba(168,85,247,0.3)]"
+            />
+            <div>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-purple-300/70 block">
+                Ranked Solo
+              </span>
+              {#if $viewedProfile.solo_rank}
+                <span class="text-sm font-black text-white block">
+                  {$viewedProfile.solo_rank.tier} {$viewedProfile.solo_rank.division}
+                </span>
+                <span class="text-xs font-bold text-purple-300 block">
+                  {$viewedProfile.solo_rank.league_points} LP
+                </span>
+                <span class="text-[10px] font-semibold text-slate-400 block">
+                  {$viewedProfile.solo_rank.wins}W {$viewedProfile.solo_rank.losses}L ({formatPct($viewedProfile.solo_rank.win_rate)})
+                </span>
+              {:else}
+                <span class="text-sm font-bold text-slate-400 block">Unranked</span>
+                <span class="text-[10px] text-slate-500 block">No games played</span>
+              {/if}
+            </div>
+          </div>
+
+          <!-- Ranked Flex Card -->
+          <div class="glass-soft flex min-w-[200px] items-center gap-3.5 rounded-xl border border-purple-500/20 bg-purple-950/30 p-3.5">
+            <img
+              src={tierMedalUrl($viewedProfile.flex_rank?.tier || "UNRANKED")}
+              alt="Flex Rank"
+              class="h-14 w-14 object-contain drop-shadow-[0_0_12px_rgba(168,85,247,0.3)]"
+            />
+            <div>
+              <span class="text-[10px] font-bold uppercase tracking-wider text-purple-300/70 block">
+                Ranked Flex
+              </span>
+              {#if $viewedProfile.flex_rank}
+                <span class="text-sm font-black text-white block">
+                  {$viewedProfile.flex_rank.tier} {$viewedProfile.flex_rank.division}
+                </span>
+                <span class="text-xs font-bold text-purple-300 block">
+                  {$viewedProfile.flex_rank.league_points} LP
+                </span>
+                <span class="text-[10px] font-semibold text-slate-400 block">
+                  {$viewedProfile.flex_rank.wins}W {$viewedProfile.flex_rank.losses}L ({formatPct($viewedProfile.flex_rank.win_rate)})
+                </span>
+              {:else}
+                <span class="text-sm font-bold text-slate-400 block">Unranked</span>
+                <span class="text-[10px] text-slate-500 block">No games played</span>
+              {/if}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {:else if $viewedProfileLoading}
+    <div class="glass mb-5 flex h-48 flex-col items-center justify-center rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-6">
+      <div class="h-8 w-8 animate-spin rounded-full border-2 border-purple-500 border-t-transparent"></div>
+      <p class="mt-3 text-xs font-semibold text-purple-300/80">Loading summoner profile…</p>
+    </div>
+  {:else if $viewedProfileError}
+    <div class="glass mb-5 rounded-2xl border border-rose-500/30 bg-rose-950/20 p-6 text-center">
+      <span class="text-2xl">⚠️</span>
+      <h2 class="mt-2 text-base font-bold text-rose-300">Summoner Lookup</h2>
+      <p class="mt-1 text-xs text-rose-200/70">{$viewedProfileError}</p>
+      {#if $profile}
+        <button
+          type="button"
+          on:click={returnToMyAccount}
+          class="mt-4 rounded-xl border border-purple-500/30 bg-purple-900/40 px-4 py-1.5 text-xs font-bold text-white transition hover:bg-purple-800/50"
+        >
+          Return to My Account
+        </button>
+      {/if}
+    </div>
+  {:else}
+    <!-- WELCOME & SEARCH HERO LANDING -->
+    <div class="glass my-auto flex flex-col items-center justify-center rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-10 text-center shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+      <div class="relative mb-4 flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-purple-500/40 bg-purple-950/40 shadow-[0_0_24px_rgba(168,85,247,0.35)]">
+        <svg class="h-10 w-10 text-purple-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      </div>
+
+      <h2 class="text-xl font-black tracking-wide text-white">
+        Summoner Lookup & Match History
+      </h2>
+      <p class="mt-2 max-w-md text-xs font-medium text-purple-200/70">
+        Search for any summoner by Riot ID (e.g. <span class="font-bold text-purple-200">Faker#KR1</span>, <span class="font-bold text-purple-200">Caps#EUW</span>, <span class="font-bold text-purple-200">Agurin#EUW2</span>) across all regions, or launch the League of Legends client to view your personal live stats.
+      </p>
+
+      <!-- Quick Search Suggestions -->
+      <div class="mt-6 flex flex-wrap items-center justify-center gap-2 max-w-lg">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-purple-300/60 block w-full mb-1">
+          Popular Lookups:
+        </span>
+        <button
+          type="button"
+          on:click={() => { searchQuery = "Faker#KR1"; selectedRegion = "KR"; handleSearch(); }}
+          class="rounded-xl border border-purple-500/20 bg-purple-950/40 px-3 py-1.5 text-xs font-semibold text-purple-200 transition hover:border-purple-400/50 hover:bg-purple-900/50 hover:text-white"
+        >
+          🇰🇷 Faker#KR1
+        </button>
+        <button
+          type="button"
+          on:click={() => { searchQuery = "Caps"; selectedRegion = "EUW"; handleSearch(); }}
+          class="rounded-xl border border-purple-500/20 bg-purple-950/40 px-3 py-1.5 text-xs font-semibold text-purple-200 transition hover:border-purple-400/50 hover:bg-purple-900/50 hover:text-white"
+        >
+          🇪🇺 Caps (EUW)
+        </button>
+        <button
+          type="button"
+          on:click={() => { searchQuery = "Agurin"; selectedRegion = "EUW"; handleSearch(); }}
+          class="rounded-xl border border-purple-500/20 bg-purple-950/40 px-3 py-1.5 text-xs font-semibold text-purple-200 transition hover:border-purple-400/50 hover:bg-purple-900/50 hover:text-white"
+        >
+          🇩🇪 Agurin (EUW)
+        </button>
+        <button
+          type="button"
+          on:click={() => { searchQuery = "Chovy#KR1"; selectedRegion = "KR"; handleSearch(); }}
+          class="rounded-xl border border-purple-500/20 bg-purple-950/40 px-3 py-1.5 text-xs font-semibold text-purple-200 transition hover:border-purple-400/50 hover:bg-purple-900/50 hover:text-white"
+        >
+          🇰🇷 Chovy#KR1
+        </button>
+      </div>
+
+      {#if $profile}
+        <button
+          type="button"
+          on:click={returnToMyAccount}
+          class="mt-6 inline-flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-950/40 px-5 py-2.5 text-xs font-black text-emerald-300 transition hover:bg-emerald-900/50 shadow-[0_0_20px_rgba(16,185,129,0.2)] active:scale-95"
+        >
+          <span>★</span>
+          <span>View My Account ({$profile.display_name})</span>
+        </button>
+      {/if}
+    </div>
+  {/if}
+
+  {#if $viewedProfile}
+  <!-- MAIN CONTENT GRID (TWO COLUMNS) -->
+  <div class="grid grid-cols-12 gap-5 shrink-0">
+    <!-- LEFT COLUMN: RECENT METRICS & TOP CHAMPIONS (col-span-12 lg:col-span-4) -->
+    <div class="col-span-12 lg:col-span-4 flex flex-col gap-5">
+      <!-- CARD: RECENT PERFORMANCE SUMMARY -->
+      {#if recentStats}
+        <div class="glass rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-4 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-purple-200">
+              Match History Summary
+            </h2>
+            <span class="rounded-md border border-purple-500/30 bg-purple-950/40 px-2 py-0.5 text-[10px] font-bold text-purple-300">
+              Last {recentStats.count} Games
+            </span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <!-- Winrate box -->
+            <div class="rounded-xl border border-purple-500/15 bg-purple-950/30 p-3 text-center">
+              <span class="text-[10px] uppercase font-bold text-purple-300/70 block">Recent Winrate</span>
+              <span class="text-xl font-black text-white block mt-0.5">
+                {recentStats.winrate}%
+              </span>
+              <span class="text-[10px] font-semibold text-slate-400 block mt-0.5">
+                <span class="text-emerald-400 font-bold">{recentStats.wins}W</span>
+                <span class="text-rose-400 font-bold">{recentStats.losses}L</span>
+              </span>
+            </div>
+
+            <!-- KDA Ratio box -->
+            <div class="rounded-xl border border-purple-500/15 bg-purple-950/30 p-3 text-center">
+              <span class="text-[10px] uppercase font-bold text-purple-300/70 block">Avg KDA</span>
+              <span class="text-xl {getKdaColor(recentStats.kdaRatio)} block mt-0.5">
+                {recentStats.kdaRatio}:1
+              </span>
+              <span class="text-[10px] font-semibold text-slate-400 block mt-0.5">
+                {recentStats.avgK} / <span class="text-rose-400">{recentStats.avgD}</span> / {recentStats.avgA}
+              </span>
+            </div>
+          </div>
+        </div>
+      {/if}
+
+      <!-- CARD: TOP CHAMPIONS -->
+      <div class="glass rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-4 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-purple-200">
+            Most Played Champions
+          </h2>
+          <span class="rounded-md border border-purple-500/30 bg-purple-950/40 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-purple-300/80">
+            Season Stats
+          </span>
+        </div>
+
+        {#if $viewedProfile?.top_champions && $viewedProfile.top_champions.length > 0}
+          <div class="flex flex-col gap-2">
+            {#each $viewedProfile.top_champions.slice(0, 7) as champ, cIdx (`champ-${champ.id}-${cIdx}`)}
+              {@const champInfo = getChampInfo(champ.id)}
+              <div class="flex items-center justify-between rounded-xl border border-purple-500/15 bg-purple-950/25 p-2.5 transition hover:bg-purple-900/30">
+                <!-- Champion Icon & Name -->
+                <div class="flex items-center gap-2.5 min-w-0 pr-2">
+                  <img
+                    src={squareIconUrl(champInfo.key, $ddragonVersion)}
+                    alt={champ.name}
+                    class="h-9 w-9 rounded-lg border border-purple-500/30 object-cover bg-black shrink-0"
+                  />
+                  <div class="min-w-0">
+                    <span class="text-xs font-bold text-white truncate block">
+                      {champInfo.name || champ.name}
+                    </span>
+                    {#if champ.games > 0}
+                      <span class="text-[10px] font-semibold text-slate-400 block truncate">
+                        {champ.games} {champ.games === 1 ? "Game" : "Games"}
+                        {#if champ.mastery_points}
+                          · <span class="text-purple-300 font-bold">{(champ.mastery_points / 1000).toFixed(1)}k pts</span>
+                        {/if}
+                      </span>
+                    {:else if champ.mastery_points}
+                      <span class="text-[10px] font-bold text-purple-300 block truncate">
+                        Mastery Lv. {champ.mastery_level || 7} · {(champ.mastery_points / 1000).toFixed(1)}k pts
+                      </span>
+                    {:else}
+                      <span class="text-[10px] text-slate-500 block">No recent games</span>
+                    {/if}
+                  </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="text-right shrink-0">
+                  {#if champ.games > 0}
+                    <div class="flex items-center gap-2">
+                      <div>
+                        <span class="text-xs font-bold text-white block">
+                          {formatPct(champ.win_rate)}
+                        </span>
+                        <span class="text-[9px] font-semibold text-slate-400 block">
+                          {champ.wins}W {champ.losses}L
+                        </span>
+                      </div>
+                      <div class="w-14 border-l border-purple-500/20 pl-2">
+                        <span class="text-xs {getKdaColor(champ.kda)} block">
+                          {champ.kda.toFixed(2)}:1
+                        </span>
+                        <span class="text-[9px] text-slate-400 block">KDA</span>
+                      </div>
+                    </div>
+                  {:else}
+                    <div class="rounded border border-purple-500/20 bg-purple-950/30 px-2 py-0.5 text-[10px] font-semibold text-purple-300/80">
+                      Top Mastery
+                    </div>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
+        {:else if $viewedProfileLoading}
+          <div class="flex h-36 flex-col items-center justify-center gap-2">
+            <div class="h-5 w-5 animate-spin rounded-full border-2 border-purple-500 border-t-transparent"></div>
+            <p class="text-[11px] text-purple-300/70">Loading champions…</p>
+          </div>
+        {:else}
+          <div class="rounded-xl border border-purple-500/15 bg-purple-950/20 p-4 text-center">
+            <p class="text-xs text-slate-400">No recent champion statistics recorded</p>
+          </div>
+        {/if}
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: MATCH HISTORY FEED (col-span-12 lg:col-span-8) -->
+    <div class="col-span-12 lg:col-span-8 flex flex-col gap-4">
+      <!-- FILTER TABS & MATCH COUNT -->
+      <div class="glass flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 px-4 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+        <div class="flex items-center gap-1.5">
+          <button
+            type="button"
+            on:click={() => selectQueueFilter("all")}
+            class="rounded-xl px-3 py-1.5 text-xs font-bold transition {activeQueueFilter === 'all'
+              ? 'bg-purple-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.5)]'
+              : 'text-purple-300/70 hover:bg-purple-950/50 hover:text-white'}"
+          >
+            All Matches
+          </button>
+          <button
+            type="button"
+            on:click={() => selectQueueFilter("solo")}
+            class="rounded-xl px-3 py-1.5 text-xs font-bold transition {activeQueueFilter === 'solo'
+              ? 'bg-purple-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.5)]'
+              : 'text-purple-300/70 hover:bg-purple-950/50 hover:text-white'}"
+          >
+            Ranked Solo
+          </button>
+          <button
+            type="button"
+            on:click={() => selectQueueFilter("flex")}
+            class="rounded-xl px-3 py-1.5 text-xs font-bold transition {activeQueueFilter === 'flex'
+              ? 'bg-purple-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.5)]'
+              : 'text-purple-300/70 hover:bg-purple-950/50 hover:text-white'}"
+          >
+            Ranked Flex
+          </button>
+          <button
+            type="button"
+            on:click={() => selectQueueFilter("other")}
+            class="rounded-xl px-3 py-1.5 text-xs font-bold transition {activeQueueFilter === 'other'
+              ? 'bg-purple-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.5)]'
+              : 'text-purple-300/70 hover:bg-purple-950/50 hover:text-white'}"
+          >
+            ARAM & Normals
+          </button>
+        </div>
+
+        <span class="text-xs font-semibold text-slate-400">
+          Showing {filteredMatches.length} Matches
+        </span>
+      </div>
+
+      <!-- MATCHES FEED LIST -->
+      {#if $viewedMatchesLoading && !$viewedMatches.length}
+        <div class="glass flex h-64 flex-col items-center justify-center rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-6">
+          <div class="h-8 w-8 animate-spin rounded-full border-2 border-purple-500 border-t-transparent"></div>
+          <p class="mt-3 text-xs font-semibold text-purple-300/80">Loading recent match history…</p>
+        </div>
+      {:else if filteredMatches.length > 0}
+        <div class="flex flex-col gap-3">
+          {#each filteredMatches as match (match.id)}
+            {@const isWin = match.win}
+            {@const isRemake = match.is_remake}
+            {@const champInfo = getChampInfo(match.champion_id)}
+            {@const isExpanded = expandedMatchIds.has(match.id)}
+
+            <!-- MATCH CARD CONTAINER -->
+            <div
+              class="glass group relative overflow-hidden rounded-2xl border transition-all duration-200 {isRemake
+                ? 'border-slate-500/25 bg-[#0e0c18]/85 hover:border-slate-500/40'
+                : isWin
+                  ? 'border-emerald-500/30 bg-[#091515]/85 hover:border-emerald-500/50 shadow-[0_4px_24px_rgba(16,185,129,0.1)]'
+                  : 'border-rose-500/30 bg-[#170912]/85 hover:border-rose-500/50 shadow-[0_4px_24px_rgba(244,63,94,0.1)]'}"
+            >
+              <!-- Colored left bar strip -->
+              <div
+                class="absolute left-0 top-0 bottom-0 w-1.5 {isRemake
+                  ? 'bg-slate-400'
+                  : isWin
+                    ? 'bg-emerald-400'
+                    : 'bg-rose-500'}"
+              ></div>
+
+              <!-- CARD MAIN ROW -->
+              <div class="flex flex-wrap items-center justify-between gap-4 p-4 pl-5">
+                <!-- 1. Match Outcome & Queue Info -->
+                <div class="w-24 shrink-0">
+                  <span
+                    class="text-xs font-black uppercase tracking-wider block {isRemake
+                      ? 'text-slate-300'
+                      : isWin
+                        ? 'text-emerald-400'
+                        : 'text-rose-400'}"
+                  >
+                    {isRemake ? "Remake" : isWin ? "Victory" : "Defeat"}
+                  </span>
+                  <span class="text-[11px] font-bold text-white block mt-0.5 truncate" title={match.queue_label}>
+                    {match.queue_label}
+                  </span>
+                  <span class="text-[10px] text-slate-400 block mt-0.5">
+                    {formatTimeAgo(match.game_creation)}
+                  </span>
+                  <span class="text-[10px] font-semibold text-purple-300/70 block">
+                    {formatDuration(match.game_duration)}
+                  </span>
+                </div>
+
+                <!-- 2. Champion Portrait, Spells & Runes -->
+                <div class="flex items-center gap-3">
+                  <!-- Champion Avatar -->
+                  <div class="relative">
+                    <img
+                      src={squareIconUrl(champInfo.key, $ddragonVersion)}
+                      alt={champInfo.name}
+                      class="h-12 w-12 rounded-xl border border-purple-500/30 object-cover bg-black"
+                    />
+                    <span class="absolute -bottom-1 -right-1 rounded bg-[#0a0518] border border-purple-400/40 px-1 text-[9px] font-black text-purple-200">
+                      {match.champion_level}
+                    </span>
+                  </div>
+
+                  <!-- Summoner Spells & Runes Icons (2x2 grid) -->
+                  <div class="grid grid-cols-2 gap-1 shrink-0">
+                    <!-- Spell 1 -->
+                    {#if match.spells[0]}
+                      <img
+                        src={summonerSpellIconUrl(match.spells[0], $ddragonVersion)}
+                        alt="Spell"
+                        class="h-5 w-5 rounded border border-purple-500/30 object-cover bg-black"
+                      />
+                    {:else}
+                      <div class="h-5 w-5 rounded border border-purple-500/20 bg-purple-950/40"></div>
+                    {/if}
+
+                    <!-- Primary Rune / Keystone -->
+                    {#if match.primary_rune_id}
+                      <img
+                        src={getRuneIconUrl(match.primary_rune_id, runesMap)}
+                        alt="Keystone"
+                        class="h-5 w-5 rounded border border-purple-500/30 object-contain bg-black/80"
+                      />
+                    {:else}
+                      <div class="h-5 w-5 rounded border border-purple-500/20 bg-purple-950/40"></div>
+                    {/if}
+
+                    <!-- Spell 2 -->
+                    {#if match.spells[1]}
+                      <img
+                        src={summonerSpellIconUrl(match.spells[1], $ddragonVersion)}
+                        alt="Spell"
+                        class="h-5 w-5 rounded border border-purple-500/30 object-cover bg-black"
+                      />
+                    {:else}
+                      <div class="h-5 w-5 rounded border border-purple-500/20 bg-purple-950/40"></div>
+                    {/if}
+
+                    <!-- Secondary Rune Style -->
+                    {#if match.secondary_style_id}
+                      <img
+                        src={getRuneIconUrl(match.secondary_style_id, runesMap)}
+                        alt="Secondary Style"
+                        class="h-5 w-5 rounded border border-purple-500/30 object-contain bg-black/80"
+                      />
+                    {:else}
+                      <div class="h-5 w-5 rounded border border-purple-500/20 bg-purple-950/40"></div>
+                    {/if}
+                  </div>
+                </div>
+
+                <!-- 3. KDA & Kill Participation -->
+                <div class="w-28 text-center shrink-0">
+                  <div class="text-sm font-black tracking-wide text-white">
+                    <span>{match.kills}</span>
+                    <span class="text-slate-500">/</span>
+                    <span class="text-rose-400">{match.deaths}</span>
+                    <span class="text-slate-500">/</span>
+                    <span>{match.assists}</span>
+                  </div>
+                  <div class="text-[11px] {getKdaColor(match.kda)} mt-0.5">
+                    {match.kda.toFixed(2)}:1 KDA
+                  </div>
+                  {#if match.kill_participation != null && match.kill_participation > 0}
+                    <div class="text-[10px] font-semibold text-purple-300/80 mt-0.5">
+                      P/Kill {formatPct(match.kill_participation)}
+                    </div>
+                  {/if}
+                </div>
+
+                <!-- 4. CS, Damage & Vision -->
+                <div class="w-28 text-right shrink-0">
+                  <div class="text-xs font-bold text-slate-200">
+                    {match.cs} <span class="text-[10px] text-slate-400 font-normal">({match.cs_per_min} CS/m)</span>
+                  </div>
+                  <div class="text-[11px] font-semibold text-rose-300/90 mt-0.5">
+                    {match.total_damage.toLocaleString()} DMG
+                  </div>
+                  {#if match.vision_score}
+                    <div class="text-[10px] text-slate-400 mt-0.5">
+                      {match.vision_score} Vision
+                    </div>
+                  {/if}
+                </div>
+
+                <!-- 5. Items Grid (6 items + Trinket) -->
+                <div class="flex items-center gap-1 shrink-0">
+                  <div class="grid grid-cols-3 gap-1">
+                    {#each match.items.slice(0, 6) as itId, i}
+                      {#if itId && itId > 0}
+                        <img
+                          src={itemIconUrl(itId, $ddragonVersion)}
+                          alt="Item"
+                          class="h-6 w-6 rounded-md border border-purple-500/30 object-cover bg-black"
+                        />
+                      {:else}
+                        <div class="h-6 w-6 rounded-md border border-purple-500/15 bg-purple-950/30"></div>
+                      {/if}
+                    {/each}
+                  </div>
+                  <!-- Trinket Slot (Slot 6) -->
+                  <div class="ml-1 pl-1 border-l border-purple-500/20">
+                    {#if match.items[6] && match.items[6] > 0}
+                      <img
+                        src={itemIconUrl(match.items[6], $ddragonVersion)}
+                        alt="Trinket"
+                        class="h-6 w-6 rounded-full border border-purple-500/30 object-cover bg-black"
+                      />
+                    {:else}
+                      <div class="h-6 w-6 rounded-full border border-purple-500/15 bg-purple-950/30"></div>
+                    {/if}
+                  </div>
+                </div>
+
+                <!-- 6. Expand Button -->
+                <button
+                  type="button"
+                  on:click={() => toggleMatchDetails(match)}
+                  class="rounded-lg border border-purple-500/20 bg-purple-950/30 p-1.5 text-purple-300/70 transition hover:bg-purple-900/40 hover:text-white"
+                  title={isExpanded ? "Collapse Match Details" : "Expand Scoreboard"}
+                >
+                  <svg
+                    class="h-4 w-4 transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+              </div>
+
+              <!-- EXPANDED SCOREBOARD / 10-PLAYER BREAKDOWN -->
+              {#if isExpanded}
+                {#if loadingMatchDetailIds.has(match.id)}
+                  <div class="flex h-20 items-center justify-center gap-2 border-t border-purple-500/20 bg-[#080414]/90 p-4">
+                    <div class="h-4 w-4 animate-spin rounded-full border-2 border-purple-400 border-t-transparent"></div>
+                    <span class="text-xs font-semibold text-purple-300">Loading full match scoreboard…</span>
+                  </div>
+                {:else if match.participants && match.participants.length > 0}
+                  {@const blueTeam = match.participants.filter((p) => p.team_id === 100 || p.team_id === 1)}
+                  {@const redTeam = match.participants.filter((p) => p.team_id === 200 || p.team_id === 2)}
+                  <div class="border-t border-purple-500/20 bg-[#080414]/90 p-4 transition-all">
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Blue Team (100) -->
+                    <div class="flex flex-col gap-1.5">
+                      <div class="flex items-center justify-between px-2 pb-1 border-b border-cyan-500/20 text-[10px] font-black uppercase text-cyan-300">
+                        <span>Blue Team</span>
+                        <span>KDA · DMG · Items</span>
+                      </div>
+                      {#each blueTeam as p}
+                        {@const pChamp = getChampInfo(p.champion_id)}
+                        <div class="flex items-center justify-between rounded-lg p-1.5 transition {p.is_local ? 'bg-purple-900/30 border border-purple-500/30' : 'hover:bg-purple-950/20'}">
+                          <div class="flex items-center gap-2 min-w-0 pr-2">
+                            <img
+                              src={squareIconUrl(pChamp.key, $ddragonVersion)}
+                              alt={pChamp.name}
+                              class="h-7 w-7 rounded-md border border-purple-500/30 object-cover bg-black shrink-0"
+                            />
+                            <div class="min-w-0">
+                              <span class="text-xs font-bold truncate block {p.is_local ? 'text-amber-300 font-extrabold' : 'text-white'}">
+                                {p.summoner_name}
+                              </span>
+                              <span class="text-[9px] text-slate-400">Lv. {p.champion_level}</span>
+                            </div>
+                          </div>
+                          <div class="flex items-center gap-3 shrink-0">
+                            <span class="text-[11px] font-semibold text-slate-300">
+                              {p.kills}/{p.deaths}/{p.assists}
+                            </span>
+                            <span class="text-[10px] text-rose-300/80 w-12 text-right">
+                              {p.total_damage > 0 ? (p.total_damage / 1000).toFixed(1) + "k" : "–"}
+                            </span>
+                            <div class="flex items-center gap-0.5">
+                              {#each p.items.slice(0, 6) as itId}
+                                {#if itId > 0}
+                                  <img src={itemIconUrl(itId, $ddragonVersion)} alt="Item" class="h-4 w-4 rounded border border-purple-500/20 bg-black" />
+                                {:else}
+                                  <div class="h-4 w-4 rounded border border-purple-500/10 bg-purple-950/20"></div>
+                                {/if}
+                              {/each}
+                            </div>
+                          </div>
+                        </div>
+                      {/each}
+                    </div>
+
+                    <!-- Red Team (200) -->
+                    <div class="flex flex-col gap-1.5">
+                      <div class="flex items-center justify-between px-2 pb-1 border-b border-rose-500/20 text-[10px] font-black uppercase text-rose-300">
+                        <span>Red Team</span>
+                        <span>KDA · DMG · Items</span>
+                      </div>
+                      {#each redTeam as p}
+                        {@const pChamp = getChampInfo(p.champion_id)}
+                        <div class="flex items-center justify-between rounded-lg p-1.5 transition {p.is_local ? 'bg-purple-900/30 border border-purple-500/30' : 'hover:bg-purple-950/20'}">
+                          <div class="flex items-center gap-2 min-w-0 pr-2">
+                            <img
+                              src={squareIconUrl(pChamp.key, $ddragonVersion)}
+                              alt={pChamp.name}
+                              class="h-7 w-7 rounded-md border border-purple-500/30 object-cover bg-black shrink-0"
+                            />
+                            <div class="min-w-0">
+                              <span class="text-xs font-bold truncate block {p.is_local ? 'text-amber-300 font-extrabold' : 'text-white'}">
+                                {p.summoner_name}
+                              </span>
+                              <span class="text-[9px] text-slate-400">Lv. {p.champion_level}</span>
+                            </div>
+                          </div>
+                          <div class="flex items-center gap-3 shrink-0">
+                            <span class="text-[11px] font-semibold text-slate-300">
+                              {p.kills}/{p.deaths}/{p.assists}
+                            </span>
+                            <span class="text-[10px] text-rose-300/80 w-12 text-right">
+                              {p.total_damage > 0 ? (p.total_damage / 1000).toFixed(1) + "k" : "–"}
+                            </span>
+                            <div class="flex items-center gap-0.5">
+                              {#each p.items.slice(0, 6) as itId}
+                                {#if itId > 0}
+                                  <img src={itemIconUrl(itId, $ddragonVersion)} alt="Item" class="h-4 w-4 rounded border border-purple-500/20 bg-black" />
+                                {:else}
+                                  <div class="h-4 w-4 rounded border border-purple-500/10 bg-purple-950/20"></div>
+                                {/if}
+                              {/each}
+                            </div>
+                          </div>
+                        </div>
+                      {/each}
+                    </div>
+                  </div>
+                </div>
+                {:else}
+                  <div class="flex h-16 items-center justify-center border-t border-purple-500/20 bg-[#080414]/90 p-4 text-xs text-slate-400">
+                    Detailed scoreboard unavailable for this match.
+                  </div>
+                {/if}
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <div class="glass flex h-64 flex-col items-center justify-center rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-6 text-center">
+          <span class="text-3xl">⚔️</span>
+          <h3 class="mt-2 text-sm font-bold text-white">No Match History Found</h3>
+          <p class="mt-1 text-xs text-slate-400 max-w-sm">
+            No matches matching the selected filter were recorded for this summoner.
+          </p>
+        </div>
+      {/if}
+    </div>
+  </div>
+  {/if}
 </div>

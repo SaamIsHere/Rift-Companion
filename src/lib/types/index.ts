@@ -10,6 +10,9 @@ export interface Summoner {
   display_name: string; // "Name#TAG" Riot ID, or legacy displayName as fallback
   level: number;
   profile_icon_id: number;
+  puuid?: string;
+  game_name?: string;
+  tag_line?: string;
 }
 
 export type RankTier =
@@ -225,6 +228,106 @@ export interface RoleChampionItem {
   games: number;
   weak_against: ChampionMatchupEntry[];
   has_build: boolean;
+}
+
+export interface RankedQueueInfo {
+  queue_type: string;
+  queue_label: string;
+  tier: string;
+  division: string;
+  league_points: number;
+  wins: number;
+  losses: number;
+  win_rate: number;
+  tier_image_url?: string;
+}
+
+export interface ChampionPerformance {
+  id: number;
+  name: string;
+  games: number;
+  wins: number;
+  losses: number;
+  win_rate: number;
+  kills: number;
+  deaths: number;
+  assists: number;
+  kda: number;
+  cs?: number;
+  cs_per_min?: number;
+  mastery_level?: number;
+  mastery_points?: number;
+}
+
+export interface DetailedParticipant {
+  summoner_name: string;
+  game_name?: string;
+  tag_line?: string;
+  champion_id: number;
+  champion_name: string;
+  team_id: number;
+  is_local: boolean;
+  position?: string;
+  kills: number;
+  deaths: number;
+  assists: number;
+  champion_level: number;
+  total_damage: number;
+  gold_earned: number;
+  cs: number;
+  vision_score?: number;
+  spells: number[];
+  items: number[];
+  primary_rune_id?: number;
+  secondary_style_id?: number;
+  op_score?: number;
+  win: boolean;
+}
+
+export interface PlayerMatch {
+  id: string;
+  game_creation: number;
+  raw_created_at?: string;
+  game_duration: number;
+  game_type: string;
+  queue_label: string;
+  win: boolean;
+  is_remake?: boolean;
+  champion_id: number;
+  champion_name: string;
+  champion_level: number;
+  kills: number;
+  deaths: number;
+  assists: number;
+  kda: number;
+  kill_participation?: number;
+  total_damage: number;
+  gold_earned: number;
+  cs: number;
+  cs_per_min: number;
+  vision_score?: number;
+  spells: number[];
+  items: number[];
+  primary_rune_id?: number;
+  secondary_style_id?: number;
+  op_score?: number;
+  op_score_rank?: number;
+  participants?: DetailedParticipant[];
+}
+
+export interface FullPlayerProfile {
+  game_name: string;
+  tag_line: string;
+  display_name: string;
+  level: number;
+  profile_icon_id?: number;
+  profile_icon_url?: string;
+  region: string;
+  solo_rank?: RankedQueueInfo | null;
+  flex_rank?: RankedQueueInfo | null;
+  top_champions: ChampionPerformance[];
+  source: "lcu" | "opgg" | "cache";
+  updated_at: number;
 }
 
 

@@ -355,3 +355,37 @@ All review findings were implemented and verified in commits `4c9d8e4` and `aedf
   * **Reset Navigation Behavior**: Clicking the "CHAMPIONS" navigation tab while on a champion detail page immediately navigates back to the champion list view.
   * **NAS Network Isolation**: Reassigned `rift-server` to host port 8085 to avoid conflicts with qBittorrent on 8080.
 
+---
+
+## Epic 9: Comprehensive Summoner Profiles & Match History
+
+### Issue 41: Full Profile View with Match History, Champion Performance, and Detailed Game Breakdowns
+* **Status**: Implemented
+* **Priority**: High (`medium-priority`, `feature`)
+* **Technical Summary**: Expand `ProfileView.svelte` into a complete summoner hub with summoner identity, ranked solo & flex medals/tiers, top played champions, recent match performance statistics, and an OP.GG-style match history feed with 10-player expandable breakdowns and cross-account player search.
+* **Architecture & Storage Decision**:
+  * **Hybrid Stale-While-Revalidate (SWR) Caching**:
+    - Avoids repeated slow external requests on navigation.
+    - Profile and recent matches are saved in `localStorage` (`rift_profile_cache_${region}_${name}_${tag}`).
+    - When navigating to the Profile tab, cached data is rendered with 0ms latency and zero spinner delay, enabling complete offline functionality.
+    - If data is older than 2 minutes or upon clicking the "↻ Refresh" button, background revalidation triggers via the Tauri command layer.
+    - Recent searches are persisted in `localStorage` (`rift_recent_searches`) for 1-click toggling between accounts.
+  * **Dual-Source Data Pipeline**:
+    - **Live Local Account**: When the League Client is running, statistics, ranked queues (`RANKED_SOLO_5x5`, `RANKED_FLEX_SR`), and match history are pulled directly from the local LCU endpoints (`/lol-ranked/v1/current-ranked-stats`, `/lol-match-history/v1/products/lol/current-summoner/matches`).
+    - **Remote Lookup / Offline Accounts**: When querying other players (e.g. `Agurin#EUW`, `Hide on bush#KR1`) or when the local client is closed, queries flow directly to OP.GG's MCP tools (`lol_get_summoner_profile`, `lol_list_summoner_matches`).
+    - Normalized into unified TypeScript types (`FullPlayerProfile`, `PlayerMatch`, `RankedQueueInfo`) via [`profileNormalizer.ts`](../src/lib/utils/profileNormalizer.ts).
+  * **Implementation Details**:
+    - **Backend**:
+      - Added `RankedOverview`, `get_all_ranked_stats`, `get_local_matches`, `get_local_game_detail`, `get_local_champion_mastery` in [src-tauri/src/lcu/client.rs](../src-tauri/src/lcu/client.rs), fetching all 10 participants concurrently for local matches.
+      - Created [src-tauri/src/opgg/summoner.rs](../src-tauri/src/opgg/summoner.rs) wrapping `lol_get_summoner_profile`, `lol_list_summoner_matches`, `lol_get_pro_player_riot_id`, and `lol_get_summoner_game_detail`.
+      - Added JSON direct parsing fallback in [src-tauri/src/opgg/dsl.rs](../src-tauri/src/opgg/dsl.rs).
+      - Exposed `get_player_profile`, `get_player_matches`, and `get_match_detail` in [src-tauri/src/commands.rs](../src-tauri/src/commands.rs).
+    - **Frontend**:
+      - Built comprehensive [src/lib/components/ProfileView.svelte](../src/lib/components/ProfileView.svelte) featuring:
+        - Sticky Player Search header with region selector (`EUW`, `NA`, `KR`, `EUNE`, etc.) and "★ My Account" return button.
+        - Welcome & Search Hero landing when no account is connected with quick 1-click lookups (`Faker#KR1`, `Caps`, `Agurin`, `Chovy#KR1`).
+        - Profile Header with level badge, Riot ID, region badge, and Solo/Duo & Flex rank cards with tier medal graphics.
+        - Recent matches performance card (winrate %, average KDA, W/L record).
+        - Most Played Champions accurately aggregated from match history with real games, winrate, and KDA, plus cleanly formatted Mastery badges (e.g. `Mastery Lv. 7 · 36.4k pts`).
+        - Match history feed with queue filter tabs (`All`, `Ranked Solo`, `Ranked Flex`, `ARAM & Normals`) with smooth scroll-to-top on filter switch.
+        - Match cards with color-coded victory/defeat borders, champion icon & level, 2 summoner spells, 2 runes, KDA ratio, CS/min, damage dealt, 6+1 item slots, and expandable 10-player breakdown for both Blue and Red teams.

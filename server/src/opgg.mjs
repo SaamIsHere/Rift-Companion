@@ -181,6 +181,16 @@ export class McpClient {
       throw new Error(`${name}: ${JSON.stringify(msg.error)}`);
     }
     const text = msg?.result?.content?.find((c) => c.type === "text")?.text;
-    return text ? parseOpgg(text) : msg?.result;
+    if (!text) return msg?.result;
+    const trimmed = text.trim();
+    if (
+      (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+      (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    ) {
+      try {
+        return JSON.parse(trimmed);
+      } catch {}
+    }
+    return parseOpgg(text);
   }
 }

@@ -225,3 +225,81 @@ export async function getChampionDetailedInfo(
   }
 }
 
+/**
+ * URL for ranked tier medal graphic.
+ */
+export function tierMedalUrl(tier?: string | null): string {
+  if (!tier) return "https://opgg-static.akamaized.net/images/medals_new/default_unranked.svg";
+  const t = tier.toLowerCase().replace("_plus", "").replace(" ", "");
+  if (t === "none" || t === "unranked") {
+    return "https://opgg-static.akamaized.net/images/medals_new/default_unranked.svg";
+  }
+  return `https://opgg-static.akamaized.net/images/medals_new/${t}.png`;
+}
+
+/**
+ * Format relative elapsed time (e.g. "5m ago", "2h ago", "3d ago").
+ */
+export function formatTimeAgo(timestamp: number | string | Date): string {
+  const time = typeof timestamp === "string" || timestamp instanceof Date ? new Date(timestamp).getTime() : timestamp;
+  if (!time || isNaN(time)) return "";
+  const now = Date.now();
+  const diffSec = Math.max(0, Math.floor((now - time) / 1000));
+  if (diffSec < 60) return "Just now";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 30) return `${diffDays}d ago`;
+  const diffMonths = Math.floor(diffDays / 30);
+  return `${diffMonths}mo ago`;
+}
+
+/**
+ * Format game duration into MM:SS or Xm Ys.
+ */
+export function formatDuration(seconds?: number | null): string {
+  if (!seconds || seconds <= 0) return "0m 0s";
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}m ${s}s`;
+}
+
+/**
+ * Human-readable queue name from queue ID or type string.
+ */
+export function queueNameFromId(queue?: number | string | null): string {
+  if (queue == null) return "Normal";
+  if (typeof queue === "string") {
+    const u = queue.toUpperCase();
+    if (u.includes("SOLO")) return "Ranked Solo";
+    if (u.includes("FLEX")) return "Ranked Flex";
+    if (u.includes("ARAM")) return "ARAM";
+    if (u.includes("ARENA") || u.includes("CHERRY")) return "Arena";
+    if (u.includes("NORMAL")) return "Normal";
+    return queue;
+  }
+  switch (queue) {
+    case 420:
+      return "Ranked Solo";
+    case 440:
+      return "Ranked Flex";
+    case 450:
+      return "ARAM";
+    case 400:
+      return "Normal Draft";
+    case 430:
+      return "Normal Blind";
+    case 490:
+      return "Quickplay";
+    case 1700:
+      return "Arena";
+    case 700:
+      return "Clash";
+    default:
+      return "Normal Game";
+  }
+}
+

@@ -10,6 +10,14 @@ use std::collections::HashMap;
 use serde_json::{Map, Number, Value};
 
 pub fn parse(text: &str) -> Value {
+    let trimmed = text.trim();
+    if (trimmed.starts_with('{') && trimmed.ends_with('}'))
+        || (trimmed.starts_with('[') && trimmed.ends_with(']'))
+    {
+        if let Ok(v) = serde_json::from_str::<Value>(trimmed) {
+            return v;
+        }
+    }
     let mut classes: HashMap<String, Vec<String>> = HashMap::new();
     let mut expr_lines: Vec<&str> = Vec::new();
     let mut in_expr = false;
