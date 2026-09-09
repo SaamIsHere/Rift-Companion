@@ -14,6 +14,8 @@ This backlog structures and analyzes the open GitHub issues for the Rift Compani
 * [Epic 6: NAS Data Server & Cumulative Plus Tiers](#epic-6-nas-data-server--cumulative-plus-tiers)
 * [Epic 7: Visual & Interaction Polish (Issues #32–#38)](#epic-7-visual--interaction-polish-issues-3238)
 * [Epic 8: Multi-View Navigation & In-Depth Champion Hub](#epic-8-multi-view-navigation--in-depth-champion-hub)
+* [Epic 9: Comprehensive Summoner Profiles & Match History (Issues #41, #42)](#epic-9-comprehensive-summoner-profiles--match-history)
+
 
 ---
 
@@ -389,3 +391,12 @@ All review findings were implemented and verified in commits `4c9d8e4` and `aedf
         - Most Played Champions accurately aggregated from match history with real games, winrate, and KDA, plus cleanly formatted Mastery badges (e.g. `Mastery Lv. 7 · 36.4k pts`).
         - Match history feed with queue filter tabs (`All`, `Ranked Solo`, `Ranked Flex`, `ARAM & Normals`) with smooth scroll-to-top on filter switch.
         - Match cards with color-coded victory/defeat borders, champion icon & level, 2 summoner spells, 2 runes, KDA ratio, CS/min, damage dealt, 6+1 item slots, and expandable 10-player breakdown for both Blue and Red teams.
+
+### Issue 42: Stabilize Experimental Profile & Match History Feature (WIP Bugs & Missing Enhancements)
+* **Status**: Open (Active WIP)
+* **Priority**: Medium (`medium-priority`, `bug`)
+* **Technical Summary**: Resolve bugs, inconsistencies, and edge cases in the experimental Profile and Match History view. Complete missing enhancements (pagination, detailed damage/gold graphs, error states, and asset resolution).
+* **Scope & Tasks**:
+  * **Data Normalization & Fetching Bugs**: Handle remote OP.GG schema drifts gracefully; map custom/special queue IDs (Arena, Swarm, Quickplay); fix rare unresolved rune/spell asset IDs in Data Dragon mapper.
+  * **UI/UX & Layout Hardening**: Fix table overflow on 10-player breakdown for smaller window resolutions; add polish to loading skeletons and summoner-not-found screens.
+  * **Missing Functionality**: Add infinite scrolling/pagination beyond the initial 10-20 match batch; implement comparative damage/gold charts in expanded breakdown; improve search bar suggestions.
