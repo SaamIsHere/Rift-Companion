@@ -62,18 +62,18 @@
   const SCORING_OPTIONS: { id: ScoringMode; label: string; subtitle: string }[] = [
     {
       id: "default",
-      label: "Default",
+      label: "Balanced",
       subtitle: "(Balanced rating)",
-    },
-    {
-      id: "teamplayer",
-      label: "Teamplayer",
-      subtitle: "(Team combo & playstyle)",
     },
     {
       id: "counterpick",
       label: "Counterpick",
       subtitle: "(Direct matchup strength)",
+    },
+    {
+      id: "teamplayer",
+      label: "Team Player",
+      subtitle: "(Team combo & playstyle)",
     },
   ];
 

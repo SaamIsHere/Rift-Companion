@@ -142,7 +142,7 @@
       <img
         src={squareIconUrl(info.key, $ddragonVersion)}
         alt={name}
-        class="h-full w-full object-cover scale-[1.12]"
+        class="h-full w-full object-cover scale-[1.18]"
         on:error={() => (imgError = true)}
       />
     </div>

@@ -26,6 +26,11 @@ export function itemIconUrl(itemId: number, version: string): string {
   return `https://ddragon.leagueoflegends.com/cdn/${version}/img/item/${itemId}.png`;
 }
 
+/** Summoner's Rift map image URL from Data Dragon */
+export function summonersRiftMapUrl(version: string): string {
+  return `https://ddragon.leagueoflegends.com/cdn/${version}/img/map/map11.png`;
+}
+
 /** Champion ability spell icon URL from spell image filename + version. */
 export function championSpellIconUrl(spellImage: string, version: string): string {
   return `https://ddragon.leagueoflegends.com/cdn/${version}/img/spell/${spellImage}`;

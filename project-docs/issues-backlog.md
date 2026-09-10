@@ -166,15 +166,26 @@ This backlog structures and analyzes the open GitHub issues for the Rift Compani
 * **Resolved Design Decisions**:
   * *Dashboard Features*: Displays active match players, matchups, and lane indicators. Includes manual override controls to rearrange/swap lane configurations if system guesses incorrectly.
 
-### Issue 11: Draft Simulator Mode
-* **Status**: Open
+### Issue 11: Draft Simulator Mode (Match Simulation)
+* **Status**: Implemented
 * **Priority**: Medium
-* **Technical Summary**: Implement a manual offline tool to mock draft states without a running LCU client.
-* **Implementation Plan**:
-  * Add a "Simulator Mode" toggle to the UI.
-  * Create a mock panel where users can manually assign roles, bans, and lock champion picks for both teams to evaluate champion scores.
+* **Technical Summary**: Implement a manual offline tool to mock draft states and simulate 5v5 Champion Select without requiring an active League client session.
+* **Implementation**:
+  * Added top navigation tab `MATCH SIMULATION` in [TopNavBar.svelte](../src/lib/components/TopNavBar.svelte) and [navigation.ts](../src/lib/stores/navigation.ts).
+  * Added [MatchSimulationView.svelte](../src/lib/components/MatchSimulationView.svelte) featuring:
+    * Interactive Summoner's Rift map board with tactical lane/jungle slots for Blue Team (Allies) and Red Team (Enemies) across all 5 positions (`Top`, `Jungle`, `Mid`, `ADC`, `Support`).
+    * Clear user role switcher with icon buttons and visual `YOU` highlight on map slots.
+    * Integrated champion picker modal with real-time search, role filtering (`getChampionsByRole`), and prevention of duplicate picks/bans.
+    * Up to 10 ban slots with quick clear.
+    * "🎲 Random Fill" button to populate all 9 other slots with random, role-appropriate champions while keeping the user's slot intact.
+    * 1-click Import from active LCU live draft when available, plus reset button.
+    * Live ranked champion recommendations for the simulated role powered by `simulate_draft` in [commands.rs](../src-tauri/src/commands.rs), with three streamlined scoring modes (`Balanced`, `Counterpick`, `Team Player`).
+    * Head-to-head 5v5 match analysis powered by `simulate_match_analysis` in [commands.rs](../src-tauri/src/commands.rs), computing team win probabilities, lane-by-lane duel winrates, team damage distributions (AD/AP/Tank), team composition warnings (Full AD/AP, missing frontline), and key synergies.
+    * Full-bleed circular champion avatars (`scale-[1.18]` + `overflow-hidden`) across map nodes, duel cards, recommendation rows, and ban tags.
+    * Direct access to champion builds and in-depth overviews from within simulation.
 * **Resolved Design Decisions**:
-  * *UI Layout*: Integrates as a separate toggle view when LCU is not detected.
+  * *UI Layout*: Dedicated top-level tab `MATCH SIMULATION` in the main header and quick launch button on the Landing Page.
+  * *Summoner's Rift Map Board*: Visual representation on the Rift map with lane slot picking instead of tabular columns.
 
 ### Issue 12: Profile & Match History tab
 * **Status**: Open

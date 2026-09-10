@@ -3,9 +3,10 @@
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::data::models::{
-    ChampionBuildStats, ChampionMatchupEntry, ChampionOverviewData, RankTier, Role,
+    ChampionBuildStats, ChampionMatchupEntry, ChampionOverviewData, DamageType, RankTier, Role,
     RoleChampionItem,
 };
+use crate::data::repository::Repository;
 use crate::data::store;
 use crate::data::store::Settings;
 use crate::draft::DraftState;
@@ -1125,3 +1126,376 @@ fn compute(state: &Shared) -> Vec<Recommendation> {
         None => Vec::new(),
     }
 }
+
+// -----------------------------------------------------------------------------
+// Issue #11: Match Simulation & Offline Draft Engine
+// -----------------------------------------------------------------------------
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SimulatedMatchAnalysis {
+    pub blue_win_chance: f64,
+    pub lane_matchups: Vec<SimulatedLaneMatchup>,
+    pub blue_comp: SimulatedTeamComp,
+    pub red_comp: SimulatedTeamComp,
+    pub synergies: Vec<SimulatedSynergy>,
+    pub counters: Vec<SimulatedCounter>,
+    pub insights: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SimulatedLaneMatchup {
+    pub role: Role,
+    pub role_label: String,
+    pub ally_champion_id: Option<u32>,
+    pub ally_champion_name: Option<String>,
+    pub enemy_champion_id: Option<u32>,
+    pub enemy_champion_name: Option<String>,
+    pub ally_winrate: Option<f64>,
+    pub games: u32,
+    pub delta: f64,
+    pub advantage: String, // "ally" | "enemy" | "even" | "uncontested"
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SimulatedTeamComp {
+    pub champions_count: usize,
+    pub physical_count: usize,
+    pub magic_count: usize,
+    pub mixed_count: usize,
+    pub frontline_count: usize,
+    pub physical_pct: f64,
+    pub magic_pct: f64,
+    pub warnings: Vec<String>,
+    pub strengths: Vec<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SimulatedSynergy {
+    pub champion_a_id: u32,
+    pub champion_a_name: String,
+    pub champion_b_id: u32,
+    pub champion_b_name: String,
+    pub role_a: Role,
+    pub role_b: Role,
+    pub winrate: f64,
+    pub games: u32,
+    pub delta: f64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SimulatedCounter {
+    pub winner_id: u32,
+    pub winner_name: String,
+    pub winner_team: String, // "blue" | "red"
+    pub loser_id: u32,
+    pub loser_name: String,
+    pub role: Role,
+    pub winrate: f64,
+    pub games: u32,
+    pub delta: f64,
+}
+
+/// Compute pick recommendations for an offline or mock draft session.
+#[tauri::command]
+pub fn simulate_draft(state: State<Shared>, draft: DraftState) -> Vec<Recommendation> {
+    let repo = state.repo.lock().unwrap().clone();
+    let weights = state.weights.lock().unwrap().clone();
+    engine::recommend(repo.as_ref(), &draft, &weights)
+}
+
+/// Compute full scoring and matchup details for a specific champion in a simulated draft.
+#[tauri::command]
+pub fn simulate_champion_recommendation(
+    state: State<Shared>,
+    draft: DraftState,
+    champion_id: u32,
+) -> Option<Recommendation> {
+    let repo = state.repo.lock().unwrap().clone();
+    let role = draft.local_role?;
+    let weights = state.weights.lock().unwrap().clone();
+    let c = repo.get(champion_id)?;
+    let needs = engine::comp::needs(&repo, &draft);
+    Some(engine::score_one(&repo, &draft, &weights, role, c, &needs))
+}
+
+/// Perform head-to-head match simulation and team analysis for the draft.
+#[tauri::command]
+pub fn simulate_match_analysis(state: State<Shared>, draft: DraftState) -> SimulatedMatchAnalysis {
+    let repo = state.repo.lock().unwrap().clone();
+    let prior = repo.global_avg();
+
+    let all_roles = [Role::Top, Role::Jungle, Role::Mid, Role::Adc, Role::Support];
+
+    let mut lane_matchups = Vec::new();
+    let mut total_weighted_delta = 0.0;
+    let mut contested_weight_sum = 0.0;
+    let mut counters = Vec::new();
+
+    for role in all_roles {
+        let role_label = match role {
+            Role::Top => "Top",
+            Role::Jungle => "Jungle",
+            Role::Mid => "Mid",
+            Role::Adc => "ADC",
+            Role::Support => "Support",
+        }
+        .to_string();
+
+        let ally_pick = draft.allies.iter().find(|p| p.role == Some(role));
+        let enemy_pick = draft.enemies.iter().find(|p| p.role == Some(role));
+
+        let ally_c = ally_pick.and_then(|p| repo.get(p.champion_id));
+        let enemy_c = enemy_pick.and_then(|p| repo.get(p.champion_id));
+
+        let lane_weight = match role {
+            Role::Top => 0.20,
+            Role::Jungle => 0.22,
+            Role::Mid => 0.22,
+            Role::Adc => 0.20,
+            Role::Support => 0.16,
+        };
+
+        if let (Some(ac), Some(ec)) = (ally_c, enemy_c) {
+            let role_stats = ac.role_stats(role);
+            let cell = role_stats.and_then(|s| s.matchups.get(&ec.champion_id));
+
+            let (winrate_frac, games, delta_pct) = if let Some(c) = cell {
+                let smoothed = if c.games >= weights::MIN_MATCHES {
+                    bayesian::smooth(c.winrate, c.games, prior, weights::SMOOTH_C)
+                } else if c.games > 0 {
+                    bayesian::smooth(c.winrate, c.games, prior, weights::SMOOTH_C * 2.0)
+                } else {
+                    let a_base = role_stats.map(|s| s.global_winrate).unwrap_or(prior);
+                    let e_base = ec.role_stats(role).map(|s| s.global_winrate).unwrap_or(prior);
+                    (prior + (a_base - e_base) * 0.5).clamp(0.40, 0.60)
+                };
+                (smoothed, c.games, (smoothed - 0.50) * 100.0)
+            } else {
+                let a_base = role_stats.map(|s| s.global_winrate).unwrap_or(prior);
+                let e_base = ec.role_stats(role).map(|s| s.global_winrate).unwrap_or(prior);
+                let smoothed = (prior + (a_base - e_base) * 0.5).clamp(0.40, 0.60);
+                (smoothed, 0, (smoothed - 0.50) * 100.0)
+            };
+
+            let advantage = if delta_pct > 1.2 {
+                "ally"
+            } else if delta_pct < -1.2 {
+                "enemy"
+            } else {
+                "even"
+            }
+            .to_string();
+
+            if delta_pct.abs() >= 2.5 {
+                if delta_pct > 0.0 {
+                    counters.push(SimulatedCounter {
+                        winner_id: ac.champion_id,
+                        winner_name: ac.name.clone(),
+                        winner_team: "blue".to_string(),
+                        loser_id: ec.champion_id,
+                        loser_name: ec.name.clone(),
+                        role,
+                        winrate: winrate_frac * 100.0,
+                        games,
+                        delta: delta_pct,
+                    });
+                } else {
+                    counters.push(SimulatedCounter {
+                        winner_id: ec.champion_id,
+                        winner_name: ec.name.clone(),
+                        winner_team: "red".to_string(),
+                        loser_id: ac.champion_id,
+                        loser_name: ac.name.clone(),
+                        role,
+                        winrate: (1.0 - winrate_frac) * 100.0,
+                        games,
+                        delta: -delta_pct,
+                    });
+                }
+            }
+
+            total_weighted_delta += delta_pct * lane_weight;
+            contested_weight_sum += lane_weight;
+
+            lane_matchups.push(SimulatedLaneMatchup {
+                role,
+                role_label,
+                ally_champion_id: Some(ac.champion_id),
+                ally_champion_name: Some(ac.name.clone()),
+                enemy_champion_id: Some(ec.champion_id),
+                enemy_champion_name: Some(ec.name.clone()),
+                ally_winrate: Some(winrate_frac * 100.0),
+                games,
+                delta: delta_pct,
+                advantage,
+            });
+        } else {
+            let (ally_id, ally_name) = ally_c.map(|c| (Some(c.champion_id), Some(c.name.clone()))).unwrap_or((None, None));
+            let (enemy_id, enemy_name) = enemy_c.map(|c| (Some(c.champion_id), Some(c.name.clone()))).unwrap_or((None, None));
+
+            lane_matchups.push(SimulatedLaneMatchup {
+                role,
+                role_label,
+                ally_champion_id: ally_id,
+                ally_champion_name: ally_name,
+                enemy_champion_id: enemy_id,
+                enemy_champion_name: enemy_name,
+                ally_winrate: None,
+                games: 0,
+                delta: 0.0,
+                advantage: "uncontested".to_string(),
+            });
+        }
+    }
+
+    // Evaluate Team Compositions
+    fn analyze_team(repo: &Repository, picks: &[crate::draft::DraftPick]) -> SimulatedTeamComp {
+        let mut physical = 0;
+        let mut magic = 0;
+        let mut mixed = 0;
+        let mut frontline = 0;
+
+        for p in picks {
+            if let Some(c) = repo.get(p.champion_id) {
+                match c.damage {
+                    DamageType::Physical => physical += 1,
+                    DamageType::Magic => magic += 1,
+                    DamageType::Mixed => mixed += 1,
+                }
+                if c.frontline {
+                    frontline += 1;
+                }
+            }
+        }
+
+        let count = picks.len();
+        let total_dmg_dealers = (physical + magic + mixed).max(1) as f64;
+        let physical_pct = ((physical as f64 + mixed as f64 * 0.5) / total_dmg_dealers) * 100.0;
+        let magic_pct = ((magic as f64 + mixed as f64 * 0.5) / total_dmg_dealers) * 100.0;
+
+        let mut warnings = Vec::new();
+        let mut strengths = Vec::new();
+
+        if count >= 3 {
+            if magic == 0 && mixed == 0 {
+                warnings.push("Full AD: Kein magischer Schaden vorhanden (Gegner kann Rüstung stacken)".to_string());
+            } else if physical == 0 && mixed == 0 {
+                warnings.push("Full AP: Kein physischer Schaden vorhanden (Gegner kann Magieresistenz stacken)".to_string());
+            } else {
+                strengths.push("Ausgewogener AD/AP-Schadensmix".to_string());
+            }
+
+            if frontline == 0 {
+                warnings.push("Keine Frontline: Kein Tank für Engages oder Peel im Team".to_string());
+            } else {
+                strengths.push(format!("{frontline}x Frontline/Tank für Teamfights vorhanden"));
+            }
+        }
+
+        SimulatedTeamComp {
+            champions_count: count,
+            physical_count: physical,
+            magic_count: magic,
+            mixed_count: mixed,
+            frontline_count: frontline,
+            physical_pct,
+            magic_pct,
+            warnings,
+            strengths,
+        }
+    }
+
+    let blue_comp = analyze_team(&repo, &draft.allies);
+    let red_comp = analyze_team(&repo, &draft.enemies);
+
+    // Evaluate Ally Synergies
+    let mut synergies = Vec::new();
+    let allies = &draft.allies;
+    for i in 0..allies.len() {
+        for j in (i + 1)..allies.len() {
+            let p1 = &allies[i];
+            let p2 = &allies[j];
+            if let (Some(role1), Some(c1), Some(c2)) = (p1.role, repo.get(p1.champion_id), repo.get(p2.champion_id)) {
+                if let Some(cell) = c1.role_stats(role1).and_then(|s| s.synergies.get(&p2.champion_id)) {
+                    if cell.games >= 50 {
+                        let smoothed = bayesian::smooth(cell.winrate, cell.games, prior, weights::SMOOTH_C);
+                        let delta = (smoothed - 0.50) * 100.0;
+                        if delta.abs() >= 1.0 {
+                            synergies.push(SimulatedSynergy {
+                                champion_a_id: c1.champion_id,
+                                champion_a_name: c1.name.clone(),
+                                champion_b_id: c2.champion_id,
+                                champion_b_name: c2.name.clone(),
+                                role_a: role1,
+                                role_b: p2.role.unwrap_or(Role::Mid),
+                                winrate: smoothed * 100.0,
+                                games: cell.games,
+                                delta,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+    synergies.sort_by(|a, b| b.delta.partial_cmp(&a.delta).unwrap_or(std::cmp::Ordering::Equal));
+
+    // Calculate Blue Win Chance
+    let mut match_win_chance = 50.0;
+    if contested_weight_sum > 0.0 {
+        let avg_lane_delta = total_weighted_delta / contested_weight_sum;
+        match_win_chance += avg_lane_delta * 0.85;
+    }
+
+    // Comp adjustments
+    if blue_comp.champions_count >= 3 && red_comp.champions_count >= 3 {
+        if blue_comp.frontline_count > 0 && red_comp.frontline_count == 0 {
+            match_win_chance += 1.8;
+        } else if blue_comp.frontline_count == 0 && red_comp.frontline_count > 0 {
+            match_win_chance -= 1.8;
+        }
+
+        if blue_comp.warnings.is_empty() && !red_comp.warnings.is_empty() {
+            match_win_chance += 1.5;
+        } else if !blue_comp.warnings.is_empty() && red_comp.warnings.is_empty() {
+            match_win_chance -= 1.5;
+        }
+    }
+
+    // Synergy adjustments
+    let top_synergies_delta: f64 = synergies.iter().take(3).map(|s| s.delta * 0.15).sum();
+    match_win_chance += top_synergies_delta;
+
+    let blue_win_chance = match_win_chance.clamp(20.0, 80.0);
+
+    // Dynamic high-level insights
+    let mut insights = Vec::new();
+    if blue_win_chance >= 54.0 {
+        insights.push("Deutlicher Draft-Vorteil für dein Team (gute Lane-Matchups & Synergien).".to_string());
+    } else if blue_win_chance <= 46.0 {
+        insights.push("Schwieriger Draft: Das Gegnerteam hat vorteilhafte Matchups oder bessere Team-Balance.".to_string());
+    } else {
+        insights.push("Ausgeglichene Draft-Situation: Die individuelle Performance und Map-Control entscheiden.".to_string());
+    }
+
+    if let Some(top_syn) = synergies.first() {
+        if top_syn.delta >= 2.0 {
+            insights.push(format!("Starke Synergie: {} & {} harmonieren exzellent (+{:.1}% WR).", top_syn.champion_a_name, top_syn.champion_b_name, top_syn.delta));
+        }
+    }
+
+    if let Some(bad_counter) = counters.iter().find(|c| c.winner_team == "red") {
+        insights.push(format!("Gefährlicher Counter: Gegners {} setzt {} unter Druck ({:.1}% WR).", bad_counter.winner_name, bad_counter.loser_name, bad_counter.winrate));
+    }
+
+    SimulatedMatchAnalysis {
+        blue_win_chance,
+        lane_matchups,
+        blue_comp,
+        red_comp,
+        synergies,
+        counters,
+        insights,
+    }
+}
+

@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 pub enum ScoringMode {
     #[default]
     Default,
-    #[serde(rename = "teamplayer", alias = "heavy_synergy")]
+    #[serde(rename = "teamplayer")]
     Teamplayer,
-    #[serde(rename = "counterpick", alias = "only_matchup", alias = "full_matchup")]
+    #[serde(rename = "counterpick")]
     Counterpick,
 }
 

@@ -4,27 +4,34 @@
 //! `assignedPosition` is almost always an empty string. We therefore *infer*
 //! enemy roles from each champion's primary role in our dataset.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::data::models::Role;
 use crate::data::repository::Repository;
 use crate::lcu::models::ChampSelectSession;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DraftState {
     pub local_role: Option<Role>,
+    #[serde(default)]
     pub local_champion_id: Option<u32>,
+    #[serde(default)]
     pub hovered_champion_id: Option<u32>,
+    #[serde(default)]
     pub is_locked: bool,
+    #[serde(default)]
     pub bans: Vec<u32>,
+    #[serde(default)]
     pub allies: Vec<DraftPick>,
+    #[serde(default)]
     pub enemies: Vec<DraftPick>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DraftPick {
     pub champion_id: u32,
     pub role: Option<Role>,
+    #[serde(default)]
     pub is_local: bool,
     #[serde(default)]
     pub spell1_id: Option<u64>,

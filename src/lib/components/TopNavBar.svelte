@@ -13,6 +13,7 @@
   const tabs: { id: NavTab; label: string }[] = [
     { id: "champions", label: "CHAMPIONS" },
     { id: "ranglisten", label: "RANKINGS" },
+    { id: "simulation", label: "MATCH SIMULATION" },
     { id: "live_match", label: "LIVE MATCH" },
   ];
 

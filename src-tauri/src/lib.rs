@@ -153,6 +153,9 @@ pub fn run() {
             commands::get_player_profile,
             commands::get_player_matches,
             commands::get_match_detail,
+            commands::simulate_draft,
+            commands::simulate_champion_recommendation,
+            commands::simulate_match_analysis,
         ])
         .setup(move |app| {
             // Apply the persisted always-on-top preference to the freshly created window and ensure it is shown.

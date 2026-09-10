@@ -564,11 +564,13 @@
             class="group flex items-center gap-1.5 rounded-full border border-purple-500/25 bg-purple-950/40 px-2.5 py-1 text-purple-200 backdrop-blur-md transition hover:border-purple-400/60 hover:bg-purple-900/60 hover:text-white"
           >
             {#if item.type === "champion"}
-              <img
-                src={squareIconUrl(item.champKey || item.label, $ddragonVersion)}
-                alt={item.label}
-                class="h-4 w-4 rounded-full object-cover ring-1 ring-purple-400/50"
-              />
+              <div class="relative h-4 w-4 shrink-0 overflow-hidden rounded-full ring-1 ring-purple-400/50">
+                <img
+                  src={squareIconUrl(item.champKey || item.label, $ddragonVersion)}
+                  alt={item.label}
+                  class="h-full w-full object-cover scale-[1.18]"
+                />
+              </div>
             {:else if item.tier}
               <img
                 src={tierMedalUrl(item.tier)}
@@ -590,8 +592,25 @@
       </div>
     </div>
 
-    <!-- Latest Patch button (slimmed down per user request) -->
-    <div class="mt-9">
+    <!-- Action buttons row -->
+    <div class="mt-9 flex flex-wrap items-center justify-center gap-3">
+      <!-- Match Simulation Button -->
+      <button
+        type="button"
+        on:click={() => activeTab.set("simulation")}
+        class="group flex items-center gap-3 rounded-xl border border-purple-400/30 bg-gradient-to-r from-purple-800/80 via-violet-700/80 to-purple-900/80 px-4 py-2 text-left shadow-md backdrop-blur-lg transition-all duration-200 hover:scale-[1.02] hover:border-purple-300 hover:from-purple-700 hover:to-indigo-700 hover:shadow-lg active:scale-[0.98]"
+        title="Simulate Champion Select & Matchups"
+      >
+        <div class="flex h-8 w-8 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white shadow-inner">
+          <span class="text-base">⚔️</span>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-[11px] font-semibold tracking-wide text-purple-200">Simulator</span>
+          <span class="text-sm font-bold text-white leading-none">Match Simulation</span>
+        </div>
+      </button>
+
+      <!-- Latest Patch button -->
       <button
         type="button"
         on:click={openPatchNotes}

@@ -84,7 +84,7 @@ export interface PairwiseStat {
   delta: number; // winrate - 0.5, signed
 }
 
-export type ScoringMode = "default" | "teamplayer" | "counterpick" | "heavy_synergy" | "only_matchup";
+export type ScoringMode = "default" | "teamplayer" | "counterpick";
 
 // matchup/synergy/counter are driven by ALLY_WEIGHTS/ENEMY_WEIGHTS and ScoringMode
 export interface Weights {
@@ -338,5 +338,66 @@ export interface FullPlayerProfile {
   source: "lcu" | "opgg" | "cache";
   updated_at: number;
 }
+
+// Issue #11: Match Simulation Models
+export interface SimulatedLaneMatchup {
+  role: Role;
+  role_label: string;
+  ally_champion_id?: number | null;
+  ally_champion_name?: string | null;
+  enemy_champion_id?: number | null;
+  enemy_champion_name?: string | null;
+  ally_winrate?: number | null;
+  games: number;
+  delta: number;
+  advantage: "ally" | "enemy" | "even" | "uncontested";
+}
+
+export interface SimulatedTeamComp {
+  champions_count: number;
+  physical_count: number;
+  magic_count: number;
+  mixed_count: number;
+  frontline_count: number;
+  physical_pct: number;
+  magic_pct: number;
+  warnings: string[];
+  strengths: string[];
+}
+
+export interface SimulatedSynergy {
+  champion_a_id: number;
+  champion_a_name: string;
+  champion_b_id: number;
+  champion_b_name: string;
+  role_a: Role;
+  role_b: Role;
+  winrate: number;
+  games: number;
+  delta: number;
+}
+
+export interface SimulatedCounter {
+  winner_id: number;
+  winner_name: string;
+  winner_team: "blue" | "red";
+  loser_id: number;
+  loser_name: string;
+  role: Role;
+  winrate: number;
+  games: number;
+  delta: number;
+}
+
+export interface SimulatedMatchAnalysis {
+  blue_win_chance: number;
+  lane_matchups: SimulatedLaneMatchup[];
+  blue_comp: SimulatedTeamComp;
+  red_comp: SimulatedTeamComp;
+  synergies: SimulatedSynergy[];
+  counters: SimulatedCounter[];
+  insights: string[];
+}
+
 
 

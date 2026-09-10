@@ -12,6 +12,7 @@
   import ChampionsView from "./lib/components/ChampionsView.svelte";
   import RankingsView from "./lib/components/RankingsView.svelte";
   import LiveMatchView from "./lib/components/LiveMatchView.svelte";
+  import MatchSimulationView from "./lib/components/MatchSimulationView.svelte";
   import SettingsModal from "./lib/components/SettingsModal.svelte";
 
   onMount(() => {
@@ -76,6 +77,8 @@
         <ChampionsView />
       {:else if $activeTab === "ranglisten"}
         <RankingsView />
+      {:else if $activeTab === "simulation"}
+        <MatchSimulationView />
       {/if}
     </div>
   {/if}

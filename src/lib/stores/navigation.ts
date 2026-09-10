@@ -2,9 +2,9 @@ import { writable } from "svelte/store";
 import { draft } from "./draft";
 import type { Role } from "../types";
 
-export type NavTab = "startseite" | "profil" | "champions" | "ranglisten" | "live_match";
+export type NavTab = "startseite" | "profil" | "champions" | "ranglisten" | "simulation" | "live_match";
 
-const validTabs: NavTab[] = ["startseite", "profil", "champions", "ranglisten", "live_match"];
+const validTabs: NavTab[] = ["startseite", "profil", "champions", "ranglisten", "simulation", "live_match"];
 const savedTab = typeof localStorage !== "undefined" ? (localStorage.getItem("rift_active_tab") as NavTab) : null;
 const initialTab: NavTab = savedTab && validTabs.includes(savedTab) && savedTab !== "live_match" ? savedTab : "startseite";
 

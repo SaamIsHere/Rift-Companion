@@ -21,6 +21,7 @@ import type {
   ScoringMode,
   ServerStatus,
   Settings,
+  SimulatedMatchAnalysis,
   Summoner,
   Weights,
 } from "../types";
@@ -510,6 +511,56 @@ export async function getChampionsByRole(
     return [];
   }
 }
+
+/**
+ * Compute pick recommendations for a simulated or mock draft (Issue #11).
+ */
+export async function simulateDraft(draftState: DraftState): Promise<Recommendation[]> {
+  if (!isTauri) return [];
+  try {
+    return await invoke<Recommendation[]>("simulate_draft", { draft: draftState });
+  } catch (err) {
+    console.error("Failed to simulate draft", err);
+    return [];
+  }
+}
+
+/**
+ * Compute full scoring and matchup recommendation for a specific champion in a simulated draft.
+ */
+export async function simulateChampionRecommendation(
+  draftState: DraftState,
+  championId: number,
+): Promise<Recommendation | null> {
+  if (!isTauri) return null;
+  try {
+    return await invoke<Recommendation | null>("simulate_champion_recommendation", {
+      draft: draftState,
+      championId,
+    });
+  } catch (err) {
+    console.error("Failed to simulate champion recommendation", err);
+    return null;
+  }
+}
+
+/**
+ * Run full head-to-head match simulation and composition analysis for a simulated draft.
+ */
+export async function simulateMatchAnalysis(
+  draftState: DraftState,
+): Promise<SimulatedMatchAnalysis | null> {
+  if (!isTauri) return null;
+  try {
+    return await invoke<SimulatedMatchAnalysis>("simulate_match_analysis", {
+      draft: draftState,
+    });
+  } catch (err) {
+    console.error("Failed to simulate match analysis", err);
+    return null;
+  }
+}
+
 
 
 
