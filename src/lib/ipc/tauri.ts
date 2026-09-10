@@ -5,6 +5,8 @@ import { draft } from "../stores/draft";
 import { profile } from "../stores/profile";
 import { rankRefreshing, rankRefreshProgress, rankTier } from "../stores/rank";
 import { recommendations } from "../stores/recommendations";
+import { preselectedChampionId } from "../stores/preselect";
+import { scoringMode } from "../stores/scoring";
 import { settings } from "../stores/settings";
 import type {
   ChampionBuildStats,
@@ -16,6 +18,7 @@ import type {
   Recommendation,
   Role,
   RoleChampionItem,
+  ScoringMode,
   ServerStatus,
   Settings,
   Summoner,
@@ -24,6 +27,8 @@ import type {
 
 export const isTauri =
   typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+let prevDraftEmpty = true;
 
 /**
  * Wire backend events into the Svelte stores and prime initial state.
@@ -42,8 +47,20 @@ export async function initIpc(): Promise<void> {
     connection.set(e.payload),
   );
   await listen<Summoner | null>("lcu://profile", (e) => profile.set(e.payload));
-  await listen<DraftState>("champ-select://update", (e) =>
-    draft.set(e.payload),
+  await listen<DraftState | null>("champ-select://update", (e) => {
+    const isNowEmpty = !e.payload || (e.payload.allies.length === 0 && e.payload.enemies.length === 0);
+    if (prevDraftEmpty && !isNowEmpty) {
+      // Fresh champ select session started -> reset scoring focus to default
+      scoringMode.set("default");
+    } else if (isNowEmpty) {
+      scoringMode.set("default");
+      preselectedChampionId.set(null);
+    }
+    prevDraftEmpty = isNowEmpty;
+    draft.set(e.payload);
+  });
+  await listen<ScoringMode>("scoring-mode://update", (e) =>
+    scoringMode.set(e.payload),
   );
   await listen<Recommendation[]>("recommendations://update", (e) =>
     recommendations.set(e.payload),
@@ -61,8 +78,14 @@ export async function initIpc(): Promise<void> {
   try {
     connection.set(await invoke<ConnectionStatus>("get_connection_status"));
     profile.set(await invoke<Summoner | null>("get_profile"));
-    draft.set(await invoke<DraftState | null>("get_draft_state"));
+    const initialDraft = await invoke<DraftState | null>("get_draft_state");
+    prevDraftEmpty = !initialDraft || (initialDraft.allies.length === 0 && initialDraft.enemies.length === 0);
+    draft.set(initialDraft);
     recommendations.set(await invoke<Recommendation[]>("get_recommendations"));
+    try {
+      const mode = await invoke<ScoringMode>("get_scoring_mode");
+      if (mode) scoringMode.set(mode);
+    } catch (_) {}
     rankTier.set(await invoke<RankTier>("get_rank_tier"));
     settings.set(await invoke<Settings>("get_settings"));
   } catch (err) {
@@ -74,6 +97,43 @@ export async function initIpc(): Promise<void> {
 export async function setWeights(weights: Weights): Promise<Recommendation[]> {
   if (!isTauri) return [];
   return invoke<Recommendation[]>("set_weights", { weights });
+}
+
+/** Push new scoring focus mode (default, teamplayer, counterpick). */
+export async function setScoringMode(mode: ScoringMode): Promise<Recommendation[]> {
+  scoringMode.set(mode);
+  if (!isTauri) return [];
+  return invoke<Recommendation[]>("set_scoring_mode", { mode });
+}
+
+/**
+ * Hover a champion in the League of Legends client during champ select (without locking in).
+ */
+export async function hoverChampion(championId: number): Promise<boolean> {
+  if (!isTauri) return false;
+  try {
+    return await invoke<boolean>("hover_champion", { championId });
+  } catch (err) {
+    console.warn("Failed to hover champion in League client", err);
+    return false;
+  }
+}
+
+/**
+ * Compute full scoring and matchup recommendation for a specific champion on-demand.
+ */
+export async function getChampionRecommendation(
+  championId: number,
+): Promise<Recommendation | null> {
+  if (!isTauri) return null;
+  try {
+    return await invoke<Recommendation | null>("get_champion_recommendation", {
+      championId,
+    });
+  } catch (err) {
+    console.warn("Failed to get champion recommendation", err);
+    return null;
+  }
 }
 
 /**

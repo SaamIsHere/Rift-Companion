@@ -2,11 +2,12 @@
   import { onMount } from "svelte";
   import { championCatalog, ddragonVersion } from "../stores/champions";
   import { rankTier } from "../stores/rank";
-  import { squareIconUrl } from "../utils/ddragon";
-  import { getChampionsByRole } from "../ipc/tauri";
-  import { championsViewReset } from "../stores/navigation";
-  import type { Role, RoleChampionItem } from "../types";
+  import { squareIconUrl, roleIconUrl } from "../utils/ddragon";
+  import { getChampionsByRole, getChampionOverview } from "../ipc/tauri";
+  import { championsViewReset, targetChampion } from "../stores/navigation";
+  import type { Role, RoleChampionItem, ChampionOverviewData } from "../types";
   import ChampionOverview from "./ChampionOverview.svelte";
+  import MatchupModal from "./MatchupModal.svelte";
 
   let query = "";
   let selectedRole: Role | null = null;
@@ -15,8 +16,34 @@
   let loadingRoleData = false;
   let lastLoadedRank: string | null = null;
 
+  let quickMatchupChamp: RoleChampionItem | null = null;
+  let quickMatchupOverview: ChampionOverviewData | null = null;
+  let quickMatchupLoading = false;
+
+  async function openQuickMatchups(champ: RoleChampionItem) {
+    quickMatchupChamp = champ;
+    quickMatchupOverview = null;
+    quickMatchupLoading = true;
+    try {
+      quickMatchupOverview = await getChampionOverview(champ.champion_id, champ.role);
+    } catch (e) {
+      console.warn("Failed to load quick matchups", e);
+    } finally {
+      quickMatchupLoading = false;
+    }
+  }
+
   $: if ($championsViewReset) {
     selectedChamp = null;
+    quickMatchupChamp = null;
+  }
+
+  $: if ($targetChampion) {
+    selectedChamp = {
+      champion_id: $targetChampion.champion_id,
+      role: $targetChampion.role || "mid",
+    };
+    targetChampion.set(null);
   }
 
   type SortKey = "winrate" | "pick_rate" | "ban_rate";
@@ -117,27 +144,11 @@
 {:else}
   <div class="flex min-h-0 flex-1 flex-col p-6 overflow-hidden select-none">
     <!-- Top Navigation Toolbar matching Listenansicht.png -->
-    <div class="mb-5 flex flex-wrap items-center justify-between gap-4">
-      <!-- Role Tabs (All, Top, Jungle, Middle, Bottom, Support) -->
-      <div class="flex items-center rounded-xl border border-purple-500/20 bg-[#0c071d]/90 p-1 backdrop-blur-md shadow-[0_0_15px_rgba(168,85,247,0.15)]">
-        {#each ROLES as r (r.label)}
-          {@const isActive = selectedRole === r.id}
-          <button
-            type="button"
-            on:click={() => selectRole(r.id)}
-            class="rounded-lg px-5 py-2 text-xs font-bold tracking-wide transition {isActive
-              ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-[0_0_14px_rgba(168,85,247,0.5)]'
-              : 'text-slate-400 hover:text-purple-200 hover:bg-purple-950/40'}"
-          >
-            {r.label}
-          </button>
-        {/each}
-      </div>
-
-      <!-- Search Input -->
-      <div class="relative w-72">
+    <div class="mb-5 flex flex-wrap items-center gap-3">
+      <!-- Search Input (h-11, w-60) -->
+      <div class="relative h-11 w-60">
         <svg
-          class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-purple-300/60"
+          class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-purple-300/60"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -150,8 +161,32 @@
           type="text"
           bind:value={query}
           placeholder="Search champion…"
-          class="w-full rounded-xl border border-purple-500/20 bg-[#0d071e]/75 py-2 pl-9 pr-3 text-xs text-slate-100 placeholder:text-slate-500 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400/40 shadow-inner"
+          class="h-full w-full rounded-xl border border-purple-500/20 bg-[#0d071e]/75 pl-10 pr-3 text-xs text-slate-100 placeholder:text-slate-500 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400/40 shadow-inner"
         />
+      </div>
+
+      <!-- Role Tabs (h-11, Icons only: All, Top, Jungle, Middle, Bottom, Support) -->
+      <div class="flex h-11 items-center gap-1 rounded-xl border border-purple-500/20 bg-[#0c071d]/90 p-1 backdrop-blur-md shadow-md">
+        {#each ROLES as r (r.label)}
+          {@const isActive = selectedRole === r.id}
+          <button
+            type="button"
+            on:click={() => selectRole(r.id)}
+            title={r.label}
+            aria-label={r.label}
+            class="flex h-full aspect-square items-center justify-center rounded-lg transition {isActive
+              ? 'bg-purple-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-purple-200 hover:bg-purple-950/40'}"
+          >
+            <img
+              src={roleIconUrl(r.id || "all")}
+              alt={r.label}
+              class="h-5 w-5 shrink-0 object-contain {isActive
+                ? 'brightness-125'
+                : 'opacity-60 brightness-90 hover:opacity-100'}"
+            />
+          </button>
+        {/each}
       </div>
     </div>
 
@@ -161,7 +196,6 @@
       <div class="grid grid-cols-12 gap-2 border-b border-purple-500/15 bg-purple-950/30 px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
         <div class="col-span-1 text-center">Rank</div>
         <div class="col-span-3">Champion</div>
-        <div class="col-span-1 text-center">Tier</div>
         <div class="col-span-1 text-center">Role</div>
 
         <!-- Sortable Win Rate -->
@@ -200,7 +234,7 @@
           </span>
         </button>
 
-        <div class="col-span-2 text-right pr-2">Weak against</div>
+        <div class="col-span-3 text-right pr-2">Weak against</div>
       </div>
 
       <!-- Table Body Rows -->
@@ -238,46 +272,17 @@
                   <span class="text-xs font-bold text-slate-100 group-hover:text-white truncate">
                     {champ.name}
                   </span>
-                  {#if champ.has_build}
-                    <span class="text-[9px] text-purple-400/80 font-medium">Build ✓</span>
-                  {/if}
                 </div>
               </div>
 
-              <!-- Tier Badge -->
-              <div class="col-span-1 flex justify-center">
-                {#if champ.tier === "OP"}
-                  <span class="rounded bg-rose-600 px-2 py-0.5 text-[10px] font-black text-white shadow-[0_0_8px_rgba(225,29,72,0.6)]">
-                    OP
-                  </span>
-                {:else if champ.tier === "1"}
-                  <span class="rounded bg-sky-600 px-2 py-0.5 text-[10px] font-black text-white shadow-[0_0_8px_rgba(2,132,199,0.5)]">
-                    1
-                  </span>
-                {:else if champ.tier === "2"}
-                  <span class="rounded bg-indigo-600/80 px-2 py-0.5 text-[10px] font-bold text-white">
-                    2
-                  </span>
-                {:else if champ.tier === "3"}
-                  <span class="rounded bg-slate-700/80 px-2 py-0.5 text-[10px] font-bold text-slate-200">
-                    3
-                  </span>
-                {:else if champ.tier === "4"}
-                  <span class="rounded bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-400">
-                    4
-                  </span>
-                {:else}
-                  <span class="rounded bg-slate-900 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-                    5
-                  </span>
-                {/if}
-              </div>
-
-              <!-- Role Icon/Badge -->
-              <div class="col-span-1 flex justify-center">
-                <span class="rounded-md border border-purple-500/20 bg-purple-950/40 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-purple-300">
-                  {champ.role === "mid" ? "MID" : champ.role === "adc" ? "BOT" : champ.role.slice(0, 3).toUpperCase()}
-                </span>
+              <!-- Role Icon -->
+              <div class="col-span-1 flex items-center justify-center">
+                <img
+                  src={roleIconUrl(champ.role)}
+                  alt={champ.role}
+                  title={champ.role ? champ.role.toUpperCase() : "ROLE"}
+                  class="h-4 w-4 object-contain brightness-110 opacity-90 transition duration-150 group-hover:opacity-100 group-hover:scale-110"
+                />
               </div>
 
               <!-- Win rate -->
@@ -295,8 +300,8 @@
                 {formatPercent(champ.ban_rate)}
               </div>
 
-              <!-- Weak against (3 counter champion icons) -->
-              <div class="col-span-2 flex items-center justify-end gap-1.5 pr-2">
+              <!-- Weak against (3 counter champion icons + Counterpicks shortcut button) -->
+              <div class="col-span-3 flex items-center justify-end gap-1.5 pr-2">
                 {#if champ.weak_against && champ.weak_against.length}
                   {#each champ.weak_against as counter}
                     <div
@@ -312,8 +317,21 @@
                     </div>
                   {/each}
                 {:else}
-                  <span class="text-[10px] text-slate-500">–</span>
+                  <span class="text-[10px] text-slate-500 mr-1">–</span>
                 {/if}
+
+                <!-- Quick shortcut to open all counter matchups directly in modal -->
+                <button
+                  type="button"
+                  on:click|stopPropagation={() => openQuickMatchups(champ)}
+                  class="ml-1 flex h-6 items-center gap-1 rounded-md border border-purple-500/30 bg-purple-950/60 px-1.5 text-[10px] font-bold text-purple-200 shadow-sm transition hover:border-purple-400 hover:bg-purple-800/80 hover:text-white active:scale-95 shrink-0"
+                  title="View all counter matchups for {champ.name}"
+                >
+                  <span>All</span>
+                  <svg class="h-2.5 w-2.5 text-purple-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
               </div>
             </div>
           {/each}
@@ -325,4 +343,17 @@
       </div>
     </div>
   </div>
+{/if}
+
+{#if quickMatchupChamp}
+  <MatchupModal
+    championName={quickMatchupChamp.name}
+    activeRole={quickMatchupChamp.role}
+    overview={quickMatchupOverview}
+    loading={quickMatchupLoading}
+    onClose={() => {
+      quickMatchupChamp = null;
+      quickMatchupOverview = null;
+    }}
+  />
 {/if}

@@ -14,5 +14,15 @@ export const preselectedChampionId = writable<number | null>(null);
  */
 export const referenceChampionId = derived(
   [draft, preselectedChampionId],
-  ([$draft, $preselected]) => $draft?.local_champion_id ?? $preselected ?? null,
+  ([$draft, $preselected]) => {
+    if (!$draft || ($draft.allies.length === 0 && $draft.enemies.length === 0)) {
+      return null;
+    }
+    return (
+      $draft.local_champion_id ??
+      $draft.hovered_champion_id ??
+      $preselected ??
+      null
+    );
+  },
 );

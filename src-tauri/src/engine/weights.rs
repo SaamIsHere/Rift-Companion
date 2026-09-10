@@ -2,17 +2,32 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Weight given to the team-composition bonus (fills AP/AD/frontline gaps).
-/// The only remaining tunable — matchup/synergy/counter are now driven by the
-/// static [`ALLY_WEIGHTS`]/[`ENEMY_WEIGHTS`] matrices below, not a scalar.
+/// Scoring focus mode selected in UI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ScoringMode {
+    #[default]
+    Default,
+    #[serde(rename = "teamplayer", alias = "heavy_synergy")]
+    Teamplayer,
+    #[serde(rename = "counterpick", alias = "only_matchup", alias = "full_matchup")]
+    Counterpick,
+}
+
+/// Tunable weights and scoring focus mode.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Weights {
     pub comp: f64,
+    #[serde(default)]
+    pub mode: ScoringMode,
 }
 
 impl Default for Weights {
     fn default() -> Self {
-        Weights { comp: 0.15 }
+        Weights {
+            comp: 0.15,
+            mode: ScoringMode::Default,
+        }
     }
 }
 

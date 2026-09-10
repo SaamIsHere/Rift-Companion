@@ -15,14 +15,18 @@
     loadRunesReforged,
     getChampionDetailedInfo,
     championSpellIconUrl,
+    roleIconUrl,
     type RuneMeta,
     type ChampionDetailedSpells,
   } from "../utils/ddragon";
   import { getChampionOverview } from "../ipc/tauri";
+  import MatchupModal from "./MatchupModal.svelte";
 
   export let championId: number;
   export let initialRole: Role | null = null;
   export let onBack: (() => void) | null = null;
+  export let initialShowMatchups: boolean = false;
+  export let onCloseMatchups: (() => void) | null = null;
 
   let loading = true;
   let error: string | null = null;
@@ -31,10 +35,22 @@
   let runesMap: Map<number, RuneMeta> = new Map();
   let activeRunePageIndex = 0;
   let activeRole: Role = initialRole || "top";
-  let showAllMatchupsModal = false;
-  let matchupSearchQuery = "";
-  let matchupActiveTab: "all_matchups" | "all_synergies" = "all_matchups";
-  let matchupSortDir: "asc" | "desc" = "asc";
+  let showAllMatchupsModal = initialShowMatchups;
+  let prevShowMatchups = initialShowMatchups;
+
+  $: if (initialShowMatchups !== prevShowMatchups) {
+    prevShowMatchups = initialShowMatchups;
+    if (initialShowMatchups) {
+      showAllMatchupsModal = true;
+    }
+  }
+
+  function handleCloseModal() {
+    showAllMatchupsModal = false;
+    if (onCloseMatchups) {
+      onCloseMatchups();
+    }
+  }
 
   const ROLE_LABELS: Record<Role, string> = {
     top: "Top",
@@ -174,19 +190,6 @@
     : typeof skillOrder?.order === "string"
       ? (skillOrder!.order as string).trim().split(/[\s,>]+/).filter(Boolean)
       : [];
-
-  $: modalList = overview ? (matchupActiveTab === "all_matchups" ? overview.all_matchups : overview.all_synergies) : [];
-  $: modalFiltered = modalList
-    .filter((m) => !matchupSearchQuery.trim() || m.name.toLowerCase().includes(matchupSearchQuery.toLowerCase()))
-    .slice()
-    .sort((a, b) => {
-      const mult = matchupSortDir === "desc" ? -1 : 1;
-      return (a.winrate - b.winrate) * mult;
-    });
-
-  function toggleMatchupSort() {
-    matchupSortDir = matchupSortDir === "asc" ? "desc" : "asc";
-  }
 </script>
 
 <!-- Outer Container -->
@@ -226,16 +229,23 @@
       {/if}
 
       <!-- Role Selector Tabs -->
-      <div class="flex items-center gap-1 rounded-xl border border-purple-500/25 bg-[#0a0517]/90 p-1 backdrop-blur-md shadow-[0_0_15px_rgba(168,85,247,0.15)]">
+      <div class="flex items-center gap-1.5 rounded-xl border border-purple-500/20 bg-[#0a0517]/90 p-1 backdrop-blur-md shadow-md">
         {#each (overview.roles || []) as roleOption, idx (`${roleOption}-${idx}`)}
           <button
             type="button"
             on:click={() => handleRoleSwitch(roleOption)}
-            class="rounded-lg px-3 py-1 text-xs font-bold transition {activeRole === roleOption
-              ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.5)]'
+            class="flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-bold transition {activeRole === roleOption
+              ? 'bg-purple-600 text-white shadow-sm'
               : 'text-slate-400 hover:text-purple-200 hover:bg-purple-950/40'}"
           >
-            {ROLE_LABELS[roleOption] || roleOption}
+            <img
+              src={roleIconUrl(roleOption)}
+              alt={ROLE_LABELS[roleOption] || roleOption}
+              class="h-4 w-4 shrink-0 object-contain {activeRole === roleOption
+                ? 'brightness-110'
+                : 'opacity-60 brightness-90'}"
+            />
+            <span>{ROLE_LABELS[roleOption] || roleOption}</span>
           </button>
         {/each}
       </div>
@@ -267,16 +277,16 @@
                     type="button"
                     on:click={() => activeRunePageIndex = idx}
                     class="flex items-center gap-1.5 rounded-lg px-2 py-1 transition border {activeRunePageIndex === idx
-                      ? 'border-purple-400 bg-purple-900/70 shadow-[0_0_10px_rgba(168,85,247,0.5)] ring-1 ring-purple-400'
+                      ? 'border-purple-400 bg-purple-900/70 ring-1 ring-purple-400 shadow-sm'
                       : 'border-purple-500/20 bg-purple-950/40 opacity-70 hover:opacity-100 hover:border-purple-400/50'}"
                     title="{keystone?.name || 'Keystone'} + {page.secondary_style?.name || 'Secondary'} • {formatWinrate(pageWr, idx + 10)} WR • {formatPercent(page.pick_rate, idx + 20)} Pick • {formatGames(page.play)} Games"
                   >
-                    <div class="flex items-center -space-x-1 shrink-0">
+                    <div class="flex items-center gap-1 shrink-0">
                       {#if keystone}
                         <img
                           src={getRuneIconUrl(keystone.id, runesMap)}
                           alt={keystone.name}
-                          class="h-5 w-5 max-h-5 max-w-5 shrink-0 rounded-full object-contain z-10"
+                          class="h-5 w-5 max-h-5 max-w-5 shrink-0 rounded-full object-contain"
                         />
                       {/if}
                       <img
@@ -303,7 +313,7 @@
                 <img
                   src={runeStyleIconUrl(activeRunePage.primary_style?.id)}
                   alt="Primary Style"
-                  class="h-6 w-6 max-h-6 max-w-6 shrink-0 object-contain drop-shadow-[0_0_8px_rgba(168,85,247,0.6)]"
+                  class="h-6 w-6 max-h-6 max-w-6 shrink-0 object-contain"
                 />
                 <div class="min-w-0 flex-1">
                   <span class="text-[10px] font-bold text-white uppercase truncate block">
@@ -318,7 +328,7 @@
                 <img
                   src={runeStyleIconUrl(activeRunePage.secondary_style?.id)}
                   alt="Secondary Style"
-                  class="h-6 w-6 max-h-6 max-w-6 shrink-0 object-contain drop-shadow-[0_0_8px_rgba(168,85,247,0.6)]"
+                  class="h-6 w-6 max-h-6 max-w-6 shrink-0 object-contain"
                 />
                 <div class="min-w-0 flex-1">
                   <span class="text-[10px] font-bold text-white uppercase truncate block">
@@ -336,7 +346,7 @@
                 {#each activeRunePage.primary_runes as rune, idx (`${rune.id || 'pr'}-${idx}`)}
                   <div class="flex flex-col items-center text-center group relative" title={rune.name}>
                     <div class="relative flex items-center justify-center rounded-full shrink-0 {idx === 0
-                      ? 'h-11 w-11 max-h-11 max-w-11 p-1 ring-2 ring-purple-400 shadow-[0_0_14px_rgba(168,85,247,0.6)] bg-purple-950/60'
+                      ? 'h-11 w-11 max-h-11 max-w-11 p-1 ring-2 ring-purple-400 bg-purple-950/60 shadow-md'
                       : 'h-8 w-8 max-h-8 max-w-8 p-1 ring-1 ring-purple-500/40 bg-purple-950/30'}">
                       <img
                         src={getRuneIconUrl(rune.id, runesMap)}
@@ -376,7 +386,7 @@
                 <div class="flex flex-col items-center gap-1.5">
                   {#each activeRunePage.shards as shard, idx (`${shard.id || 'sh'}-${idx}`)}
                     <div class="flex items-center gap-1.5" title={shard.name}>
-                      <div class="flex h-5 w-5 max-h-5 max-w-5 shrink-0 items-center justify-center rounded-full border border-purple-400/40 bg-purple-950/60 p-0.5 shadow-[0_0_6px_rgba(168,85,247,0.3)]">
+                      <div class="flex h-5 w-5 max-h-5 max-w-5 shrink-0 items-center justify-center rounded-full border border-purple-400/30 bg-purple-950/60 p-0.5">
                         <img
                           src={statModIconUrl(shard.id)}
                           alt={shard.name}
@@ -452,7 +462,7 @@
                     {#each Array.from({ length: 15 }) as _, i}
                       {@const isActive = skillMatrix[i] === hotkey}
                       <div class="h-4 rounded flex items-center justify-center transition {isActive
-                        ? 'bg-purple-600 text-white font-black text-[8px] shadow-[0_0_6px_rgba(168,85,247,0.8)] border border-purple-400'
+                        ? 'bg-purple-600 text-white font-black text-[8px] border border-purple-400'
                         : 'bg-purple-950/25 border border-purple-500/10'}">
                         {#if isActive}
                           {hotkey}
@@ -482,7 +492,7 @@
           <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#0c071a] via-transparent to-[#0c071a]"></div>
 
           <div class="relative z-10">
-            <h2 class="text-2xl font-black text-white tracking-wide drop-shadow-[0_2px_12px_rgba(168,85,247,0.5)]">
+            <h2 class="text-2xl font-black text-white tracking-wide">
               {overview.name}
             </h2>
             <p class="text-xs text-purple-200/80 font-medium capitalize mb-2.5">
@@ -884,107 +894,12 @@
   {/if}
 </div>
 
-<!-- ==================== ALL MATCHUPS & SYNERGIES MODAL (Table List View) ==================== -->
 {#if showAllMatchupsModal && overview}
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
-    <div class="relative flex h-[80vh] w-full max-w-2xl flex-col rounded-2xl border border-purple-500/30 bg-[#0e0720] shadow-[0_0_40px_rgba(168,85,247,0.3)] overflow-hidden">
-      <!-- Modal Header -->
-      <div class="flex items-center justify-between border-b border-purple-500/20 px-5 py-3.5">
-        <div>
-          <h3 class="text-base font-bold text-white">
-            {overview.name} • All Matchups &amp; Synergies ({ROLE_LABELS[activeRole] || activeRole})
-          </h3>
-          <p class="text-xs text-slate-400">Complete historical pairing dataset</p>
-        </div>
-        <button
-          type="button"
-          aria-label="Close"
-          on:click={() => showAllMatchupsModal = false}
-          class="rounded-lg p-1.5 text-slate-400 hover:bg-purple-900/40 hover:text-white"
-        >
-          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-
-      <!-- Modal Toolbar & Search -->
-      <div class="flex items-center justify-between border-b border-purple-500/15 px-5 py-2.5 gap-3 flex-wrap bg-purple-950/20">
-        <div class="flex items-center gap-1.5">
-          <button
-            type="button"
-            on:click={() => matchupActiveTab = "all_matchups"}
-            class="rounded-lg px-3 py-1 text-xs font-bold transition {matchupActiveTab === 'all_matchups'
-              ? 'bg-purple-600 text-white shadow'
-              : 'text-slate-400 hover:text-white'}"
-          >
-            Opponent Matchups ({overview.all_matchups.length})
-          </button>
-          <button
-            type="button"
-            on:click={() => matchupActiveTab = "all_synergies"}
-            class="rounded-lg px-3 py-1 text-xs font-bold transition {matchupActiveTab === 'all_synergies'
-              ? 'bg-purple-600 text-white shadow'
-              : 'text-slate-400 hover:text-white'}"
-          >
-            Team Synergies ({overview.all_synergies.length})
-          </button>
-        </div>
-
-        <input
-          type="text"
-          bind:value={matchupSearchQuery}
-          placeholder="Filter champion…"
-          class="rounded-lg border border-purple-500/20 bg-black/40 px-3 py-1 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-400"
-        />
-      </div>
-
-      <!-- Table Header in Modal (User requested sortable list view) -->
-      <div class="grid grid-cols-12 gap-2 border-b border-purple-500/15 bg-purple-950/35 px-5 py-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-        <div class="col-span-1 text-center">#</div>
-        <div class="col-span-6">Champion</div>
-        <div class="col-span-2 text-right">Games</div>
-        <button
-          type="button"
-          on:click={toggleMatchupSort}
-          class="col-span-3 flex items-center justify-end gap-1 text-right hover:text-white cursor-pointer transition"
-        >
-          <span>Win rate</span>
-          <span class="text-purple-400 font-bold">{matchupSortDir === "desc" ? "▼" : "▲"}</span>
-        </button>
-      </div>
-
-      <!-- List Container -->
-      <div class="flex-1 overflow-y-auto">
-        {#if modalFiltered.length}
-          {#each modalFiltered as entry, idx}
-            <div class="grid grid-cols-12 gap-2 items-center px-5 py-2 border-b border-purple-500/10 hover:bg-purple-900/20 transition-colors duration-150">
-              <div class="col-span-1 text-center text-xs font-semibold text-slate-500">
-                {idx + 1}
-              </div>
-              <div class="col-span-6 flex items-center gap-2.5">
-                <div class="relative h-7 w-7 rounded-md overflow-hidden border border-purple-500/30 bg-purple-950/40 shrink-0">
-                  <img
-                    src={squareIconUrl(entry.image, $ddragonVersion)}
-                    alt={entry.name}
-                    class="h-full w-full object-cover scale-[1.14]"
-                    loading="lazy"
-                  />
-                </div>
-                <span class="text-xs font-semibold text-white">{entry.name}</span>
-              </div>
-              <div class="col-span-2 text-right text-xs text-slate-400">
-                {formatGames(entry.games)} Games
-              </div>
-              <div class="col-span-3 text-right text-xs font-bold {entry.winrate >= 0.5 ? 'text-emerald-400' : 'text-rose-400'}">
-                {formatWinrate(entry.winrate)}
-              </div>
-            </div>
-          {/each}
-        {:else}
-          <p class="py-12 text-center text-xs text-slate-400">No matching champions found</p>
-        {/if}
-      </div>
-    </div>
-  </div>
+  <MatchupModal
+    overview={overview}
+    championName={overview.name}
+    activeRole={activeRole}
+    loading={false}
+    onClose={handleCloseModal}
+  />
 {/if}

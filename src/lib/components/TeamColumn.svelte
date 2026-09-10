@@ -14,7 +14,7 @@
   </p>
   <div class="flex flex-col gap-2 overflow-y-auto pr-1">
     {#each picks as pick (pick.champion_id)}
-      <ChampSlot {pick} {accent} {editable} />
+      <ChampSlot {pick} role={pick.role || "mid"} roleLabel={pick.role || "Mitte"} {accent} {editable} />
     {/each}
     {#if picks.length === 0}
       <p class="text-xs italic text-slate-500">No picks yet</p>

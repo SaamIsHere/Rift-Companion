@@ -51,7 +51,7 @@
         on:click={() => handleSelect(tier.id)}
         disabled={$rankRefreshing}
         class="flex items-center justify-between rounded-xl border p-4 text-left transition-all duration-200 {isSelected
-          ? 'border-purple-500 bg-[#150a2b]/90 shadow-[0_0_20px_rgba(168,85,247,0.25)]'
+          ? 'border-purple-500 bg-[#150a2b]/90 shadow-md'
           : 'border-purple-500/15 bg-[#0d071e]/60 hover:border-purple-400/40 hover:bg-purple-950/30'}"
       >
         <div>

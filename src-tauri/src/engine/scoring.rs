@@ -51,6 +51,12 @@ pub struct Recommendation {
     pub score: f64, // 0–100 display score
     pub components: Components,
     pub badges: Vec<Badge>,
+    #[serde(default)]
+    pub good_matchups: Vec<String>,
+    #[serde(default)]
+    pub bad_matchups: Vec<String>,
+    #[serde(default)]
+    pub synergies: Vec<String>,
 }
 
 /// A single "why" tag shown on a recommendation card, colored by category so
@@ -107,7 +113,7 @@ pub fn recommend(repo: &Repository, draft: &DraftState, w: &weights::Weights) ->
     out
 }
 
-fn score_one(
+pub fn score_one(
     repo: &Repository,
     draft: &DraftState,
     w: &weights::Weights,
@@ -124,7 +130,7 @@ fn score_one(
         .map(|s| bayesian::smooth(s.global_winrate, s.games, prior, weights::SMOOTH_C))
         .unwrap_or(prior);
 
-    let refined = refined_advantage(repo, draft, role, role_stats, prior);
+    let refined = refined_advantage(repo, draft, role, role_stats, prior, w.mode);
 
     let wr_refined = (wr_base + refined.avg_delta).clamp(0.02, 0.98);
 
@@ -136,9 +142,45 @@ fn score_one(
     // real win rate, not an amplified version of it. Only the *refinement*
     // on top of that base (ally/enemy deltas + the comp bonus) gets the
     // DISPLAY_SCALE treatment, since those deltas are naturally small
-    // (a few percentage points) and need amplifying to read clearly.
-    let refinement = (wr_refined - wr_base) + w.comp * comp_bonus;
-    let score = (wr_base * 100.0 + refinement * weights::DISPLAY_SCALE).clamp(0.0, 100.0);
+    // In Counterpick mode, when a direct lane opponent is present, the displayed score
+    // is strictly the exact pairwise winrate against that direct lane opponent.
+    let score = if w.mode == weights::ScoringMode::Counterpick {
+        let direct_opponent = draft.enemies.iter().find(|e| e.role == Some(role));
+        if let Some(opp) = direct_opponent {
+            if let Some(cell) = role_stats.and_then(|s| s.matchups.get(&opp.champion_id)) {
+                if cell.games >= weights::MIN_MATCHES {
+                    (cell.winrate * 100.0).clamp(0.0, 100.0)
+                } else if cell.games > 0 {
+                    (bayesian::smooth(cell.winrate, cell.games, prior, weights::SMOOTH_C) * 100.0)
+                        .clamp(0.0, 100.0)
+                } else {
+                    (wr_base * 100.0).clamp(0.0, 100.0)
+                }
+            } else {
+                (wr_base * 100.0).clamp(0.0, 100.0)
+            }
+        } else {
+            // No direct lane opponent revealed yet: unscaled enemy delta or base winrate
+            let enemy_deltas: Vec<f64> = draft
+                .enemies
+                .iter()
+                .filter_map(|e| {
+                    let cell = role_stats?.matchups.get(&e.champion_id)?;
+                    let adj = trusted_cell(Some(cell), prior)?;
+                    Some(adj - 0.5)
+                })
+                .collect();
+            if !enemy_deltas.is_empty() {
+                let avg_d = enemy_deltas.iter().sum::<f64>() / enemy_deltas.len() as f64;
+                ((wr_base + avg_d) * 100.0).clamp(0.0, 100.0)
+            } else {
+                (wr_base * 100.0).clamp(0.0, 100.0)
+            }
+        }
+    } else {
+        let refinement = (wr_refined - wr_base) + w.comp * comp_bonus;
+        (wr_base * 100.0 + refinement * weights::DISPLAY_SCALE).clamp(0.0, 100.0)
+    };
 
     // Balanced view (Issue #7): show the matchup badge and the synergy badge
     // independently, whichever direction (positive or negative) each one
@@ -175,6 +217,9 @@ fn score_one(
             comp: comp_bonus,
         },
         badges,
+        good_matchups: refined.good_matchups,
+        bad_matchups: refined.bad_matchups,
+        synergies: refined.synergies,
     }
 }
 
@@ -194,6 +239,9 @@ struct RefinedAdvantage {
     /// "High synergy with X" (green) / "Weak synergy with X" (red), whichever
     /// ally relationship had the strongest signal, in either direction.
     synergy_badge: Option<Badge>,
+    good_matchups: Vec<String>,
+    bad_matchups: Vec<String>,
+    synergies: Vec<String>,
 }
 
 /// Bayesian-smoothed win rate a champion's `stats` show against/with `id`,
@@ -217,6 +265,7 @@ fn refined_advantage(
     role: Role,
     role_stats: Option<&crate::data::models::RoleStats>,
     prior: f64,
+    mode: weights::ScoringMode,
 ) -> RefinedAdvantage {
     let stats = match role_stats {
         Some(s) => s,
@@ -228,28 +277,39 @@ fn refined_advantage(
                 counter: 0.0,
                 matchup_badge: None,
                 synergy_badge: None,
+                good_matchups: Vec::new(),
+                bad_matchups: Vec::new(),
+                synergies: Vec::new(),
             };
         }
     };
 
-    // Fixed denominator: the *entire* matrix row for this role, not just the
-    // weight of picks revealed so far. A pick that hasn't been locked yet
-    // still occupies its slice of the row (contributing weight but a delta
-    // of 0.0), so a single strong matchup can't pass through at near-full
-    // magnitude just because it happens to be the only thing revealed early
-    // in the draft — confidence grows as the draft actually fills in.
-    let row_total: f64 = weights::ALLY_WEIGHTS[role.index()].iter().sum::<f64>()
-        + weights::ENEMY_WEIGHTS[role.index()].iter().sum::<f64>();
+    let (synergy_mult, matchup_mult, counter_mult) = match mode {
+        weights::ScoringMode::Default => (1.0, 1.0, 1.0),
+        weights::ScoringMode::Teamplayer => (3.0, 0.4, 0.4),
+        weights::ScoringMode::Counterpick => (0.0, 1.0, 0.0),
+    };
+
+    let direct_enemy_weight = weights::ENEMY_WEIGHTS[role.index()][role.index()];
+    let other_enemy_weight = weights::ENEMY_WEIGHTS[role.index()].iter().sum::<f64>() - direct_enemy_weight;
+    let ally_weight = weights::ALLY_WEIGHTS[role.index()].iter().sum::<f64>();
+
+    let row_total: f64 = (ally_weight * synergy_mult
+        + direct_enemy_weight * matchup_mult
+        + other_enemy_weight * counter_mult)
+        .max(0.001);
 
     let mut weighted_matchup = 0.0; // direct lane opponent only
     let mut weighted_synergy = 0.0; // allies
     let mut weighted_counter = 0.0; // enemies other than the direct opponent
-    // Strongest ally signal in each direction, tracked by |contribution| so
-    // the badge shown is whichever relationship actually moved the score
-    // the most — not just the first one that cleared the threshold.
-    let mut best_synergy: Option<(f64, String)> = None; // adj > 0.52, biggest positive contribution
-    let mut worst_synergy: Option<(f64, String)> = None; // adj < 0.48, biggest negative contribution
+
+    let mut best_synergy: Option<(f64, String)> = None;
+    let mut worst_synergy: Option<(f64, String)> = None;
     let mut matchup_badge: Option<Badge> = None;
+
+    let mut enemy_good: Vec<(f64, String)> = Vec::new();
+    let mut enemy_bad: Vec<(f64, String)> = Vec::new();
+    let mut ally_synergies: Vec<(f64, String)> = Vec::new();
 
     for ally in &draft.allies {
         if ally.is_local {
@@ -259,7 +319,8 @@ fn refined_advantage(
             Some(r) => r,
             None => continue, // empty role slot → delta is 0.0 (skip entirely)
         };
-        let weight = weights::ALLY_WEIGHTS[role.index()][ally_role.index()];
+        let base_weight = weights::ALLY_WEIGHTS[role.index()][ally_role.index()];
+        let weight = base_weight * synergy_mult;
         if weight <= 0.0 {
             continue;
         }
@@ -269,12 +330,13 @@ fn refined_advantage(
 
         weighted_synergy += contribution;
 
-        if adj > 0.52 && best_synergy.as_ref().map_or(true, |(b, _)| contribution > *b) {
-            if let Some(a) = repo.get(ally.champion_id) {
-                best_synergy = Some((contribution, a.name.clone()));
+        if let Some(a) = repo.get(ally.champion_id) {
+            if adj > 0.505 {
+                ally_synergies.push((adj, a.name.clone()));
             }
-        } else if adj < 0.48 && worst_synergy.as_ref().map_or(true, |(w, _)| contribution < *w) {
-            if let Some(a) = repo.get(ally.champion_id) {
+            if adj > 0.52 && best_synergy.as_ref().map_or(true, |(b, _)| contribution > *b) {
+                best_synergy = Some((contribution, a.name.clone()));
+            } else if adj < 0.48 && worst_synergy.as_ref().map_or(true, |(w, _)| contribution < *w) {
                 worst_synergy = Some((contribution, a.name.clone()));
             }
         }
@@ -285,7 +347,13 @@ fn refined_advantage(
             Some(r) => r,
             None => continue,
         };
-        let weight = weights::ENEMY_WEIGHTS[role.index()][enemy_role.index()];
+        let is_direct = enemy_role == role;
+        let base_weight = weights::ENEMY_WEIGHTS[role.index()][enemy_role.index()];
+        let weight = if is_direct {
+            base_weight * matchup_mult
+        } else {
+            base_weight * counter_mult
+        };
         if weight <= 0.0 {
             continue;
         }
@@ -293,7 +361,6 @@ fn refined_advantage(
         let delta = adj - 0.5;
         let contribution = weight * delta;
 
-        let is_direct = enemy_role == role;
         if is_direct {
             weighted_matchup += contribution;
             if let Some(o) = repo.get(enemy.champion_id) {
@@ -312,7 +379,24 @@ fn refined_advantage(
         } else {
             weighted_counter += contribution;
         }
+
+        if let Some(o) = repo.get(enemy.champion_id) {
+            if adj > 0.505 {
+                enemy_good.push((adj, o.name.clone()));
+            } else if adj < 0.495 {
+                enemy_bad.push((adj, o.name.clone()));
+            }
+        }
     }
+
+    enemy_good.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    let good_matchups: Vec<String> = enemy_good.into_iter().map(|(_, name)| name).take(3).collect();
+
+    enemy_bad.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    let bad_matchups: Vec<String> = enemy_bad.into_iter().map(|(_, name)| name).take(3).collect();
+
+    ally_synergies.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+    let synergies: Vec<String> = ally_synergies.into_iter().map(|(_, name)| name).take(3).collect();
 
     // Balanced view (Issue #7): pick whichever ally signal is strongest in
     // *either* direction, so a genuinely bad synergy pick isn't silently
@@ -334,7 +418,6 @@ fn refined_advantage(
         (None, None) => None,
     };
 
-    // row_total is always > 0 by construction (every matrix row has a positive sum).
     RefinedAdvantage {
         avg_delta: (weighted_matchup + weighted_synergy + weighted_counter) / row_total,
         matchup: weighted_matchup / row_total,
@@ -342,6 +425,9 @@ fn refined_advantage(
         counter: weighted_counter / row_total,
         matchup_badge,
         synergy_badge,
+        good_matchups,
+        bad_matchups,
+        synergies,
     }
 }
 
@@ -368,12 +454,16 @@ mod tests {
                 champion_id: 64,
                 role: Some(Role::Jungle),
                 is_local: false,
+                spell1_id: None,
+                spell2_id: None,
             }],
             // Enemy top laner = Darius.
             enemies: vec![DraftPick {
                 champion_id: 122,
                 role: Some(Role::Top),
                 is_local: false,
+                spell1_id: None,
+                spell2_id: None,
             }],
         };
 
@@ -413,6 +503,8 @@ mod tests {
                 champion_id: 122,
                 role: Some(Role::Top),
                 is_local: false,
+                spell1_id: None,
+                spell2_id: None,
             }],
         };
         let recs = recommend(&repo, &draft, &Weights::default());

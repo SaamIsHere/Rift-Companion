@@ -7,6 +7,21 @@ import type {
 } from "../types";
 import { queueNameFromId, tierMedalUrl } from "./ddragon";
 
+export function inferRegionFromTag(tag: string): string | null {
+  if (!tag) return null;
+  const clean = tag.trim().toUpperCase();
+  if (/^(EUW|EUW1)$/.test(clean)) return "EUW";
+  if (/^(KR|KR1)$/.test(clean)) return "KR";
+  if (/^(NA|NA1)$/.test(clean)) return "NA";
+  if (/^(EUNE|EUN1)$/.test(clean)) return "EUNE";
+  if (/^(OCE|OC1)$/.test(clean)) return "OCE";
+  if (/^(BR|BR1)$/.test(clean)) return "BR";
+  if (/^(JP|JP1)$/.test(clean)) return "JP";
+  if (/^(LAN|LA1)$/.test(clean)) return "LAN";
+  if (/^(LAS|LA2)$/.test(clean)) return "LAS";
+  return null;
+}
+
 function parseDivision(div: any): string {
   if (!div) return "";
   const s = String(div).trim().toUpperCase();
@@ -624,7 +639,7 @@ export function normalizeGameDetail(raw: any, focusNameOrPuuid?: string): Detail
     raw.data?.data ||
     raw.data ||
     raw;
-  const teams = gameDetail.teams || [];
+  const teams = gameDetail.teams || (Array.isArray(gameDetail.participants) ? [{ participants: gameDetail.participants }] : []);
   const participants: DetailedParticipant[] = [];
 
   teams.forEach((t: any, tIdx: number) => {
@@ -641,7 +656,8 @@ export function normalizeGameDetail(raw: any, focusNameOrPuuid?: string): Detail
       const isLocal = p.is_target === true ||
         (focusNameOrPuuid &&
           (sum.game_name?.toLowerCase() === focusNameOrPuuid.toLowerCase() ||
-           `${sum.game_name || ""}#${sum.tagline || ""}`.toLowerCase() === focusNameOrPuuid.toLowerCase()));
+           `${sum.game_name || ""}#${sum.tagline || ""}`.toLowerCase() === focusNameOrPuuid.toLowerCase() ||
+           (focusNameOrPuuid.includes("#") && sum.game_name?.toLowerCase() === focusNameOrPuuid.split("#")[0].trim().toLowerCase())));
 
       participants.push({
         summoner_name: sum.game_name || `Player ${p.champion_id}`,

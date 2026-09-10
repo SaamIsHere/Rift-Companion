@@ -14,6 +14,8 @@ use crate::lcu::models::ChampSelectSession;
 pub struct DraftState {
     pub local_role: Option<Role>,
     pub local_champion_id: Option<u32>,
+    pub hovered_champion_id: Option<u32>,
+    pub is_locked: bool,
     pub bans: Vec<u32>,
     pub allies: Vec<DraftPick>,
     pub enemies: Vec<DraftPick>,
@@ -24,6 +26,10 @@ pub struct DraftPick {
     pub champion_id: u32,
     pub role: Option<Role>,
     pub is_local: bool,
+    #[serde(default)]
+    pub spell1_id: Option<u64>,
+    #[serde(default)]
+    pub spell2_id: Option<u64>,
 }
 
 pub fn from_session(repo: &Repository, s: &ChampSelectSession) -> DraftState {
@@ -31,10 +37,32 @@ pub fn from_session(repo: &Repository, s: &ChampSelectSession) -> DraftState {
     let local_slot = s.my_team.iter().find(|p| p.cell_id == local_cell);
 
     let local_role = local_slot.and_then(|p| Role::from_lcu(&p.assigned_position));
-    let local_champion_id = local_slot
+
+    // Check if the local player has locked in a champion (completed pick action)
+    let is_locked = s.actions.iter().any(|round| {
+        round.iter().any(|a| a.actor_cell_id == local_cell && a.action_type == "pick" && a.completed && a.champion_id > 0)
+    });
+
+    let action_champ = s.actions.iter().find_map(|round| {
+        round.iter().find_map(|a| {
+            if a.actor_cell_id == local_cell && a.action_type == "pick" && a.champion_id > 0 {
+                Some(a.champion_id as u32)
+            } else {
+                None
+            }
+        })
+    });
+
+    let slot_champ = local_slot
         .map(|p| p.champion_id)
         .filter(|id| *id > 0)
         .map(|id| id as u32);
+
+    let (local_champion_id, hovered_champion_id) = if is_locked {
+        (slot_champ.or(action_champ), None)
+    } else {
+        (None, action_champ.or(slot_champ))
+    };
 
     let allies = s
         .my_team
@@ -44,6 +72,8 @@ pub fn from_session(repo: &Repository, s: &ChampSelectSession) -> DraftState {
             champion_id: p.champion_id as u32,
             role: Role::from_lcu(&p.assigned_position),
             is_local: p.cell_id == local_cell,
+            spell1_id: if p.spell1_id > 0 { Some(p.spell1_id as u64) } else { None },
+            spell2_id: if p.spell2_id > 0 { Some(p.spell2_id as u64) } else { None },
         })
         .collect();
 
@@ -58,6 +88,8 @@ pub fn from_session(repo: &Repository, s: &ChampSelectSession) -> DraftState {
                 champion_id: id,
                 role: Role::from_lcu(&p.assigned_position).or_else(|| repo.primary_role(id)),
                 is_local: false,
+                spell1_id: if p.spell1_id > 0 { Some(p.spell1_id as u64) } else { None },
+                spell2_id: if p.spell2_id > 0 { Some(p.spell2_id as u64) } else { None },
             }
         })
         .collect();
@@ -65,6 +97,8 @@ pub fn from_session(repo: &Repository, s: &ChampSelectSession) -> DraftState {
     DraftState {
         local_role,
         local_champion_id,
+        hovered_champion_id,
+        is_locked,
         bans: collect_bans(s),
         allies,
         enemies,

@@ -44,6 +44,48 @@ pub fn set_weights(state: State<Shared>, weights: Weights, app: AppHandle) -> Ve
     recs
 }
 
+#[tauri::command]
+pub fn set_scoring_mode(
+    state: State<Shared>,
+    mode: weights::ScoringMode,
+    app: AppHandle,
+) -> Vec<Recommendation> {
+    state.weights.lock().unwrap().mode = mode;
+    let recs = compute(&state);
+    let _ = app.emit("recommendations://update", &recs);
+    recs
+}
+
+#[tauri::command]
+pub fn get_scoring_mode(state: State<Shared>) -> weights::ScoringMode {
+    state.weights.lock().unwrap().mode
+}
+
+/// Hover a champion in the League of Legends client during champ select (without locking in).
+#[tauri::command]
+pub async fn hover_champion(champion_id: u32) -> Result<bool, String> {
+    let lock = crate::lcu::lockfile::find().ok_or_else(|| "LCU lockfile not found".to_string())?;
+    crate::lcu::client::hover_champion_in_lcu(&lock, champion_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Compute full scoring and matchup recommendation for a specific champion on-demand
+/// (e.g. for previewing an off-meta or hovered pick in real time).
+#[tauri::command]
+pub fn get_champion_recommendation(
+    state: State<Shared>,
+    champion_id: u32,
+) -> Option<Recommendation> {
+    let repo = state.repo.lock().unwrap().clone();
+    let draft = state.latest_draft.lock().unwrap().clone()?;
+    let role = draft.local_role?;
+    let weights = state.weights.lock().unwrap().clone();
+    let c = repo.get(champion_id)?;
+    let needs = engine::comp::needs(&repo, &draft);
+    Some(engine::score_one(&repo, &draft, &weights, role, c, &needs))
+}
+
 /// Manually reassign an enemy pick's role from its draft card. `role: None`
 /// clears the override and reverts to the dataset-inferred guess.
 #[tauri::command]
@@ -633,9 +675,25 @@ pub async fn get_latest_patch_info(ddragon_version: Option<String>) -> PatchInfo
 }
 
 
-/// Fetch a player's profile data, ranked stats, and top/mastery champions.
-/// If `game_name` is None or matches local player, checks LCU first if connected.
-/// Otherwise, fetches from OP.GG MCP.
+
+fn normalize_region_from_tag(tag: &str) -> Option<&'static str> {
+    match tag.trim().to_ascii_uppercase().as_str() {
+        "EUW" | "EUW1" => Some("EUW"),
+        "KR" | "KR1" => Some("KR"),
+        "NA" | "NA1" => Some("NA"),
+        "EUNE" | "EUN1" => Some("EUNE"),
+        "OCE" | "OC1" => Some("OCE"),
+        "BR" | "BR1" => Some("BR"),
+        "JP" | "JP1" => Some("JP"),
+        "LAN" | "LA1" => Some("LAN"),
+        "LAS" | "LA2" => Some("LAS"),
+        _ => None,
+    }
+}
+
+/// Fetch a player's full profile (rank, tier, top champions, level).
+/// Checks LCU first if connected and no specific summoner was requested.
+/// Otherwise, fetches from OP.GG MCP server with fallback to pro player aliases.
 #[tauri::command]
 pub async fn get_player_profile(
     state: State<'_, Shared>,
@@ -644,34 +702,37 @@ pub async fn get_player_profile(
     region: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let local_profile = state.profile.lock().unwrap().clone();
-    let is_local_lookup = match (&game_name, &local_profile) {
-        (None, _) => true,
-        (Some(name), Some(local)) => {
+    let is_local_lookup = match (&game_name, &tag_line, &local_profile) {
+        (None, _, _) => true,
+        (Some(name), Some(tag), Some(local)) => {
+            let matches_full = name.eq_ignore_ascii_case(&local.display_name)
+                || format!("{}#{}", name, tag).eq_ignore_ascii_case(&local.display_name);
+            let matches_name_and_tag = !local.game_name.is_empty()
+                && name.eq_ignore_ascii_case(&local.game_name)
+                && (local.tag_line.is_empty() || tag.eq_ignore_ascii_case(&local.tag_line));
+            matches_full || matches_name_and_tag
+        }
+        (Some(name), None, Some(local)) => {
             name.eq_ignore_ascii_case(&local.display_name)
                 || (!local.game_name.is_empty() && name.eq_ignore_ascii_case(&local.game_name))
         }
         _ => false,
     };
+    tracing::info!("get_player_profile: game_name={:?}, tag_line={:?}, is_local={}", game_name, tag_line, is_local_lookup);
 
     if is_local_lookup {
         if let Some(lock) = crate::lcu::lockfile::find() {
             if let Ok(Some(summoner)) = crate::lcu::client::get_current_summoner(&lock).await {
                 let ranked = crate::lcu::client::get_all_ranked_stats(&lock).await.unwrap_or(None);
                 let mastery = crate::lcu::client::get_local_champion_mastery(&lock).await.unwrap_or(None);
-
-                let reg = region.clone().unwrap_or_else(|| "EUW".to_string());
-                let gn = if !summoner.game_name.is_empty() {
-                    summoner.game_name.clone()
-                } else {
-                    summoner.display_name.split('#').next().unwrap_or("").to_string()
-                };
-                let tl = if !summoner.tag_line.is_empty() {
-                    summoner.tag_line.clone()
-                } else {
-                    summoner.display_name.split('#').nth(1).unwrap_or(&reg).to_string()
-                };
-
                 let opgg_stats = if let Ok(client) = opgg::client::McpClient::new() {
+                    let gn = summoner.game_name.clone();
+                    let tl = if !summoner.tag_line.is_empty() {
+                        summoner.tag_line.clone()
+                    } else {
+                        "EUW".to_string()
+                    };
+                    let reg = region.clone().unwrap_or_else(|| "EUW".to_string());
                     match opgg::summoner::fetch_profile(&client, &gn, &tl, &reg).await {
                         Ok(mut d) => {
                             if let Some(inner) = d.get_mut("data") {
@@ -697,25 +758,25 @@ pub async fn get_player_profile(
         }
     }
 
-    let reg = region.unwrap_or_else(|| "EUW".to_string());
+    let raw_reg = region.clone().unwrap_or_else(|| "EUW".to_string());
     let (name, tag) = match (game_name, tag_line) {
         (Some(n), Some(t)) => (n, t),
         (Some(full), None) => {
             if let Some((n, t)) = full.split_once('#') {
                 (n.to_string(), t.to_string())
             } else {
-                (full, reg.clone())
+                (full, raw_reg.clone())
             }
         }
         (None, _) => {
             if let Some(local) = local_profile {
                 if !local.game_name.is_empty() {
-                    let tag = if !local.tag_line.is_empty() { local.tag_line } else { reg.clone() };
+                    let tag = if !local.tag_line.is_empty() { local.tag_line } else { raw_reg.clone() };
                     (local.game_name, tag)
                 } else if let Some((n, t)) = local.display_name.split_once('#') {
                     (n.to_string(), t.to_string())
                 } else {
-                    (local.display_name, reg.clone())
+                    (local.display_name, raw_reg.clone())
                 }
             } else {
                 return Err("No summoner specified and no account connected".to_string());
@@ -723,30 +784,37 @@ pub async fn get_player_profile(
         }
     };
 
+    // If tag indicates a specific region (e.g. KR1, NA1) and region wasn't explicitly passed
+    let mut reg = raw_reg.clone();
+    if let Some(inferred_reg) = normalize_region_from_tag(&tag) {
+        if region.is_none() || region.as_deref() == Some("EUW") {
+            reg = inferred_reg.to_string();
+        }
+    }
+
     let client = opgg::client::McpClient::new().map_err(|e| e.to_string())?;
 
-    // If tag matches default region, try resolving pro player alias first if needed
-    let (name, tag) = if tag == reg {
-        if let Ok(pro) = opgg::summoner::fetch_pro_player(&client, &name, &reg).await {
+    // Attempt pro player resolution upfront if tag matches default region or if no tag was originally given
+    let (mut req_name, mut req_tag) = (name.clone(), tag.clone());
+    if req_tag.eq_ignore_ascii_case(&reg) || req_tag.eq_ignore_ascii_case(&raw_reg) {
+        if let Ok(pro) = opgg::summoner::fetch_pro_player(&client, &req_name, &reg).await {
             if let Some(riot_id) = pro.get("data").and_then(|d| d.get("player")).and_then(|p| p.get("riot_id")) {
                 let p_name = riot_id.get("game_name").and_then(|g| g.as_str()).unwrap_or("");
                 let p_tag = riot_id.get("tagline").and_then(|t| t.as_str()).unwrap_or(&reg);
                 if !p_name.is_empty() {
-                    (p_name.to_string(), p_tag.to_string())
-                } else {
-                    (name, tag)
+                    req_name = p_name.to_string();
+                    req_tag = p_tag.to_string();
                 }
-            } else {
-                (name, tag)
             }
-        } else {
-            (name, tag)
         }
-    } else {
-        (name, tag)
-    };
+    }
 
-    let data = match opgg::summoner::fetch_profile(&client, &name, &tag, &reg).await {
+    // Try primary fetch_profile
+    let final_name = req_name.clone();
+    let final_tag = req_tag.clone();
+    let mut final_reg = reg.clone();
+
+    let data = match opgg::summoner::fetch_profile(&client, &final_name, &final_tag, &final_reg).await {
         Ok(mut d) => {
             if let Some(inner) = d.get_mut("data") {
                 inner.take()
@@ -754,18 +822,69 @@ pub async fn get_player_profile(
                 d
             }
         }
-        Err(e) => {
-            tracing::warn!("OP.GG fetch_profile failed for {}#{}: {}", name, tag, e);
-            return Err(format!(
-                "Summoner '{}#{}' not found in region {}. Please verify the Riot ID and tagline (e.g. Name#Tag).",
-                name, tag, reg
-            ));
+        Err(orig_err) => {
+            let mut resolved = None;
+
+            // Fallback 1: If tag looks like a different region code, try that region
+            if let Some(inferred) = normalize_region_from_tag(&final_tag) {
+                if inferred != final_reg {
+                    if let Ok(mut d) = opgg::summoner::fetch_profile(&client, &final_name, &final_tag, inferred).await {
+                        final_reg = inferred.to_string();
+                        resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
+                    }
+                }
+            }
+
+            // Fallback 2: Check pro player lookup in current region
+            if resolved.is_none() {
+                if let Ok(pro) = opgg::summoner::fetch_pro_player(&client, &name, &final_reg).await {
+                    if let Some(riot_id) = pro.get("data").and_then(|d| d.get("player")).and_then(|p| p.get("riot_id")) {
+                        let p_name = riot_id.get("game_name").and_then(|g| g.as_str()).unwrap_or("");
+                        let p_tag = riot_id.get("tagline").and_then(|t| t.as_str()).unwrap_or(&final_reg);
+                        let p_reg = pro.get("data").and_then(|d| d.get("player")).and_then(|p| p.get("region")).and_then(|r| r.as_str()).map(|r| r.to_uppercase()).unwrap_or_else(|| final_reg.clone());
+
+                        if !p_name.is_empty() {
+                            if let Ok(mut d) = opgg::summoner::fetch_profile(&client, p_name, p_tag, &p_reg).await {
+                                final_reg = p_reg;
+                                resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Fallback 3: Check pro player lookup in KR region (for Korean pro players like Faker, Chovy, etc.)
+            if resolved.is_none() && final_reg != "KR" {
+                if let Ok(pro) = opgg::summoner::fetch_pro_player(&client, &name, "KR").await {
+                    if let Some(riot_id) = pro.get("data").and_then(|d| d.get("player")).and_then(|p| p.get("riot_id")) {
+                        let p_name = riot_id.get("game_name").and_then(|g| g.as_str()).unwrap_or("");
+                        let p_tag = riot_id.get("tagline").and_then(|t| t.as_str()).unwrap_or("KR1");
+                        if !p_name.is_empty() {
+                            if let Ok(mut d) = opgg::summoner::fetch_profile(&client, p_name, p_tag, "KR").await {
+                                final_reg = "KR".to_string();
+                                resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
+                            }
+                        }
+                    }
+                }
+            }
+
+            match resolved {
+                Some(d) => d,
+                None => {
+                    tracing::warn!("OP.GG fetch_profile failed for {}#{}: {}", name, tag, orig_err);
+                    return Err(format!(
+                        "Summoner '{}#{}' not found in region {}. Please verify the Riot ID and tagline (e.g. Name#Tag).",
+                        name, tag, reg
+                    ));
+                }
+            }
         }
     };
 
     Ok(serde_json::json!({
         "source": "opgg",
-        "region": reg,
+        "region": final_reg,
         "data": data
     }))
 }
@@ -781,16 +900,25 @@ pub async fn get_player_matches(
     region: Option<String>,
     limit: Option<usize>,
 ) -> Result<serde_json::Value, String> {
-    let lim = limit.unwrap_or(15).clamp(5, 20);
+    let lim = limit.unwrap_or(20).clamp(5, 20);
     let local_profile = state.profile.lock().unwrap().clone();
-    let is_local_lookup = match (&game_name, &local_profile) {
-        (None, _) => true,
-        (Some(name), Some(local)) => {
+    let is_local_lookup = match (&game_name, &tag_line, &local_profile) {
+        (None, _, _) => true,
+        (Some(name), Some(tag), Some(local)) => {
+            let matches_full = name.eq_ignore_ascii_case(&local.display_name)
+                || format!("{}#{}", name, tag).eq_ignore_ascii_case(&local.display_name);
+            let matches_name_and_tag = !local.game_name.is_empty()
+                && name.eq_ignore_ascii_case(&local.game_name)
+                && (local.tag_line.is_empty() || tag.eq_ignore_ascii_case(&local.tag_line));
+            matches_full || matches_name_and_tag
+        }
+        (Some(name), None, Some(local)) => {
             name.eq_ignore_ascii_case(&local.display_name)
                 || (!local.game_name.is_empty() && name.eq_ignore_ascii_case(&local.game_name))
         }
         _ => false,
     };
+    tracing::info!("get_player_matches: game_name={:?}, tag_line={:?}, is_local={}", game_name, tag_line, is_local_lookup);
 
     if is_local_lookup {
         if let Some(lock) = crate::lcu::lockfile::find() {
@@ -803,25 +931,25 @@ pub async fn get_player_matches(
         }
     }
 
-    let reg = region.unwrap_or_else(|| "EUW".to_string());
+    let raw_reg = region.clone().unwrap_or_else(|| "EUW".to_string());
     let (name, tag) = match (game_name, tag_line) {
         (Some(n), Some(t)) => (n, t),
         (Some(full), None) => {
             if let Some((n, t)) = full.split_once('#') {
                 (n.to_string(), t.to_string())
             } else {
-                (full, reg.clone())
+                (full, raw_reg.clone())
             }
         }
         (None, _) => {
             if let Some(local) = local_profile {
                 if !local.game_name.is_empty() {
-                    let tag = if !local.tag_line.is_empty() { local.tag_line } else { reg.clone() };
+                    let tag = if !local.tag_line.is_empty() { local.tag_line } else { raw_reg.clone() };
                     (local.game_name, tag)
                 } else if let Some((n, t)) = local.display_name.split_once('#') {
                     (n.to_string(), t.to_string())
                 } else {
-                    (local.display_name, reg.clone())
+                    (local.display_name, raw_reg.clone())
                 }
             } else {
                 return Err("No summoner specified and no account connected".to_string());
@@ -829,30 +957,34 @@ pub async fn get_player_matches(
         }
     };
 
+    let mut reg = raw_reg.clone();
+    if let Some(inferred_reg) = normalize_region_from_tag(&tag) {
+        if region.is_none() || region.as_deref() == Some("EUW") {
+            reg = inferred_reg.to_string();
+        }
+    }
+
     let client = opgg::client::McpClient::new().map_err(|e| e.to_string())?;
 
-    // If tag matches default region, try resolving pro player alias first if needed
-    let (name, tag) = if tag == reg {
-        if let Ok(pro) = opgg::summoner::fetch_pro_player(&client, &name, &reg).await {
+    let (mut req_name, mut req_tag) = (name.clone(), tag.clone());
+    if req_tag.eq_ignore_ascii_case(&reg) || req_tag.eq_ignore_ascii_case(&raw_reg) {
+        if let Ok(pro) = opgg::summoner::fetch_pro_player(&client, &req_name, &reg).await {
             if let Some(riot_id) = pro.get("data").and_then(|d| d.get("player")).and_then(|p| p.get("riot_id")) {
                 let p_name = riot_id.get("game_name").and_then(|g| g.as_str()).unwrap_or("");
                 let p_tag = riot_id.get("tagline").and_then(|t| t.as_str()).unwrap_or(&reg);
                 if !p_name.is_empty() {
-                    (p_name.to_string(), p_tag.to_string())
-                } else {
-                    (name, tag)
+                    req_name = p_name.to_string();
+                    req_tag = p_tag.to_string();
                 }
-            } else {
-                (name, tag)
             }
-        } else {
-            (name, tag)
         }
-    } else {
-        (name, tag)
-    };
+    }
 
-    let data = match opgg::summoner::fetch_matches(&client, &name, &tag, &reg, lim).await {
+    let final_name = req_name.clone();
+    let final_tag = req_tag.clone();
+    let mut final_reg = reg.clone();
+
+    let data = match opgg::summoner::fetch_matches(&client, &final_name, &final_tag, &final_reg, lim).await {
         Ok(mut d) => {
             if let Some(inner) = d.get_mut("data") {
                 inner.take()
@@ -860,18 +992,66 @@ pub async fn get_player_matches(
                 d
             }
         }
-        Err(e) => {
-            tracing::warn!("OP.GG fetch_matches failed for {}#{}: {}", name, tag, e);
-            return Err(format!(
-                "Matches for '{}#{}' not found in region {}: {}",
-                name, tag, reg, e
-            ));
+        Err(orig_err) => {
+            let mut resolved = None;
+
+            if let Some(inferred) = normalize_region_from_tag(&final_tag) {
+                if inferred != final_reg {
+                    if let Ok(mut d) = opgg::summoner::fetch_matches(&client, &final_name, &final_tag, inferred, lim).await {
+                        final_reg = inferred.to_string();
+                        resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
+                    }
+                }
+            }
+
+            if resolved.is_none() {
+                if let Ok(pro) = opgg::summoner::fetch_pro_player(&client, &name, &final_reg).await {
+                    if let Some(riot_id) = pro.get("data").and_then(|d| d.get("player")).and_then(|p| p.get("riot_id")) {
+                        let p_name = riot_id.get("game_name").and_then(|g| g.as_str()).unwrap_or("");
+                        let p_tag = riot_id.get("tagline").and_then(|t| t.as_str()).unwrap_or(&final_reg);
+                        let p_reg = pro.get("data").and_then(|d| d.get("player")).and_then(|p| p.get("region")).and_then(|r| r.as_str()).map(|r| r.to_uppercase()).unwrap_or_else(|| final_reg.clone());
+
+                        if !p_name.is_empty() {
+                            if let Ok(mut d) = opgg::summoner::fetch_matches(&client, p_name, p_tag, &p_reg, lim).await {
+                                final_reg = p_reg;
+                                resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
+                            }
+                        }
+                    }
+                }
+            }
+
+            if resolved.is_none() && final_reg != "KR" {
+                if let Ok(pro) = opgg::summoner::fetch_pro_player(&client, &name, "KR").await {
+                    if let Some(riot_id) = pro.get("data").and_then(|d| d.get("player")).and_then(|p| p.get("riot_id")) {
+                        let p_name = riot_id.get("game_name").and_then(|g| g.as_str()).unwrap_or("");
+                        let p_tag = riot_id.get("tagline").and_then(|t| t.as_str()).unwrap_or("KR1");
+                        if !p_name.is_empty() {
+                            if let Ok(mut d) = opgg::summoner::fetch_matches(&client, p_name, p_tag, "KR", lim).await {
+                                final_reg = "KR".to_string();
+                                resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
+                            }
+                        }
+                    }
+                }
+            }
+
+            match resolved {
+                Some(d) => d,
+                None => {
+                    tracing::warn!("OP.GG fetch_matches failed for {}#{}: {}", name, tag, orig_err);
+                    return Err(format!(
+                        "Matches for '{}#{}' not found in region {}: {}",
+                        name, tag, reg, orig_err
+                    ));
+                }
+            }
         }
     };
 
     Ok(serde_json::json!({
         "source": "opgg",
-        "region": reg,
+        "region": final_reg,
         "data": data
     }))
 }
@@ -900,11 +1080,25 @@ pub async fn get_match_detail(
     let reg = region.unwrap_or_else(|| "EUW".to_string());
     let client = opgg::client::McpClient::new().map_err(|e| e.to_string())?;
     let cr = created_at.unwrap_or_default();
-    let detail = match opgg::summoner::fetch_game_detail(&client, &game_id, &reg, &cr, focus_riot_id.as_deref()).await {
+    let gid = game_id.trim();
+    let reg_trimmed = reg.trim();
+    let cr_trimmed = cr.trim();
+
+    let detail = match opgg::summoner::fetch_game_detail(&client, gid, reg_trimmed, cr_trimmed, focus_riot_id.as_deref()).await {
         Ok(d) => d,
         Err(e) => {
-            tracing::warn!("OP.GG fetch_game_detail failed for {} in {}: {}", game_id, reg, e);
-            return Err(e.to_string());
+            if focus_riot_id.is_some() {
+                match opgg::summoner::fetch_game_detail(&client, gid, reg_trimmed, cr_trimmed, None).await {
+                    Ok(d) => d,
+                    Err(e2) => {
+                        tracing::warn!("OP.GG fetch_game_detail failed for {} in {}: {}", gid, reg_trimmed, e2);
+                        return Err(e2.to_string());
+                    }
+                }
+            } else {
+                tracing::warn!("OP.GG fetch_game_detail failed for {} in {}: {}", gid, reg_trimmed, e);
+                return Err(e.to_string());
+            }
         }
     };
 

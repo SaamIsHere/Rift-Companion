@@ -9,8 +9,13 @@
     viewedMatchesLoading,
     viewedProfileError,
     recentSearches,
+    lastSyncedAt,
+    activeSearchQuery,
+    isExplicitSearch,
     loadPlayerProfile,
     loadMatchDetail,
+    removeRecentSearch,
+    clearAllRecentSearches,
     type RecentSearchItem,
   } from "../stores/profile";
   import { championCatalog, ddragonVersion } from "../stores/champions";
@@ -25,6 +30,7 @@
     formatDuration,
     loadRunesReforged,
   } from "../utils/ddragon";
+  import { inferRegionFromTag } from "../utils/profileNormalizer";
   import type { PlayerMatch } from "../types";
 
   const REGIONS = [
@@ -46,71 +52,119 @@
   let loadingMatchDetailIds = new Set<string>();
   let runesMap: Map<number, any> | null = null;
   let scrollContainer: HTMLDivElement | null = null;
+  let searchInputEl: HTMLInputElement | null = null;
+  let lastSyncedProfileName = "";
 
   onMount(() => {
     loadRunesReforged($ddragonVersion).then((map) => {
       runesMap = map;
     });
 
+    // If an explicit search was already initiated (e.g. from LandingPage) or profile is loading/loaded, do not overwrite!
+    if ($isExplicitSearch || $viewedProfileLoading || $viewedProfile) {
+      return;
+    }
+
     // If local profile is already connected or remembered, load it automatically;
     // otherwise do not make a failing query so the search landing is displayed.
-    if (!$viewedProfile) {
+    if ($profile) {
       loadPlayerProfile(undefined, undefined, selectedRegion);
     }
   });
 
-  // Automatically load profile once League client connects if no profile is viewed
-  $: if ($profile && !$viewedProfile && !$viewedProfileLoading) {
+  // Automatically load profile once League client connects ONLY if no search was ever made and no profile is loaded
+  $: if ($profile && !$viewedProfile && !$viewedProfileLoading && !$isExplicitSearch && !$viewedProfileError) {
     loadPlayerProfile(undefined, undefined, selectedRegion);
   }
 
-  // Keep search bar populated with active profile if empty
-  $: if (!searchQuery && $viewedProfile) {
+  // Keep search bar in sync with loaded profile, but allow user to clear with ✕ button
+  $: if ($viewedProfile && $viewedProfile.display_name !== lastSyncedProfileName) {
+    lastSyncedProfileName = $viewedProfile.display_name;
     searchQuery = $viewedProfile.display_name;
-    selectedRegion = $viewedProfile.region || "EUW";
+    activeSearchQuery.set($viewedProfile.display_name);
+    if ($viewedProfile.region) {
+      selectedRegion = $viewedProfile.region;
+    }
   }
 
-  function handleSearch() {
+  // Also sync searchQuery if activeSearchQuery was set from LandingPage before profile loaded
+  $: if ($activeSearchQuery && $activeSearchQuery !== searchQuery && !$viewedProfile && !$viewedProfileLoading) {
+    searchQuery = $activeSearchQuery;
+  }
+
+  function clearSearch() {
+    searchQuery = "";
+    activeSearchQuery.set("");
+    if (searchInputEl) {
+      searchInputEl.focus();
+    }
+  }
+
+  function handleSearch(force = false) {
     const trimmed = searchQuery.trim();
     if (!trimmed) return;
 
+    isExplicitSearch.set(true);
+    activeSearchQuery.set(trimmed);
+    viewedProfileError.set(null);
     let gn = trimmed;
     let tl = selectedRegion;
+    let targetRegion = selectedRegion;
 
     if (trimmed.includes("#")) {
       const parts = trimmed.split("#");
       gn = parts[0].trim();
       tl = parts[1].trim() || selectedRegion;
+      const inferred = inferRegionFromTag(tl);
+      if (inferred) {
+        targetRegion = inferred;
+        selectedRegion = inferred;
+      }
     }
 
     if (scrollContainer) {
       scrollContainer.scrollTo({ top: 0, behavior: "auto" });
     }
-    loadPlayerProfile(gn, tl, selectedRegion, true);
+    loadPlayerProfile(gn, tl, targetRegion, force);
   }
 
   function handleKeyDown(e: KeyboardEvent) {
     if (e.key === "Enter") {
-      handleSearch();
+      handleSearch(false);
     }
   }
 
   function selectRecent(item: RecentSearchItem) {
+    isExplicitSearch.set(true);
     searchQuery = item.riot_id;
+    activeSearchQuery.set(item.riot_id);
     selectedRegion = item.region;
-    handleSearch();
+    handleSearch(false);
   }
 
   function returnToMyAccount() {
+    isExplicitSearch.set(false);
+    viewedProfileError.set(null);
     if (scrollContainer) {
       scrollContainer.scrollTo({ top: 0, behavior: "auto" });
     }
     if ($profile) {
       searchQuery = $profile.display_name;
+      activeSearchQuery.set($profile.display_name);
       const parts = $profile.display_name.split("#");
       const gn = parts[0];
       const tl = parts[1] || selectedRegion;
-      loadPlayerProfile(gn, tl, selectedRegion, true);
+      loadPlayerProfile(gn, tl, selectedRegion, false);
+    } else {
+      searchQuery = "";
+      activeSearchQuery.set("");
+      loadPlayerProfile(undefined, undefined, selectedRegion, false);
+    }
+  }
+
+  function handleManualRefresh() {
+    if ($viewedProfile) {
+      loadPlayerProfile($viewedProfile.game_name, $viewedProfile.tag_line, selectedRegion, true);
     } else {
       loadPlayerProfile(undefined, undefined, selectedRegion, true);
     }
@@ -211,12 +265,9 @@
   }
 </script>
 
-<div
-  bind:this={scrollContainer}
-  class="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-5 select-none text-slate-100 scroll-smooth"
->
-  <!-- SEARCH BAR & ACCOUNT ACTIONS HEADER -->
-  <div class="sticky top-0 z-30 shrink-0 block glass mb-5 rounded-2xl border border-purple-500/20 bg-[#0c071a]/95 p-4 shadow-[0_8px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+<div class="relative flex min-h-0 flex-1 flex-col overflow-hidden select-none text-slate-100">
+  <!-- SEARCH BAR & ACCOUNT ACTIONS TOP HEADER (Solid full-width block, flush to top navigation, zero bleed-through) -->
+  <header class="z-30 shrink-0 border-b border-purple-500/20 bg-[#0c071a] px-6 py-3 shadow-md backdrop-blur-xl">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <!-- Search Form -->
       <div class="flex flex-1 items-center gap-2 min-w-[300px] max-w-2xl">
@@ -233,17 +284,19 @@
         <!-- Search Input -->
         <div class="relative flex-1">
           <input
+            bind:this={searchInputEl}
             type="text"
             bind:value={searchQuery}
             on:keydown={handleKeyDown}
             placeholder="Search summoner (e.g. Agurin#EUW, Faker#KR1)..."
-            class="w-full rounded-xl border border-purple-500/30 bg-purple-950/40 px-4 py-2 text-xs font-semibold text-white placeholder-purple-300/40 outline-none transition focus:border-purple-400 focus:bg-purple-950/60 focus:shadow-[0_0_16px_rgba(168,85,247,0.3)]"
+            class="w-full rounded-xl border border-purple-500/30 bg-purple-950/40 pl-4 pr-9 py-2 text-xs font-semibold text-white placeholder-purple-300/40 outline-none transition focus:border-purple-400 focus:bg-purple-950/60 focus:ring-1 focus:ring-purple-400/40"
           />
           {#if searchQuery}
             <button
               type="button"
-              on:click={() => (searchQuery = "")}
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-purple-400/60 hover:text-white"
+              on:click={clearSearch}
+              class="absolute right-2.5 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-full text-xs text-purple-400/60 transition hover:bg-purple-800/40 hover:text-white"
+              title="Clear search"
             >
               ✕
             </button>
@@ -253,9 +306,9 @@
         <!-- Search Button -->
         <button
           type="button"
-          on:click={handleSearch}
+          on:click={() => handleSearch(false)}
           disabled={$viewedProfileLoading}
-          class="inline-flex items-center gap-1.5 rounded-xl border border-purple-400/40 bg-purple-600/30 px-4 py-2 text-xs font-bold text-white transition hover:bg-purple-600/50 hover:shadow-[0_0_16px_rgba(168,85,247,0.5)] active:scale-95 disabled:opacity-50"
+          class="inline-flex items-center gap-1.5 rounded-xl border border-purple-400/40 bg-purple-600/30 px-4 py-2 text-xs font-bold text-white transition hover:bg-purple-600/50 shadow-sm active:scale-95 disabled:opacity-50"
         >
           {#if $viewedProfileLoading}
             <div class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
@@ -283,44 +336,127 @@
             <span>My Account</span>
           </button>
         {/if}
-
-        <button
-          type="button"
-          on:click={() => loadPlayerProfile(undefined, undefined, selectedRegion, true)}
-          disabled={$viewedProfileLoading}
-          class="inline-flex items-center gap-1.5 rounded-xl border border-purple-500/30 bg-purple-950/40 px-3.5 py-2 text-xs font-bold text-purple-200 transition hover:bg-purple-900/40 hover:text-white active:scale-95 disabled:opacity-50"
-          title="Force fresh data sync"
-        >
-          <span class="text-sm {$viewedProfileLoading ? 'animate-spin' : ''}">↻</span>
-          <span>Refresh</span>
-        </button>
       </div>
     </div>
 
     <!-- Recent Searches Chips -->
     {#if $recentSearches.length > 0}
-      <div class="mt-3.5 flex flex-wrap items-center gap-2 border-t border-purple-500/15 pt-3">
+      <div class="mt-2.5 flex flex-wrap items-center gap-2 border-t border-purple-500/15 pt-2">
         <span class="text-[10px] font-bold uppercase tracking-wider text-purple-300/60">Recent:</span>
         {#each $recentSearches as recent}
+          <div
+            class="group inline-flex items-center rounded-lg border border-purple-500/20 bg-purple-950/30 text-[11px] font-semibold text-purple-200 transition hover:border-purple-400/40 hover:bg-purple-900/40"
+          >
+            <button
+              type="button"
+              on:click={() => selectRecent(recent)}
+              class="inline-flex items-center gap-1.5 py-1 pl-2.5 pr-1.5 hover:text-white"
+            >
+              {#if recent.tier}
+                <img src={tierMedalUrl(recent.tier)} alt="Rank" class="h-3.5 w-3.5 object-contain" />
+              {/if}
+              <span>{recent.riot_id}</span>
+              <span class="rounded bg-purple-900/50 px-1 text-[9px] text-purple-300/70">{recent.region}</span>
+            </button>
+            <button
+              type="button"
+              on:click|stopPropagation={() => removeRecentSearch(recent.riot_id, recent.region)}
+              class="flex items-center justify-center p-1 pr-2 text-purple-400/40 transition hover:text-rose-400"
+              title="Aus Verlauf entfernen"
+              aria-label="Remove search"
+            >
+              <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        {/each}
+        {#if $recentSearches.length > 1}
           <button
             type="button"
-            on:click={() => selectRecent(recent)}
-            class="group inline-flex items-center gap-1.5 rounded-lg border border-purple-500/20 bg-purple-950/30 px-2.5 py-1 text-[11px] font-semibold text-purple-200 transition hover:border-purple-400/40 hover:bg-purple-900/40 hover:text-white"
+            on:click={clearAllRecentSearches}
+            class="ml-1 text-[10px] text-purple-400/50 underline underline-offset-2 transition hover:text-rose-400"
+            title="Alle kürzlich gesuchten Profile löschen"
           >
-            {#if recent.tier}
-              <img src={tierMedalUrl(recent.tier)} alt="Rank" class="h-3.5 w-3.5 object-contain" />
-            {/if}
-            <span>{recent.riot_id}</span>
-            <span class="rounded bg-purple-900/50 px-1 text-[9px] text-purple-300/70">{recent.region}</span>
+            Clear all
           </button>
-        {/each}
+        {/if}
       </div>
     {/if}
-  </div>
+  </header>
 
-  <!-- PROFILE HEADER CARD -->
-  {#if $viewedProfile}
-    <div class="relative shrink-0 block glass mb-5 min-h-[150px] overflow-hidden rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-6 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+  <!-- SCROLLABLE BODY FOR PROFILE & MATCHES -->
+  <div
+    bind:this={scrollContainer}
+    class="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-5 scroll-smooth"
+  >
+    <!-- PROFILE HEADER CARD -->
+    {#if $viewedProfileError && $viewedProfile}
+      <div class="mb-4 flex items-center justify-between rounded-xl border border-rose-500/30 bg-rose-950/40 px-4 py-2.5 text-xs font-semibold text-rose-300 shadow-md">
+        <div class="flex items-center gap-2">
+          <span>⚠️</span>
+          <span>{$viewedProfileError}</span>
+        </div>
+        <button
+          type="button"
+          on:click={() => viewedProfileError.set(null)}
+          class="rounded p-1 text-rose-400 hover:text-white"
+          title="Dismiss"
+        >
+          ✕
+        </button>
+      </div>
+    {/if}
+
+    {#if $viewedProfileLoading && !$viewedProfile}
+      <div class="glass flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-8 text-center shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+        <div class="relative flex h-16 w-16 items-center justify-center">
+          <div class="absolute h-16 w-16 animate-ping rounded-full bg-purple-600/20"></div>
+          <div class="h-10 w-10 animate-spin rounded-full border-2 border-purple-400 border-t-transparent"></div>
+        </div>
+        <h2 class="mt-5 text-lg font-black tracking-wide text-white">Loading Summoner Profile…</h2>
+        <p class="mt-2 max-w-sm text-xs text-purple-300/70">
+          Querying OP.GG and compiling match history, rankings, and champion statistics…
+        </p>
+      </div>
+    {:else if $viewedProfileError && !$viewedProfile}
+      <div class="glass flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-rose-500/30 bg-[#10061c]/90 p-8 text-center shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+        <div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-500/40 bg-rose-950/40 text-2xl text-rose-400 shadow-md">
+          ⚠️
+        </div>
+        <h2 class="mt-4 text-lg font-black text-white">Summoner Not Found</h2>
+        <p class="mt-2 max-w-md text-xs font-semibold text-rose-300/80">
+          {$viewedProfileError}
+        </p>
+        <div class="mt-5 max-w-md rounded-xl border border-purple-500/20 bg-purple-950/30 p-4 text-left text-xs text-purple-300/80 space-y-1.5">
+          <p class="font-bold text-purple-200">Tips for searching:</p>
+          <p>• Include the tagline (e.g. <span class="font-mono font-bold text-white">Agurin#EUW</span> or <span class="font-mono font-bold text-white">Hide on bush#KR1</span>).</p>
+          <p>• Make sure the selected region matches the player's server.</p>
+          <p>• Pro players and streamers (e.g. <span class="font-mono font-bold text-purple-200">Agurin</span>, <span class="font-mono font-bold text-purple-200">Faker</span>, <span class="font-mono font-bold text-purple-200">Caps</span>, <span class="font-mono font-bold text-purple-200">Noway</span>) are automatically resolved to their official Riot IDs.</p>
+        </div>
+        <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+          <button
+            type="button"
+            on:click={() => handleSearch(true)}
+            class="inline-flex items-center gap-2 rounded-xl border border-purple-400/40 bg-purple-600/40 px-4 py-2 text-xs font-bold text-white transition hover:bg-purple-600/60 shadow-sm active:scale-95"
+          >
+            <span>↻</span>
+            <span>Try Again</span>
+          </button>
+          {#if $profile}
+            <button
+              type="button"
+              on:click={returnToMyAccount}
+              class="inline-flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-950/40 px-4 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-900/50 active:scale-95"
+            >
+              <span>★</span>
+              <span>Return to My Account</span>
+            </button>
+          {/if}
+        </div>
+      </div>
+    {:else if $viewedProfile}
+      <div class="relative shrink-0 block glass mb-5 min-h-[150px] overflow-hidden rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-6 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
       <!-- Ambient background decoration -->
       <div class="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-purple-600/10 blur-3xl"></div>
       <div class="pointer-events-none absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-indigo-600/10 blur-3xl"></div>
@@ -334,7 +470,7 @@
               src={$viewedProfile.profile_icon_url ||
                 profileIconUrl($viewedProfile.profile_icon_id || 1, $ddragonVersion)}
               alt="Summoner Icon"
-              class="h-20 w-20 rounded-2xl border-2 border-purple-500/40 object-cover shadow-[0_0_24px_rgba(168,85,247,0.35)]"
+              class="h-20 w-20 rounded-2xl border-2 border-purple-500/40 object-cover shadow-md"
             />
             <span class="absolute -bottom-2 -right-2 rounded-lg border border-purple-400/50 bg-[#120726] px-2 py-0.5 text-[10px] font-black text-purple-200 shadow-md">
               {$viewedProfile.level}
@@ -356,10 +492,10 @@
             </div>
 
             <!-- Source & Connection status -->
-            <div class="mt-2 flex items-center gap-2">
+            <div class="mt-2 flex flex-wrap items-center gap-2.5">
               {#if $viewedProfile.source === "lcu"}
                 <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-950/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
-                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"></span>
+                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
                   <span>Live League Client</span>
                 </span>
               {:else if $profile && $viewedProfile.display_name.toLowerCase() === $profile.display_name.toLowerCase()}
@@ -374,9 +510,24 @@
                 </span>
               {/if}
 
-              <span class="text-[10px] text-slate-400">
-                Updated {formatTimeAgo($viewedProfile.updated_at)}
+              <span
+                class="text-[10px] text-slate-400"
+                title="Last synchronized: {new Date($lastSyncedAt || $viewedProfile.updated_at || Date.now()).toLocaleTimeString()} (auto-refreshes every 3 hours)"
+              >
+                Updated {formatTimeAgo($lastSyncedAt || $viewedProfile.updated_at)}
               </span>
+
+              <!-- Refresh button directly to the right of the Update-Timer -->
+              <button
+                type="button"
+                on:click={handleManualRefresh}
+                disabled={$viewedProfileLoading}
+                class="inline-flex items-center gap-1 rounded-lg border border-purple-500/30 bg-purple-950/40 px-2.5 py-0.5 text-[10px] font-bold text-purple-200 transition hover:border-purple-400/60 hover:bg-purple-900/50 hover:text-white active:scale-95 disabled:opacity-50"
+                title="Force fresh data sync (Auto-refreshes every 3 hours)"
+              >
+                <span class="text-xs {$viewedProfileLoading ? 'animate-spin' : ''}">↻</span>
+                <span>Refresh</span>
+              </button>
             </div>
           </div>
         </div>
@@ -388,7 +539,7 @@
             <img
               src={tierMedalUrl($viewedProfile.solo_rank?.tier || "UNRANKED")}
               alt="Solo Rank"
-              class="h-14 w-14 object-contain drop-shadow-[0_0_12px_rgba(168,85,247,0.3)]"
+              class="h-14 w-14 object-contain"
             />
             <div>
               <span class="text-[10px] font-bold uppercase tracking-wider text-purple-300/70 block">
@@ -416,7 +567,7 @@
             <img
               src={tierMedalUrl($viewedProfile.flex_rank?.tier || "UNRANKED")}
               alt="Flex Rank"
-              class="h-14 w-14 object-contain drop-shadow-[0_0_12px_rgba(168,85,247,0.3)]"
+              class="h-14 w-14 object-contain"
             />
             <div>
               <span class="text-[10px] font-bold uppercase tracking-wider text-purple-300/70 block">
@@ -464,7 +615,7 @@
   {:else}
     <!-- WELCOME & SEARCH HERO LANDING -->
     <div class="glass my-auto flex flex-col items-center justify-center rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-10 text-center shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
-      <div class="relative mb-4 flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-purple-500/40 bg-purple-950/40 shadow-[0_0_24px_rgba(168,85,247,0.35)]">
+      <div class="relative mb-4 flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-purple-500/40 bg-purple-950/40 shadow-md">
         <svg class="h-10 w-10 text-purple-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
           <circle cx="9" cy="7" r="4" />
@@ -519,7 +670,7 @@
         <button
           type="button"
           on:click={returnToMyAccount}
-          class="mt-6 inline-flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-950/40 px-5 py-2.5 text-xs font-black text-emerald-300 transition hover:bg-emerald-900/50 shadow-[0_0_20px_rgba(16,185,129,0.2)] active:scale-95"
+          class="mt-6 inline-flex items-center gap-2 rounded-xl border border-emerald-500/40 bg-emerald-950/40 px-5 py-2.5 text-xs font-black text-emerald-300 transition hover:bg-emerald-900/50 shadow-sm active:scale-95"
         >
           <span>★</span>
           <span>View My Account ({$profile.display_name})</span>
@@ -666,7 +817,7 @@
             type="button"
             on:click={() => selectQueueFilter("all")}
             class="rounded-xl px-3 py-1.5 text-xs font-bold transition {activeQueueFilter === 'all'
-              ? 'bg-purple-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.5)]'
+              ? 'bg-purple-600 text-white shadow-sm'
               : 'text-purple-300/70 hover:bg-purple-950/50 hover:text-white'}"
           >
             All Matches
@@ -675,7 +826,7 @@
             type="button"
             on:click={() => selectQueueFilter("solo")}
             class="rounded-xl px-3 py-1.5 text-xs font-bold transition {activeQueueFilter === 'solo'
-              ? 'bg-purple-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.5)]'
+              ? 'bg-purple-600 text-white shadow-sm'
               : 'text-purple-300/70 hover:bg-purple-950/50 hover:text-white'}"
           >
             Ranked Solo
@@ -684,7 +835,7 @@
             type="button"
             on:click={() => selectQueueFilter("flex")}
             class="rounded-xl px-3 py-1.5 text-xs font-bold transition {activeQueueFilter === 'flex'
-              ? 'bg-purple-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.5)]'
+              ? 'bg-purple-600 text-white shadow-sm'
               : 'text-purple-300/70 hover:bg-purple-950/50 hover:text-white'}"
           >
             Ranked Flex
@@ -693,7 +844,7 @@
             type="button"
             on:click={() => selectQueueFilter("other")}
             class="rounded-xl px-3 py-1.5 text-xs font-bold transition {activeQueueFilter === 'other'
-              ? 'bg-purple-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.5)]'
+              ? 'bg-purple-600 text-white shadow-sm'
               : 'text-purple-300/70 hover:bg-purple-950/50 hover:text-white'}"
           >
             ARAM & Normals
@@ -912,14 +1063,23 @@
                     <span class="text-xs font-semibold text-purple-300">Loading full match scoreboard…</span>
                   </div>
                 {:else if match.participants && match.participants.length > 0}
-                  {@const blueTeam = match.participants.filter((p) => p.team_id === 100 || p.team_id === 1)}
-                  {@const redTeam = match.participants.filter((p) => p.team_id === 200 || p.team_id === 2)}
+                  {@const blueParticipants = match.participants.filter((p) => p.team_id === 100 || p.team_id === 1)}
+                  {@const redParticipants = match.participants.filter((p) => p.team_id === 200 || p.team_id === 2)}
+                  {@const blueTeam = blueParticipants.length > 0 || redParticipants.length > 0 ? blueParticipants : match.participants.slice(0, Math.ceil(match.participants.length / 2))}
+                  {@const redTeam = blueParticipants.length > 0 || redParticipants.length > 0 ? redParticipants : match.participants.slice(Math.ceil(match.participants.length / 2))}
                   <div class="border-t border-purple-500/20 bg-[#080414]/90 p-4 transition-all">
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Blue Team (100) -->
                     <div class="flex flex-col gap-1.5">
                       <div class="flex items-center justify-between px-2 pb-1 border-b border-cyan-500/20 text-[10px] font-black uppercase text-cyan-300">
-                        <span>Blue Team</span>
+                        <span class="flex items-center gap-1.5">
+                          <span>Blue Team</span>
+                          {#if blueTeam.length > 0 && blueTeam[0].win !== undefined}
+                            <span class="text-[9px] px-1.5 py-0.2 rounded font-bold {blueTeam[0].win ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-800 text-slate-400'}">
+                              {blueTeam[0].win ? 'Victory' : 'Defeat'}
+                            </span>
+                          {/if}
+                        </span>
                         <span>KDA · DMG · Items</span>
                       </div>
                       {#each blueTeam as p}
@@ -962,7 +1122,14 @@
                     <!-- Red Team (200) -->
                     <div class="flex flex-col gap-1.5">
                       <div class="flex items-center justify-between px-2 pb-1 border-b border-rose-500/20 text-[10px] font-black uppercase text-rose-300">
-                        <span>Red Team</span>
+                        <span class="flex items-center gap-1.5">
+                          <span>Red Team</span>
+                          {#if redTeam.length > 0 && redTeam[0].win !== undefined}
+                            <span class="text-[9px] px-1.5 py-0.2 rounded font-bold {redTeam[0].win ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800 text-slate-400'}">
+                              {redTeam[0].win ? 'Victory' : 'Defeat'}
+                            </span>
+                          {/if}
+                        </span>
                         <span>KDA · DMG · Items</span>
                       </div>
                       {#each redTeam as p}
@@ -1004,8 +1171,27 @@
                   </div>
                 </div>
                 {:else}
-                  <div class="flex h-16 items-center justify-center border-t border-purple-500/20 bg-[#080414]/90 p-4 text-xs text-slate-400">
-                    Detailed scoreboard unavailable for this match.
+                  <div class="flex h-16 items-center justify-center gap-3 border-t border-purple-500/20 bg-[#080414]/90 p-4 text-xs text-slate-400">
+                    <span>Detailed scoreboard unavailable for this match.</span>
+                    <button
+                      type="button"
+                      on:click|stopPropagation={() => {
+                        loadingMatchDetailIds.add(match.id);
+                        loadingMatchDetailIds = new Set(loadingMatchDetailIds);
+                        loadMatchDetail(
+                          match.id,
+                          selectedRegion,
+                          match.raw_created_at || match.game_creation,
+                          $viewedProfile?.display_name
+                        ).finally(() => {
+                          loadingMatchDetailIds.delete(match.id);
+                          loadingMatchDetailIds = new Set(loadingMatchDetailIds);
+                        });
+                      }}
+                      class="rounded border border-purple-500/30 bg-purple-950/40 px-2.5 py-1 text-[11px] font-semibold text-purple-200 transition hover:bg-purple-900/40 hover:text-white"
+                    >
+                      ↻ Retry
+                    </button>
                   </div>
                 {/if}
               {/if}
@@ -1023,5 +1209,50 @@
       {/if}
     </div>
   </div>
+  {:else}
+    <div class="glass flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-8 text-center shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+      <div class="flex h-16 w-16 items-center justify-center rounded-2xl border border-purple-500/30 bg-purple-950/40 text-3xl shadow-md">
+        🔍
+      </div>
+      <h2 class="mt-4 text-xl font-black tracking-wide text-white">Search Player Profile</h2>
+      <p class="mt-2 max-w-md text-xs text-purple-300/70">
+        Enter a summoner name or Riot ID (<span class="font-mono text-purple-200">Name#Tag</span>) in the search bar above to look up their rank, top champions, and match history.
+      </p>
+      <div class="mt-6 flex flex-wrap items-center justify-center gap-2">
+        <span class="text-[10px] font-bold uppercase tracking-wider text-purple-400/60">Try searching:</span>
+        {#each [
+          { name: "Agurin#EUW", reg: "EUW" },
+          { name: "Noway#EUW", reg: "EUW" },
+          { name: "Hide on bush#KR1", reg: "KR" },
+          { name: "Caps#EUW", reg: "EUW" },
+          { name: "Rekkles#1996", reg: "EUW" }
+        ] as demo}
+          <button
+            type="button"
+            on:click={() => {
+              searchQuery = demo.name;
+              selectedRegion = demo.reg;
+              handleSearch(false);
+            }}
+            class="rounded-lg border border-purple-500/25 bg-purple-950/40 px-2.5 py-1 text-xs font-semibold text-purple-200 transition hover:border-purple-400/50 hover:bg-purple-900/50 hover:text-white"
+          >
+            {demo.name}
+          </button>
+        {/each}
+      </div>
+      {#if $profile}
+        <div class="mt-6">
+          <button
+            type="button"
+            on:click={returnToMyAccount}
+            class="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-950/30 px-4 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-900/40 active:scale-95"
+          >
+            <span>★</span>
+            <span>Load My Account ({$profile.display_name})</span>
+          </button>
+        </div>
+      {/if}
+    </div>
   {/if}
+</div>
 </div>

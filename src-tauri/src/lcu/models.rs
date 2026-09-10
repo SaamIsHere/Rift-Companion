@@ -34,14 +34,25 @@ pub struct PlayerSlot {
     /// "top" | "jungle" | "middle" | "bottom" | "utility" | "" (often empty for enemies).
     #[serde(default, rename = "assignedPosition")]
     pub assigned_position: String,
+    #[serde(default, rename = "spell1Id")]
+    pub spell1_id: i64,
+    #[serde(default, rename = "spell2Id")]
+    pub spell2_id: i64,
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct Action {
+    #[serde(default)]
+    pub id: i64,
+    #[serde(default, rename = "actorCellId")]
+    pub actor_cell_id: i64,
     #[serde(default, rename = "championId")]
     pub champion_id: i64,
     #[serde(default)]
     pub completed: bool,
+    #[serde(default, rename = "isInProgress")]
+    pub is_in_progress: bool,
     /// "ban" | "pick"
     #[serde(rename = "type")]
     pub action_type: String,

@@ -2,7 +2,7 @@
   import { activeTab, type NavTab, resetChampionsView } from "../stores/navigation";
   import { draft } from "../stores/draft";
   import { connection } from "../stores/connection";
-  import { profile, loadPlayerProfile } from "../stores/profile";
+  import { profile, loadPlayerProfile, isExplicitSearch, activeSearchQuery } from "../stores/profile";
   import { rankTier } from "../stores/rank";
   import { ddragonVersion } from "../stores/champions";
   import { profileIconUrl } from "../utils/ddragon";
@@ -11,7 +11,6 @@
 
   // Center navigation tabs in English
   const tabs: { id: NavTab; label: string }[] = [
-    { id: "profil", label: "MY PROFILE" },
     { id: "champions", label: "CHAMPIONS" },
     { id: "ranglisten", label: "RANKINGS" },
     { id: "live_match", label: "LIVE MATCH" },
@@ -42,14 +41,14 @@
         src="/app-icon.png"
         alt="Rift Companion Logo"
         draggable="false"
-        class="h-6 w-6 rounded-md object-contain drop-shadow-[0_0_10px_rgba(168,85,247,0.7)]"
+        class="h-6 w-6 rounded-md object-contain"
         on:error={(e) => {
           const target = e.currentTarget as HTMLImageElement;
           target.src = '/logo.png';
         }}
       />
     </div>
-    <span class="text-sm font-bold tracking-wide text-white transition group-hover:text-purple-200 drop-shadow-[0_2px_8px_rgba(168,85,247,0.3)]">
+    <span class="text-sm font-bold tracking-wide text-white transition group-hover:text-purple-200">
       Rift Companion
     </span>
   </button>
@@ -63,8 +62,6 @@
         on:click={() => {
           if (tab.id === "champions") {
             resetChampionsView();
-          } else if (tab.id === "profil") {
-            loadPlayerProfile();
           }
           activeTab.set(tab.id);
         }}
@@ -84,9 +81,9 @@
         </div>
 
         {#if isActive}
-          <!-- Glowing violet active indicator bar at the bottom -->
-          <div class="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-purple-600 via-violet-400 to-purple-600 shadow-[0_0_10px_rgba(168,85,247,0.9)]"></div>
-          <!-- Subtle top/center glow -->
+          <!-- Active indicator bar at the bottom -->
+          <div class="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-purple-500 via-violet-400 to-purple-500"></div>
+          <!-- Subtle top/center highlight -->
           <div class="absolute inset-0 bg-purple-500/[0.07] pointer-events-none"></div>
         {/if}
       </button>
@@ -99,11 +96,21 @@
     <button
       type="button"
       on:click={() => {
-        loadPlayerProfile();
+        isExplicitSearch.set(false);
+        if ($profile) {
+          activeSearchQuery.set($profile.display_name);
+          const parts = $profile.display_name.split("#");
+          const gn = parts[0];
+          const tl = parts[1] || "EUW";
+          loadPlayerProfile(gn, tl, "EUW", false);
+        } else {
+          activeSearchQuery.set("");
+          loadPlayerProfile(undefined, undefined, "EUW", false);
+        }
         activeTab.set("profil");
       }}
       class="group flex items-center gap-2.5 text-right transition hover:opacity-80 focus:outline-none"
-      title="View Profile"
+      title="View My Profile"
     >
       {#if $profile}
         <div class="flex flex-col">
@@ -126,13 +133,15 @@
             src={profileIconUrl($profile.profile_icon_id, $ddragonVersion)}
             alt="Summoner Avatar"
             draggable="false"
-            class="h-7 w-7 rounded-full object-cover ring-1 {$connection === 'connected'
-              ? 'ring-purple-400/50 shadow-[0_0_8px_rgba(168,85,247,0.35)]'
+            class="h-7 w-7 rounded-full object-cover ring-1 {$activeTab === 'profil'
+              ? 'ring-2 ring-purple-400 scale-105'
+              : $connection === 'connected'
+              ? 'ring-purple-400/50'
               : 'ring-purple-500/20 opacity-85'} transition group-hover:ring-purple-300"
           />
           <span
             class="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-[#0c061a] {$connection === 'connected'
-              ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]'
+              ? 'bg-emerald-400'
               : 'bg-amber-400/85'}"
             title={$connection === 'connected' ? 'Client connected' : 'Client offline (last active account)'}
           ></span>
@@ -146,7 +155,7 @@
             {formatRank($rankTier)}
           </span>
         </div>
-        <div class="flex h-7 w-7 items-center justify-center rounded-full bg-purple-950/40 ring-1 ring-purple-500/30 text-purple-300 transition group-hover:ring-purple-400/60">
+        <div class="flex h-7 w-7 items-center justify-center rounded-full bg-purple-950/40 ring-1 {$activeTab === 'profil' ? 'ring-2 ring-purple-400' : 'ring-purple-500/30'} text-purple-300 transition group-hover:ring-purple-400/60">
           <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="8" r="4" />
             <path d="M6 21v-2a6 6 0 0 1 12 0v2" />

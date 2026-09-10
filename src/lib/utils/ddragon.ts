@@ -303,3 +303,24 @@ export function queueNameFromId(queue?: number | string | null): string {
   }
 }
 
+const ROLE_POSITION_MAP: Record<string, string> = {
+  all: "fill",
+  fill: "fill",
+  top: "top",
+  jungle: "jungle",
+  mid: "middle",
+  middle: "middle",
+  adc: "bottom",
+  bot: "bottom",
+  bottom: "bottom",
+  support: "utility",
+  utility: "utility",
+};
+
+/** Official League position / lane icon URL from CommunityDragon */
+export function roleIconUrl(role: string): string {
+  const norm = (role || "").toLowerCase().trim();
+  const pos = ROLE_POSITION_MAP[norm] || "fill";
+  return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-clash/global/default/assets/images/position-selector/positions/icon-position-${pos}.png`;
+}
+

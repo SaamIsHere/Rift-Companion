@@ -114,7 +114,7 @@ pub fn run() {
 
     let shared = Shared {
         repo,
-        weights: Arc::new(Mutex::new(Weights { comp: settings.comp_weight })),
+        weights: Arc::new(Mutex::new(Weights { comp: settings.comp_weight, mode: Default::default() })),
         latest_draft: Arc::new(Mutex::new(None)),
         connection: Arc::new(Mutex::new(ConnectionStatus::Searching)),
         profile: Arc::new(Mutex::new(cached_profile)),
@@ -133,6 +133,10 @@ pub fn run() {
             commands::get_draft_state,
             commands::get_recommendations,
             commands::set_weights,
+            commands::set_scoring_mode,
+            commands::get_scoring_mode,
+            commands::hover_champion,
+            commands::get_champion_recommendation,
             commands::set_enemy_role,
             commands::get_rank_tier,
             commands::set_rank_tier,

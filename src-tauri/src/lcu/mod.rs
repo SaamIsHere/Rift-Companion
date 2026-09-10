@@ -13,7 +13,7 @@ use tauri::{AppHandle, Emitter};
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::data::models::RankTier;
-use crate::{draft, engine, opgg, ConnectionStatus, Shared};
+use crate::{draft, engine, opgg, ConnectionStatus, DraftState, Shared};
 
 /// Runs forever: (re)discovers the client and processes events, reconnecting on drop.
 pub async fn run_watcher(app: AppHandle, shared: Shared) {
@@ -116,8 +116,22 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                 while let Some(msg) = ws.next().await {
                     match msg {
                         Ok(Message::Text(txt)) => {
-                            if let Some(data) = parse_event(&txt) {
-                                handle_session(&app, &shared, data);
+                            if let Some(ev) = parse_event(&txt) {
+                                if ev.uri.contains("gameflow-phase") {
+                                    if let Some(phase) = ev.data.as_str() {
+                                        if phase != "ChampSelect" {
+                                            tracing::info!(phase, "gameflow phase is not ChampSelect; clearing champ-select state");
+                                            clear_session(&app, &shared);
+                                        }
+                                    }
+                                } else if ev.uri.contains("champ-select") {
+                                    let is_404 = ev.data.get("httpStatus").and_then(|s| s.as_i64()) == Some(404);
+                                    if ev.event_type == "Delete" || ev.data.is_null() || is_404 {
+                                        clear_session(&app, &shared);
+                                    } else {
+                                        handle_session(&app, &shared, ev.data);
+                                    }
+                                }
                             }
                         }
                         Ok(Message::Close(_)) | Err(_) => break,
@@ -134,11 +148,29 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
     }
 }
 
-/// Extract the `data` object from an `[8, "<event>", { data, ... }]` frame.
-fn parse_event(txt: &str) -> Option<serde_json::Value> {
+struct LcuEvent {
+    event_type: String,
+    uri: String,
+    data: serde_json::Value,
+}
+
+/// Extract `(eventType, uri, data)` from an `[8, "<event>", { data, eventType, uri, ... }]` frame.
+fn parse_event(txt: &str) -> Option<LcuEvent> {
     let parsed: serde_json::Value = serde_json::from_str(txt).ok()?;
     let payload = parsed.as_array()?.get(2)?;
-    payload.get("data").cloned()
+    let event_type = payload.get("eventType").and_then(|v| v.as_str()).unwrap_or("Update").to_string();
+    let uri = payload.get("uri").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let data = payload.get("data").cloned().unwrap_or(serde_json::Value::Null);
+    Some(LcuEvent { event_type, uri, data })
+}
+
+fn clear_session(app: &AppHandle, shared: &Shared) {
+    *shared.latest_draft.lock().unwrap() = None;
+    shared.weights.lock().unwrap().mode = crate::engine::weights::ScoringMode::Default;
+    shared.enemy_role_overrides.lock().unwrap().clear();
+    let _ = app.emit("champ-select://update", None::<DraftState>);
+    let _ = app.emit("recommendations://update", Vec::<crate::engine::Recommendation>::new());
+    let _ = app.emit("scoring-mode://update", crate::engine::weights::ScoringMode::Default);
 }
 
 /// Normalise → score → emit. This is the heart of Phase 1/2 wiring.
@@ -150,6 +182,18 @@ fn handle_session(app: &AppHandle, shared: &Shared, data: serde_json::Value) {
             return;
         }
     };
+
+    if session.my_team.is_empty() && session.their_team.is_empty() {
+        clear_session(app, shared);
+        return;
+    }
+
+    // If starting a brand new champ select session, reset scoring mode to Default
+    let is_new_session = shared.latest_draft.lock().unwrap().is_none();
+    if is_new_session {
+        shared.weights.lock().unwrap().mode = crate::engine::weights::ScoringMode::Default;
+        let _ = app.emit("scoring-mode://update", crate::engine::weights::ScoringMode::Default);
+    }
 
     let repo = shared.repo.lock().unwrap().clone();
     let mut state = draft::from_session(repo.as_ref(), &session);

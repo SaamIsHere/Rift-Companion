@@ -25,7 +25,7 @@
   {:else}
     <span
       class="h-2 w-2 rounded-full {$connection === 'connected'
-        ? 'bg-emerald-400 shadow-[0_0_8px] shadow-emerald-400'
+        ? 'bg-emerald-400'
         : 'animate-pulse bg-amber-400'}"
     ></span>
     <span class="text-slate-300">

@@ -311,3 +311,70 @@ pub async fn get_local_champion_mastery(lock: &Lockfile) -> Result<Option<serde_
         Ok(None)
     }
 }
+
+/// Hover a champion in the League of Legends client during champ select (without locking in).
+pub async fn hover_champion_in_lcu(lock: &Lockfile, champion_id: u32) -> Result<bool> {
+    let client = http_client()?;
+    let session_val = match get_session(lock).await? {
+        Some(v) => v,
+        None => return Ok(false),
+    };
+
+    let local_cell = match session_val.get("localPlayerCellId").and_then(|v| v.as_i64()) {
+        Some(c) => c,
+        None => return Ok(false),
+    };
+
+    let actions = match session_val.get("actions").and_then(|v| v.as_array()) {
+        Some(a) => a,
+        None => return Ok(false),
+    };
+
+    let mut target_action_id = None;
+    for round in actions {
+        if let Some(round_actions) = round.as_array() {
+            for a in round_actions {
+                let actor = a.get("actorCellId").and_then(|v| v.as_i64()).unwrap_or(-1);
+                let action_type = a.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                let completed = a.get("completed").and_then(|v| v.as_bool()).unwrap_or(false);
+                let in_progress = a.get("isInProgress").and_then(|v| v.as_bool()).unwrap_or(false);
+                if actor == local_cell && action_type == "pick" && !completed {
+                    let id = a.get("id").and_then(|v| v.as_i64());
+                    if in_progress {
+                        target_action_id = id;
+                        break;
+                    } else if target_action_id.is_none() {
+                        target_action_id = id;
+                    }
+                }
+            }
+        }
+        if target_action_id.is_some() {
+            break;
+        }
+    }
+
+    let action_id = match target_action_id {
+        Some(id) => id,
+        None => return Ok(false),
+    };
+
+    let url = format!(
+        "https://127.0.0.1:{}/lol-champ-select/v1/session/actions/{}",
+        lock.port, action_id
+    );
+
+    let body = serde_json::json!({
+        "championId": champion_id,
+        "completed": false
+    });
+
+    let resp = client
+        .patch(url)
+        .header("Authorization", auth_header(lock))
+        .json(&body)
+        .send()
+        .await?;
+
+    Ok(resp.status().is_success())
+}

@@ -33,11 +33,15 @@ export interface DraftPick {
   champion_id: number;
   role: Role | null;
   is_local: boolean;
+  spell1_id?: number | null;
+  spell2_id?: number | null;
 }
 
 export interface DraftState {
   local_role: Role | null;
   local_champion_id: number | null;
+  hovered_champion_id?: number | null;
+  is_locked?: boolean;
   bans: number[];
   allies: DraftPick[];
   enemies: DraftPick[];
@@ -67,6 +71,9 @@ export interface Recommendation {
   score: number; // 0–100 display score
   components: ScoreComponents;
   badges: Badge[];
+  good_matchups?: string[];
+  bad_matchups?: string[];
+  synergies?: string[];
 }
 
 // One ally/enemy relationship's historical win rate, fetched on demand for
@@ -77,10 +84,12 @@ export interface PairwiseStat {
   delta: number; // winrate - 0.5, signed
 }
 
-// matchup/synergy/counter are no longer scalar weights — they're driven by
-// the static ALLY_WEIGHTS/ENEMY_WEIGHTS role matrices in weights.rs.
+export type ScoringMode = "default" | "teamplayer" | "counterpick" | "heavy_synergy" | "only_matchup";
+
+// matchup/synergy/counter are driven by ALLY_WEIGHTS/ENEMY_WEIGHTS and ScoringMode
 export interface Weights {
   comp: number;
+  mode?: ScoringMode;
 }
 
 // User-adjustable app settings (Issue #15), persisted to settings.json.

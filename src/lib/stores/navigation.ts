@@ -1,9 +1,22 @@
 import { writable } from "svelte/store";
 import { draft } from "./draft";
+import type { Role } from "../types";
 
 export type NavTab = "startseite" | "profil" | "champions" | "ranglisten" | "live_match";
 
-export const activeTab = writable<NavTab>("startseite");
+const validTabs: NavTab[] = ["startseite", "profil", "champions", "ranglisten", "live_match"];
+const savedTab = typeof localStorage !== "undefined" ? (localStorage.getItem("rift_active_tab") as NavTab) : null;
+const initialTab: NavTab = savedTab && validTabs.includes(savedTab) && savedTab !== "live_match" ? savedTab : "startseite";
+
+export const activeTab = writable<NavTab>(initialTab);
+
+activeTab.subscribe((tab) => {
+  try {
+    if (typeof localStorage !== "undefined" && tab && tab !== "live_match") {
+      localStorage.setItem("rift_active_tab", tab);
+    }
+  } catch {}
+});
 
 let previousDraftState: boolean = false;
 
@@ -23,4 +36,16 @@ export const championsViewReset = writable<number>(0);
 
 export function resetChampionsView() {
   championsViewReset.update((n) => n + 1);
+}
+
+export interface TargetChampionNav {
+  champion_id: number;
+  role?: Role;
+}
+
+export const targetChampion = writable<TargetChampionNav | null>(null);
+
+export function navigateToChampion(champion_id: number, role?: Role) {
+  targetChampion.set({ champion_id, role });
+  activeTab.set("champions");
 }

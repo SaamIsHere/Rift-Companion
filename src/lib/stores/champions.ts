@@ -5,6 +5,7 @@ export interface ChampionInfo {
   id: number; // numeric champion id, e.g. 266
   key: string; // Data Dragon image key, e.g. "Aatrox"
   name: string; // display name, e.g. "Aatrox"
+  tags?: string[]; // e.g. ["Mage", "Assassin"]
 }
 
 // Used until the live version is fetched (also the offline fallback).
@@ -31,7 +32,7 @@ export async function initChampions(): Promise<void> {
     const version = versions[0] ?? FALLBACK_VERSION;
     ddragonVersion.set(version);
 
-    const res: { data: Record<string, { key: string; id: string; name: string }> } =
+    const res: { data: Record<string, { key: string; id: string; name: string; tags?: string[] }> } =
       await fetch(
         `https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/champion.json`,
         { signal: AbortSignal.timeout(4000) }
@@ -40,7 +41,7 @@ export async function initChampions(): Promise<void> {
     const map = new Map<number, ChampionInfo>();
     for (const entry of Object.values(res.data)) {
       const id = Number(entry.key);
-      map.set(id, { id, key: entry.id, name: entry.name });
+      map.set(id, { id, key: entry.id, name: entry.name, tags: entry.tags || [] });
     }
     championCatalog.set(map);
   } catch (err) {

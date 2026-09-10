@@ -46,16 +46,19 @@ body {
 
 /* Theme-matched void-purple slim scrollbars */
 ::-webkit-scrollbar {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(10, 6, 20, 0.4);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(168, 85, 247, 0.20);
+  background: rgba(168, 85, 247, 0.25);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(168, 85, 247, 0.40);
+  background: rgba(168, 85, 247, 0.50);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
 }

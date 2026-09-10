@@ -37,7 +37,7 @@
       </span>
     {:else}
       <span
-        class="h-2 w-2 animate-pulse rounded-full bg-hextech-cyan shadow-[0_0_8px] shadow-hextech-cyan/60"
+        class="h-2 w-2 animate-pulse rounded-full bg-hextech-cyan"
         title="Refreshing stats…"
       ></span>
     {/if}
