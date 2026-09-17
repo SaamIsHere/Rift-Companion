@@ -121,9 +121,26 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                         handle_session(&app, &shared, value);
                     }
                 } else if is_in_match(&initial_phase) {
-                    if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
-                        handle_gameflow_session(&app, &shared, gf_val);
+                    let got_live = check_liveclient_data(&app, &shared).await;
+                    if !got_live {
+                        if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
+                            handle_gameflow_session(&app, &shared, gf_val);
+                        }
                     }
+                    let app_poller = app.clone();
+                    let shared_poller = shared.clone();
+                    tauri::async_runtime::spawn(async move {
+                        for _ in 0..1800 {
+                            tokio::time::sleep(Duration::from_secs(2)).await;
+                            let p = shared_poller.gameflow_phase.lock().unwrap().clone();
+                            if !is_in_match(&p) {
+                                break;
+                            }
+                            if p == "GameStart" || p == "InProgress" || p == "Reconnect" {
+                                check_liveclient_data(&app_poller, &shared_poller).await;
+                            }
+                        }
+                    });
                 }
 
                 while let Some(msg) = ws.next().await {
@@ -140,9 +157,26 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                                             tracing::info!(phase, "entered champ select");
                                         } else if phase == "GameStart" || phase == "InProgress" || phase == "Reconnect" {
                                             tracing::info!(phase, "match active / in-progress; preserving match state");
-                                            if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
-                                                handle_gameflow_session(&app, &shared, gf_val);
+                                            let got_live = check_liveclient_data(&app, &shared).await;
+                                            if !got_live {
+                                                if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
+                                                    handle_gameflow_session(&app, &shared, gf_val);
+                                                }
                                             }
+                                            let app_poller = app.clone();
+                                            let shared_poller = shared.clone();
+                                            tauri::async_runtime::spawn(async move {
+                                                for _ in 0..1800 {
+                                                    tokio::time::sleep(Duration::from_secs(2)).await;
+                                                    let p = shared_poller.gameflow_phase.lock().unwrap().clone();
+                                                    if !is_in_match(&p) {
+                                                        break;
+                                                    }
+                                                    if p == "GameStart" || p == "InProgress" || p == "Reconnect" {
+                                                        check_liveclient_data(&app_poller, &shared_poller).await;
+                                                    }
+                                                }
+                                            });
                                         } else if !is_in_match(phase) {
                                             tracing::info!(phase, "gameflow phase is not an active match; clearing session");
                                             clear_session(&app, &shared);
@@ -151,7 +185,10 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                                 } else if ev.uri.contains("gameflow") && ev.uri.contains("session") {
                                     let current_phase = shared.gameflow_phase.lock().unwrap().clone();
                                     if is_in_match(&current_phase) {
-                                        handle_gameflow_session(&app, &shared, ev.data);
+                                        let got_live = check_liveclient_data(&app, &shared).await;
+                                        if !got_live {
+                                            handle_gameflow_session(&app, &shared, ev.data);
+                                        }
                                     }
                                 } else if ev.uri.contains("champ-select") {
                                     let is_404 = ev.data.get("httpStatus").and_then(|s| s.as_i64()) == Some(404);
@@ -201,6 +238,36 @@ fn parse_event(txt: &str) -> Option<LcuEvent> {
     let uri = payload.get("uri").and_then(|v| v.as_str()).unwrap_or("").to_string();
     let data = payload.get("data").cloned().unwrap_or(serde_json::Value::Null);
     Some(LcuEvent { event_type, uri, data })
+}
+
+pub async fn check_liveclient_data(app: &AppHandle, shared: &Shared) -> bool {
+    let players = match client::get_liveclient_playerlist().await {
+        Ok(Some(p)) if !p.is_empty() => p,
+        _ => return false,
+    };
+    let active = client::get_liveclient_activeplayer().await.ok().flatten();
+
+    let repo = shared.repo.lock().unwrap().clone();
+    let existing_draft = shared.latest_draft.lock().unwrap().clone();
+
+    if let Some(state) = draft::from_live_client(
+        repo.as_ref(),
+        &players,
+        active.as_ref(),
+        existing_draft.as_ref(),
+    ) {
+        if !state.allies.is_empty() || !state.enemies.is_empty() {
+            tracing::info!(
+                allies = state.allies.len(),
+                enemies = state.enemies.len(),
+                "in-game match state updated from Live Client API (port 2999)"
+            );
+            *shared.latest_draft.lock().unwrap() = Some(state.clone());
+            let _ = app.emit("champ-select://update", &state);
+            return true;
+        }
+    }
+    false
 }
 
 fn clear_session(app: &AppHandle, shared: &Shared) {

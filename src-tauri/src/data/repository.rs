@@ -92,6 +92,16 @@ impl Repository {
     pub fn all_champions(&self) -> impl Iterator<Item = &Champion> {
         self.champions.values()
     }
+
+    /// Lookup a champion by name or image key (case-insensitive and punctuation-agnostic).
+    pub fn get_by_name(&self, name: &str) -> Option<&Champion> {
+        let clean = name.trim().to_lowercase().replace(['\'', ' ', '.', '&'], "");
+        self.champions.values().find(|c| {
+            let c_name = c.name.to_lowercase().replace(['\'', ' ', '.', '&'], "");
+            let c_img = c.image.to_lowercase().replace(['\'', ' ', '.', '&'], "");
+            c_name == clean || c_img == clean
+        })
+    }
 }
 
 #[cfg(test)]

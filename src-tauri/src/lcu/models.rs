@@ -85,6 +85,20 @@ pub struct GameflowGameData {
     pub team_one: Vec<GameflowPlayer>,
     #[serde(default, rename = "teamTwo")]
     pub team_two: Vec<GameflowPlayer>,
+    #[serde(default, rename = "playerChampionSelections")]
+    pub player_champion_selections: Vec<GameflowChampionSelection>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct GameflowChampionSelection {
+    #[serde(default, rename = "championId")]
+    pub champion_id: u32,
+    #[serde(default)]
+    pub puuid: String,
+    #[serde(default, rename = "spell1Id")]
+    pub spell1_id: u64,
+    #[serde(default, rename = "spell2Id")]
+    pub spell2_id: u64,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -108,3 +122,59 @@ pub struct GameflowPlayer {
     #[serde(default, rename = "spell2Id")]
     pub spell2_id: i64,
 }
+
+/// Deserialization structs for Live Client Data (`https://127.0.0.1:2999`).
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveClientSpell {
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub raw_description: String,
+    #[serde(default)]
+    pub raw_display_name: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveClientSpells {
+    #[serde(default)]
+    pub summoner_spell_one: Option<LiveClientSpell>,
+    #[serde(default)]
+    pub summoner_spell_two: Option<LiveClientSpell>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveClientPlayer {
+    #[serde(default)]
+    pub champion_name: String,
+    #[serde(default)]
+    pub position: String,
+    #[serde(default)]
+    pub team: String,
+    #[serde(default)]
+    pub summoner_name: String,
+    #[serde(default)]
+    pub riot_id: String,
+    #[serde(default)]
+    pub riot_id_game_name: String,
+    #[serde(default)]
+    pub riot_id_tag_line: String,
+    #[serde(default)]
+    pub summoner_spells: Option<LiveClientSpells>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveClientActivePlayer {
+    #[serde(default)]
+    pub summoner_name: String,
+    #[serde(default)]
+    pub riot_id: String,
+    #[serde(default)]
+    pub riot_id_game_name: String,
+    #[serde(default)]
+    pub riot_id_tag_line: String,
+}
+

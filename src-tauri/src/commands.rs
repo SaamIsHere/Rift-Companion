@@ -1390,11 +1390,11 @@ pub fn simulate_match_analysis(state: State<Shared>, draft: DraftState) -> Simul
         let magic_pct = ((magic as f64 + mixed as f64 * 0.5) / total_dmg_dealers) * 100.0;
 
         let cc_level = if cc_count >= 5 {
-            "Hoch".to_string()
+            "High".to_string()
         } else if cc_count >= 3 {
-            "Mittel".to_string()
+            "Medium".to_string()
         } else {
-            "Niedrig".to_string()
+            "Low".to_string()
         };
 
         let mut warnings = Vec::new();
@@ -1402,23 +1402,23 @@ pub fn simulate_match_analysis(state: State<Shared>, draft: DraftState) -> Simul
 
         if count >= 3 {
             if magic == 0 && mixed == 0 {
-                warnings.push("Full AD: Kein magischer Schaden vorhanden (Gegner kann Rüstung stacken)".to_string());
+                warnings.push("Full AD: No magic damage (enemies can stack armor)".to_string());
             } else if physical == 0 && mixed == 0 {
-                warnings.push("Full AP: Kein physischer Schaden vorhanden (Gegner kann Magieresistenz stacken)".to_string());
+                warnings.push("Full AP: No physical damage (enemies can stack magic resist)".to_string());
             } else {
-                strengths.push("Ausgewogener AD/AP-Schadensmix".to_string());
+                strengths.push("Balanced AD/AP damage profile".to_string());
             }
 
             if frontline == 0 {
-                warnings.push("Keine Frontline: Kein Tank für Engages oder Peel im Team".to_string());
+                warnings.push("No Frontline: Lacks a tank for engages or peel".to_string());
             } else {
-                strengths.push(format!("{frontline}x Frontline/Tank für Teamfights vorhanden"));
+                strengths.push(format!("{frontline}x Frontline/Tank present for teamfights"));
             }
 
             if cc_count >= 5 {
-                strengths.push("Starke Crowd Control / Engage für Teamfights".to_string());
+                strengths.push("Strong Crowd Control & lockdown for teamfights".to_string());
             } else if cc_count <= 2 && count >= 4 {
-                warnings.push("Wenig Crowd Control: Kaum Stuns oder Festhalte-Effekte".to_string());
+                warnings.push("Low Crowd Control: Lacks reliable lockdown or peel".to_string());
             }
         }
 

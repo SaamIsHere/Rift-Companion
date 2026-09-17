@@ -4,7 +4,7 @@
   import { draft } from "../stores/draft";
   import { championCatalog, ddragonVersion } from "../stores/champions";
   import { squareIconUrl, roleIconUrl, itemIconUrl, summonerSpellIconUrl } from "../utils/ddragon";
-  import { simulateMatchAnalysis, getChampionOverview, setEnemyRole } from "../ipc/tauri";
+  import { simulateMatchAnalysis, getChampionOverview } from "../ipc/tauri";
 
   const ROLE_ORDER: { role: Role; label: string }[] = [
     { role: "top", label: "Top" },
@@ -99,62 +99,30 @@
     selectedRole = localRole;
   }
 
-  // Drag & drop enemy role assignment
-  let draggedEnemyChampId: number | null = null;
-  let draggedEnemyFromRole: Role | null = null;
-  let dragOverRole: Role | null = null;
+  // Lane Matchup pairing: ensures all 5 lanes have their paired ally and enemy without duplicates
+  function getPairedLane(role: Role, draftState: typeof $draft) {
+    if (!draftState) return { allyPick: undefined, enemyPick: undefined };
 
-  function handleDragStart(champId: number, fromRole: Role, e: DragEvent) {
-    draggedEnemyChampId = champId;
-    draggedEnemyFromRole = fromRole;
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", String(champId));
+    // Find direct role match
+    let allyPick = draftState.allies.find((p) => p.role === role);
+    let enemyPick = draftState.enemies.find((p) => p.role === role);
+
+    // Fallback: if not found by role, pick from unassigned allies/enemies
+    if (!allyPick) {
+      const alreadyClaimed = new Set(
+        ROLE_ORDER.map((r) => draftState.allies.find((p) => p.role === r.role)?.champion_id).filter(Boolean)
+      );
+      allyPick = draftState.allies.find((p) => !alreadyClaimed.has(p.champion_id));
     }
-  }
 
-  function handleDragOver(role: Role, e: DragEvent) {
-    e.preventDefault();
-    if (e.dataTransfer) {
-      e.dataTransfer.dropEffect = "move";
+    if (!enemyPick) {
+      const alreadyClaimed = new Set(
+        ROLE_ORDER.map((r) => draftState.enemies.find((p) => p.role === r.role)?.champion_id).filter(Boolean)
+      );
+      enemyPick = draftState.enemies.find((p) => !alreadyClaimed.has(p.champion_id));
     }
-    dragOverRole = role;
-  }
 
-  function handleDragLeave(role: Role) {
-    if (dragOverRole === role) {
-      dragOverRole = null;
-    }
-  }
-
-  async function handleEnemyDrop(targetRole: Role, targetPick: DraftPick | null, e: DragEvent) {
-    e.preventDefault();
-    const sourceId = draggedEnemyChampId;
-    const sourceRole = draggedEnemyFromRole;
-    draggedEnemyChampId = null;
-    draggedEnemyFromRole = null;
-    dragOverRole = null;
-
-    if (!sourceId || sourceRole === targetRole) return;
-
-    try {
-      if (targetPick && targetPick.champion_id !== sourceId && sourceRole) {
-        await setEnemyRole(sourceId, targetRole);
-        await setEnemyRole(targetPick.champion_id, sourceRole);
-      } else {
-        await setEnemyRole(sourceId, targetRole);
-      }
-    } catch (err) {
-      console.error("Failed to reassign enemy role", err);
-    }
-  }
-
-  async function handleRoleSelectChange(enemyChampId: number, newRole: Role) {
-    try {
-      await setEnemyRole(enemyChampId, newRole);
-    } catch (err) {
-      console.error("Failed to set enemy role", err);
-    }
+    return { allyPick, enemyPick };
   }
 
   // Formatting helpers
@@ -275,7 +243,7 @@
                   🛡️ <strong class="text-slate-200">{analysis.blue_comp.frontline_count}</strong> Frontline
                 </span>
                 <span class="flex items-center gap-1">
-                  💫 CC: <strong class="text-slate-200">{analysis.blue_comp.cc_level || (analysis.blue_comp.frontline_count > 1 ? 'Hoch' : 'Mittel')}</strong>
+                  💫 CC: <strong class="text-slate-200">{analysis.blue_comp.cc_level || (analysis.blue_comp.frontline_count > 1 ? 'High' : 'Medium')}</strong>
                 </span>
               </div>
             </div>
@@ -310,7 +278,7 @@
                   🛡️ <strong class="text-slate-200">{analysis.red_comp.frontline_count}</strong> Frontline
                 </span>
                 <span class="flex items-center gap-1">
-                  💫 CC: <strong class="text-slate-200">{analysis.red_comp.cc_level || (analysis.red_comp.frontline_count > 1 ? 'Hoch' : 'Mittel')}</strong>
+                  💫 CC: <strong class="text-slate-200">{analysis.red_comp.cc_level || (analysis.red_comp.frontline_count > 1 ? 'High' : 'Medium')}</strong>
                 </span>
               </div>
             </div>
@@ -337,8 +305,7 @@
       <!-- 5 LANE DUEL CARDS (Top, Jungle, Mid, ADC, Support) -->
       <div class="flex flex-col gap-2">
         {#each ROLE_ORDER as def (def.role)}
-          {@const allyPick = $draft?.allies.find((p) => p.role === def.role)}
-          {@const enemyPick = $draft?.enemies.find((p) => p.role === def.role)}
+          {@const { allyPick, enemyPick } = getPairedLane(def.role, $draft)}
           {@const allyInfo = allyPick ? $championCatalog.get(allyPick.champion_id) : null}
           {@const enemyInfo = enemyPick ? $championCatalog.get(enemyPick.champion_id) : null}
           {@const matchup = analysis?.lane_matchups.find((m) => m.role === def.role)}
@@ -349,12 +316,7 @@
             aria-label="{def.label} Lane Matchup"
             class="relative flex items-center justify-between rounded-xl border p-2.5 transition-all {isMyLane
               ? 'bg-purple-950/30 border-purple-400/40 shadow-md ring-1 ring-purple-500/30'
-              : 'bg-[#0f0822]/70 border-purple-500/15 hover:border-purple-500/30'} {dragOverRole === def.role
-              ? 'ring-2 ring-rose-400 bg-rose-950/30'
-              : ''}"
-            on:dragover={(e) => handleDragOver(def.role, e)}
-            on:dragleave={() => handleDragLeave(def.role)}
-            on:drop={(e) => handleEnemyDrop(def.role, enemyPick || null, e)}
+              : 'bg-[#0f0822]/70 border-purple-500/15 hover:border-purple-500/30'}"
           >
             <!-- ALLY SIDE (LEFT) -->
             <button
@@ -494,51 +456,35 @@
                 </div>
               </div>
 
-              <!-- Enemy Portrait with Drag & Drop & Role Switcher -->
-              <div
-                role="group"
-                class="relative shrink-0 group {enemyPick ? 'cursor-grab active:cursor-grabbing' : ''}"
-                draggable={Boolean(enemyPick)}
-                on:dragstart={(e) => enemyPick && handleDragStart(enemyPick.champion_id, def.role, e)}
+              <!-- Enemy Portrait (Click to inspect build) -->
+              <button
+                type="button"
+                on:click={() => enemyPick && selectChampionToInspect(enemyPick.champion_id, def.role, false)}
+                class="relative shrink-0 group focus:outline-none cursor-pointer"
+                title="Click to inspect item build"
               >
                 {#if enemyInfo}
                   <img
                     src={squareIconUrl(enemyInfo.key, $ddragonVersion)}
                     alt={enemyInfo.name}
                     class="h-10 w-10 rounded-xl object-cover border border-rose-500/30 group-hover:scale-105 transition-transform"
-                    title="Drag to swap roles with another enemy"
                   />
                 {:else}
                   <div class="h-10 w-10 rounded-xl border border-dashed border-rose-500/30 bg-rose-950/20 flex items-center justify-center text-rose-400 text-xs font-bold">
                     ?
                   </div>
                 {/if}
-
-                <!-- Role Swap Dropdown on Hover/Click -->
-                {#if enemyPick}
-                  <select
-                    value={def.role}
-                    on:change={(e) => enemyPick && handleRoleSelectChange(enemyPick.champion_id, e.currentTarget.value as Role)}
-                    class="absolute -bottom-1 -left-1 h-4 w-5 opacity-70 hover:opacity-100 bg-[#0c071a] text-[8px] text-rose-300 font-bold rounded border border-rose-400/40 cursor-pointer focus:outline-none"
-                    title="Change enemy lane assignment"
-                  >
-                    {#each ROLE_ORDER as r}
-                      <option value={r.role}>{r.label[0]}</option>
-                    {/each}
-                  </select>
-                {/if}
-              </div>
+                <!-- Role Icon Badge -->
+                <img
+                  src={roleIconUrl(def.role)}
+                  alt={def.label}
+                  class="absolute -bottom-1 -left-1 h-4 w-4 rounded-full bg-[#080412] p-0.5 border border-rose-400/40"
+                  title={def.label}
+                />
+              </button>
             </div>
           </div>
         {/each}
-      </div>
-
-      <!-- Quick Drag & Role swap guide note -->
-      <div class="rounded-xl border border-purple-500/15 bg-purple-950/15 p-2.5 text-[11px] text-slate-400 flex items-center gap-2">
-        <span class="text-purple-300">💡</span>
-        <span>
-          <strong class="text-slate-200 font-semibold">Interactive Lane Adjustments:</strong> Drag enemy portraits or change their role letter to recalculate matchups if Riot's position guess was wrong.
-        </span>
       </div>
     </div>
   </section>

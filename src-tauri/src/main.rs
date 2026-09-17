@@ -382,6 +382,7 @@ fn run_internal_tests() {
                         ..Default::default()
                     },
                 ],
+                player_champion_selections: vec![],
             }),
         };
 
@@ -406,5 +407,144 @@ fn run_internal_tests() {
         println!("✓ Test 5 Passed: Gameflow lifecycle detection & live match state parsing");
     }
 
-    println!("\nALL 5 INTERNAL TESTS PASSED SUCCESSFULLY!");
+    // Test 6: In-game Live Client Data parsing and player_champion_selections recovery (Issue #10 bugfix)
+    {
+        use rift_companion_lib::lcu::models::{LiveClientActivePlayer, LiveClientPlayer, LiveClientSpell, LiveClientSpells};
+        use rift_companion_lib::lcu::models::{GameflowChampionSelection, GameflowGameData, GameflowPlayer, GameflowSession};
+
+        // 1. Verify from_gameflow recovers missing solo enemy players (Zed 238, Milio 902) from player_champion_selections
+        let session_with_selections = GameflowSession {
+            phase: "InProgress".to_string(),
+            game_data: Some(GameflowGameData {
+                game_id: 7986797534,
+                team_one: vec![
+                    GameflowPlayer {
+                        cell_id: 0,
+                        champion_id: 161, // Vel'Koz
+                        selected_position: "MIDDLE".to_string(),
+                        game_name: "LocalVelkoz".to_string(),
+                        tag_line: "EUW".to_string(),
+                        puuid: "puuid-local".to_string(),
+                        spell1_id: 4,
+                        spell2_id: 12,
+                        ..Default::default()
+                    },
+                    GameflowPlayer {
+                        cell_id: 1,
+                        champion_id: 267, // Nami
+                        selected_position: "UTILITY".to_string(),
+                        game_name: "AllyNami".to_string(),
+                        tag_line: "EUW".to_string(),
+                        puuid: "puuid-nami".to_string(),
+                        spell1_id: 4,
+                        spell2_id: 3,
+                        ..Default::default()
+                    },
+                ],
+                team_two: vec![
+                    GameflowPlayer {
+                        cell_id: 5,
+                        champion_id: 75, // Nasus
+                        selected_position: "TOP".to_string(),
+                        game_name: "EnemyNasus".to_string(),
+                        tag_line: "EUW".to_string(),
+                        puuid: "puuid-nasus".to_string(),
+                        spell1_id: 4,
+                        spell2_id: 6,
+                        ..Default::default()
+                    },
+                ],
+                // Zed (238) and Milio (902) are present in player_champion_selections
+                player_champion_selections: vec![
+                    GameflowChampionSelection { champion_id: 161, puuid: "puuid-local".to_string(), spell1_id: 4, spell2_id: 12 },
+                    GameflowChampionSelection { champion_id: 267, puuid: "puuid-nami".to_string(), spell1_id: 4, spell2_id: 3 },
+                    GameflowChampionSelection { champion_id: 75, puuid: "puuid-nasus".to_string(), spell1_id: 4, spell2_id: 6 },
+                    GameflowChampionSelection { champion_id: 238, puuid: "puuid-zed".to_string(), spell1_id: 4, spell2_id: 14 },
+                    GameflowChampionSelection { champion_id: 902, puuid: "puuid-milio".to_string(), spell1_id: 4, spell2_id: 7 },
+                ],
+            }),
+        };
+
+        let gf_state = rift_companion_lib::draft::from_gameflow(
+            &repo,
+            &session_with_selections,
+            Some("puuid-local"),
+            Some("LocalVelkoz"),
+            None,
+        ).expect("parsed from gameflow");
+
+        assert_eq!(gf_state.enemies.len(), 3, "enemy team filled from player_champion_selections");
+        assert!(gf_state.enemies.iter().any(|e| e.champion_id == 238), "Zed must be recovered");
+        assert!(gf_state.enemies.iter().any(|e| e.champion_id == 902), "Milio must be recovered");
+
+        // 2. Verify from_live_client accurately maps positions and teams
+        let live_players = vec![
+            LiveClientPlayer {
+                champion_name: "Vel'Koz".to_string(),
+                position: "MIDDLE".to_string(),
+                team: "ORDER".to_string(),
+                summoner_name: "LocalVelkoz#EUW".to_string(),
+                riot_id: "LocalVelkoz#EUW".to_string(),
+                ..Default::default()
+            },
+            LiveClientPlayer {
+                champion_name: "Nami".to_string(),
+                position: "UTILITY".to_string(),
+                team: "ORDER".to_string(),
+                summoner_name: "AllyNami#EUW".to_string(),
+                riot_id: "AllyNami#EUW".to_string(),
+                ..Default::default()
+            },
+            LiveClientPlayer {
+                champion_name: "Zed".to_string(),
+                position: "MIDDLE".to_string(),
+                team: "CHAOS".to_string(),
+                summoner_name: "Zed".to_string(),
+                riot_id: "#".to_string(),
+                summoner_spells: Some(LiveClientSpells {
+                    summoner_spell_one: Some(LiveClientSpell { display_name: "Flash".to_string(), ..Default::default() }),
+                    summoner_spell_two: Some(LiveClientSpell { display_name: "Ignite".to_string(), ..Default::default() }),
+                }),
+                ..Default::default()
+            },
+            LiveClientPlayer {
+                champion_name: "Milio".to_string(),
+                position: "UTILITY".to_string(),
+                team: "CHAOS".to_string(),
+                summoner_name: "Milio".to_string(),
+                riot_id: "#".to_string(),
+                ..Default::default()
+            },
+        ];
+
+        let active_player = LiveClientActivePlayer {
+            summoner_name: "LocalVelkoz#EUW".to_string(),
+            riot_id: "LocalVelkoz#EUW".to_string(),
+            ..Default::default()
+        };
+
+        let live_state = rift_companion_lib::draft::from_live_client(
+            &repo,
+            &live_players,
+            Some(&active_player),
+            None,
+        ).expect("parsed from live client");
+
+        assert_eq!(live_state.local_champion_id, Some(161));
+        assert_eq!(live_state.local_role, Some(Role::Mid));
+        assert_eq!(live_state.allies.len(), 2);
+        assert_eq!(live_state.enemies.len(), 2);
+
+        let zed_pick = live_state.enemies.iter().find(|e| e.champion_id == 238).expect("Zed in enemies");
+        assert_eq!(zed_pick.role, Some(Role::Mid));
+        assert_eq!(zed_pick.spell1_id, Some(4));
+        assert_eq!(zed_pick.spell2_id, Some(14));
+
+        let milio_pick = live_state.enemies.iter().find(|e| e.champion_id == 902).expect("Milio in enemies");
+        assert_eq!(milio_pick.role, Some(Role::Support));
+
+        println!("✓ Test 6 Passed: In-game Live Client Data parsing and player_champion_selections recovery");
+    }
+
+    println!("\nALL 6 INTERNAL TESTS PASSED SUCCESSFULLY!");
 }
