@@ -18,7 +18,7 @@
   let query = "";
   let dropdownOpen = false;
 
-  $: inChampSelect = !!($draft && ($draft.allies.length > 0 || $draft.enemies.length > 0));
+  $: inChampSelect = $draft !== null;
 
   // When player hovers a champion in League, highlight it in recommendations if present
   $: hoveredId = inChampSelect ? ($draft?.hovered_champion_id ?? null) : null;
@@ -378,8 +378,8 @@
 
     <!-- Recommendations List -->
     {#if filtered.length}
-      <div class="flex min-h-0 flex-1 flex-col rounded-xl border border-purple-500/20 bg-[#0e061e]/70 overflow-hidden shadow-inner">
-        <div class="flex min-h-0 flex-1 flex-col overflow-y-auto pr-1 divide-y divide-purple-500/10">
+      <div class="flex min-h-0 flex-1 flex-col overflow-y-auto py-1 pl-0.5 pr-3.5">
+        <div class="flex flex-col rounded-xl border border-purple-500/20 bg-[#0e061e]/70 overflow-hidden shadow-inner divide-y divide-purple-500/10 shrink-0">
           {#each filtered as rec (rec.champion_id)}
             <RecommendationCard
               {rec}

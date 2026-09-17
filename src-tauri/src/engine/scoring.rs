@@ -102,9 +102,9 @@ pub fn recommend(repo: &Repository, draft: &DraftState, w: &weights::Weights) ->
 
     let mut out: Vec<Recommendation> = repo
         .playable_in(role)
-        // Exclude banned and already-taken champions.
+        // Exclude banned and already-taken champions (exclude teammate picks/hovers and local locked picks, but keep local hovers).
         .filter(|c| !draft.bans.contains(&c.champion_id))
-        .filter(|c| !draft.allies.iter().any(|a| a.champion_id == c.champion_id))
+        .filter(|c| !draft.allies.iter().any(|a| (!a.is_local || !a.is_hover) && a.champion_id == c.champion_id))
         .filter(|c| !draft.enemies.iter().any(|e| e.champion_id == c.champion_id))
         .map(|c| score_one(repo, draft, w, role, c, &needs))
         .collect();
@@ -448,22 +448,28 @@ mod tests {
         let draft = DraftState {
             local_role: Some(Role::Top),
             local_champion_id: None,
+            hovered_champion_id: None,
+            is_locked: false,
             bans: vec![],
             // Ally jungler with no AP and no frontline → team needs both.
             allies: vec![DraftPick {
                 champion_id: 64,
                 role: Some(Role::Jungle),
                 is_local: false,
+                is_hover: false,
                 spell1_id: None,
                 spell2_id: None,
+                player_name: None,
             }],
             // Enemy top laner = Darius.
             enemies: vec![DraftPick {
                 champion_id: 122,
                 role: Some(Role::Top),
                 is_local: false,
+                is_hover: false,
                 spell1_id: None,
                 spell2_id: None,
+                player_name: None,
             }],
         };
 
@@ -497,14 +503,18 @@ mod tests {
         let draft = DraftState {
             local_role: Some(Role::Top),
             local_champion_id: None,
+            hovered_champion_id: None,
+            is_locked: false,
             bans: vec![],
             allies: vec![],
             enemies: vec![DraftPick {
                 champion_id: 122,
                 role: Some(Role::Top),
                 is_local: false,
+                is_hover: false,
                 spell1_id: None,
                 spell2_id: None,
+                player_name: None,
             }],
         };
         let recs = recommend(&repo, &draft, &Weights::default());
@@ -513,5 +523,117 @@ mod tests {
         if let (Some(t), Some(m)) = (teemo, malphite) {
             assert!(m < t, "Malphite must outrank the low-sample Teemo pick");
         }
+    }
+
+    #[test]
+    fn zero_pick_baseline_recommendations() {
+        // Test Requirement 1 & 2: When entering champ select before any pick or hover,
+        // recommendations are immediately computed based on raw Bayesian-smoothed win rates.
+        let repo = Repository::load_embedded().unwrap();
+        let draft = DraftState {
+            local_role: Some(Role::Top),
+            local_champion_id: None,
+            hovered_champion_id: None,
+            is_locked: false,
+            bans: vec![],
+            allies: vec![],
+            enemies: vec![],
+        };
+
+        let recs = recommend(&repo, &draft, &Weights::default());
+        let expected_count = repo.playable_in(Role::Top).count();
+        assert_eq!(recs.len(), expected_count, "all playable champions should be present");
+        assert!(!recs.is_empty(), "recommendations must not be empty at zero picks");
+
+        // Every pick should have the neutral blind-pick fallback badge
+        assert_eq!(recs[0].badges.len(), 1);
+        assert_eq!(recs[0].badges[0].kind, BadgeKind::Neutral);
+        assert_eq!(recs[0].badges[0].text, "Solid blind pick for your role");
+
+        // Scores must be sorted descending
+        for w in recs.windows(2) {
+            assert!(w[0].score >= w[1].score, "baseline scores must be descending");
+        }
+    }
+
+    #[test]
+    fn teammate_hover_tracking_and_synergy() {
+        // Test Requirement 3: Teammate hover influences comp balance and synergy
+        let repo = Repository::load_embedded().unwrap();
+
+        // Zero pick state
+        let zero_draft = DraftState {
+            local_role: Some(Role::Top),
+            local_champion_id: None,
+            hovered_champion_id: None,
+            is_locked: false,
+            bans: vec![],
+            allies: vec![],
+            enemies: vec![],
+        };
+        let zero_recs = recommend(&repo, &zero_draft, &Weights::default());
+
+        // Teammate jungler hovers an AD non-frontline champion (Lee Sin = 64)
+        let hover_draft = DraftState {
+            local_role: Some(Role::Top),
+            local_champion_id: None,
+            hovered_champion_id: None,
+            is_locked: false,
+            bans: vec![],
+            allies: vec![DraftPick {
+                champion_id: 64,
+                role: Some(Role::Jungle),
+                is_local: false,
+                is_hover: true,
+                spell1_id: None,
+                spell2_id: None,
+                player_name: None,
+            }],
+            enemies: vec![],
+        };
+        let hover_recs = recommend(&repo, &hover_draft, &Weights::default());
+
+        // Teammate hover must be excluded from local player's recommendations
+        assert!(
+            hover_recs.iter().all(|r| r.champion_id != 64),
+            "teammate hovered champion should not be recommended to local player"
+        );
+
+        // Comp needs must now detect missing AP & frontline because ally hovered AD non-tank
+        let malphite_zero = zero_recs.iter().find(|r| r.champion_id == 54).unwrap();
+        let malphite_hover = hover_recs.iter().find(|r| r.champion_id == 54).unwrap();
+        // Malphite provides missing magic damage and frontline -> score should increase
+        assert!(
+            malphite_hover.score > malphite_zero.score,
+            "Malphite score should rise to fill comp gap created by ally hover"
+        );
+    }
+
+    #[test]
+    fn local_player_hover_not_filtered_out() {
+        let repo = Repository::load_embedded().unwrap();
+        // Local player is hovering Malphite (54)
+        let draft = DraftState {
+            local_role: Some(Role::Top),
+            local_champion_id: None,
+            hovered_champion_id: Some(54),
+            is_locked: false,
+            bans: vec![],
+            allies: vec![DraftPick {
+                champion_id: 54,
+                role: Some(Role::Top),
+                is_local: true,
+                is_hover: true,
+                spell1_id: None,
+                spell2_id: None,
+                player_name: None,
+            }],
+            enemies: vec![],
+        };
+        let recs = recommend(&repo, &draft, &Weights::default());
+        assert!(
+            recs.iter().any(|r| r.champion_id == 54),
+            "local player's own hovered champion must remain in recommendations"
+        );
     }
 }

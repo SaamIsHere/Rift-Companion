@@ -6,12 +6,12 @@
 //!   * run the weighted scoring engine,
 //!   * push live updates to the webview via events.
 
-mod commands;
-mod data;
-mod draft;
-mod engine;
-mod lcu;
-mod opgg;
+pub mod commands;
+pub mod data;
+pub mod draft;
+pub mod engine;
+pub mod lcu;
+pub mod opgg;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -58,6 +58,8 @@ pub struct Shared {
     pub refresh_lock: Arc<tokio::sync::Mutex<()>>,
     /// User-adjustable app settings (Issue #15): appearance, behavior, data controls.
     pub settings: Arc<Mutex<Settings>>,
+    /// Current LCU gameflow phase ("None", "ChampSelect", "GameStart", "InProgress", etc.)
+    pub gameflow_phase: Arc<Mutex<String>>,
 }
 
 /// CLI entry point: install a normalized champion-stats JSON (the `Champion[]`
@@ -123,12 +125,14 @@ pub fn run() {
         rank_manual: Arc::new(Mutex::new(rank_manual)),
         refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
         settings: Arc::new(Mutex::new(settings)),
+        gameflow_phase: Arc::new(Mutex::new("None".to_string())),
     };
 
     tauri::Builder::default()
         .manage(shared.clone())
         .invoke_handler(tauri::generate_handler![
             commands::get_connection_status,
+            commands::get_gameflow_phase,
             commands::get_profile,
             commands::get_draft_state,
             commands::get_recommendations,

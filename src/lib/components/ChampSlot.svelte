@@ -31,6 +31,8 @@
   // teammate/opponent slot to see that specific pairing's historical win rate.
   $: localRole = $draft?.local_role ?? null;
   $: isAllySlot = accent === "purple" || accent === "cyan";
+  $: isLocalSlot = pick?.is_local || (!pick && isAllySlot && localRole === role);
+  $: isHoveredPick = pick?.is_hover ?? false;
   $: canPreview =
     Boolean(pick) &&
     !pick?.is_local &&
@@ -78,8 +80,10 @@
   on:mouseleave={() => (hovering = false)}
   class="group relative flex items-center gap-2.5 rounded-xl px-3 py-2 transition-all duration-150 select-none {isDragOver
     ? 'ring-2 ring-purple-400 bg-purple-900/40 shadow-lg shadow-purple-500/20'
-    : 'bg-[#120826]/70 hover:bg-[#190c33]/85 border border-purple-500/15'} {pick?.is_local
-    ? 'ring-1 ring-purple-400/80 bg-purple-950/40 shadow-sm'
+    : isHoveredPick
+      ? 'bg-[#120826]/55 hover:bg-[#190c33]/75 border border-dashed border-amber-500/40 shadow-sm'
+      : 'bg-[#120826]/70 hover:bg-[#190c33]/85 border border-purple-500/15'} {isLocalSlot
+    ? 'ring-1 ring-inset ring-purple-400/80 bg-purple-950/40 shadow-sm'
     : ''} {editable && pick ? 'cursor-grab active:cursor-grabbing' : ''}"
 >
   <!-- Hover Preview Tooltip -->
@@ -138,11 +142,15 @@
 
   <!-- Champion Avatar -->
   {#if pick && info && !imgError}
-    <div class="relative h-9 w-9 rounded-full overflow-hidden ring-1 ring-purple-500/30 bg-[#120924] shrink-0">
+    <div
+      class="relative h-9 w-9 rounded-full overflow-hidden {isHoveredPick
+        ? 'ring-2 ring-dashed ring-amber-400/80'
+        : 'ring-1 ring-purple-500/30'} bg-[#120924] shrink-0"
+    >
       <img
         src={squareIconUrl(info.key, $ddragonVersion)}
         alt={name}
-        class="h-full w-full object-cover scale-[1.18]"
+        class="h-full w-full object-cover scale-[1.18] {isHoveredPick ? 'opacity-85' : ''}"
         on:error={() => (imgError = true)}
       />
     </div>
@@ -150,7 +158,7 @@
     <div
       class="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-[10px] font-bold {accent === 'rose'
         ? 'text-rose-300'
-        : 'text-purple-300'} ring-1 ring-purple-500/20 shrink-0"
+        : 'text-purple-300'} {isHoveredPick ? 'ring-2 ring-dashed ring-amber-400/80' : 'ring-1 ring-purple-500/20'} shrink-0"
     >
       {pick.champion_id}
     </div>
@@ -165,17 +173,30 @@
   <!-- Champion Name & Subtitle -->
   <div class="min-w-0 flex-1 flex flex-col justify-center">
     {#if pick}
-      <div class="flex items-center gap-1.5">
-        <span class="truncate text-sm font-medium text-white">{name}</span>
+      <div class="flex items-center gap-1.5 flex-wrap">
+        <span class="truncate text-sm font-medium {isHoveredPick ? 'text-slate-200' : 'text-white'}">{name}</span>
         {#if pick.is_local}
           <span class="rounded bg-purple-500/25 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-purple-300 ring-1 ring-purple-400/40">
             You
+          </span>
+        {/if}
+        {#if isHoveredPick}
+          <span class="inline-flex items-center gap-1 rounded bg-amber-500/15 border border-amber-500/35 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-amber-300">
+            <span class="h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping"></span>
+            Hovering
           </span>
         {/if}
       </div>
       <span class="truncate text-[11px] text-slate-400">
         {playerLabel || (editable ? "Enemy" : "Teammate")}
       </span>
+    {:else if isAllySlot && localRole === role}
+      <div class="flex items-center gap-1.5">
+        <span class="text-xs italic text-purple-300/80 font-medium">Waiting for pick...</span>
+        <span class="rounded bg-purple-500/25 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-purple-300 ring-1 ring-purple-400/40">
+          You
+        </span>
+      </div>
     {:else}
       <span class="text-xs italic text-slate-500">
         {editable ? "Pick open" : "Waiting for pick..."}

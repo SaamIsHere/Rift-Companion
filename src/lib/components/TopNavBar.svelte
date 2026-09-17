@@ -1,6 +1,6 @@
 <script lang="ts">
   import { activeTab, type NavTab, resetChampionsView } from "../stores/navigation";
-  import { draft } from "../stores/draft";
+  import { draft, gameflowPhase } from "../stores/draft";
   import { connection } from "../stores/connection";
   import { profile, loadPlayerProfile, isExplicitSearch, activeSearchQuery } from "../stores/profile";
   import { rankTier } from "../stores/rank";
@@ -72,8 +72,8 @@
       >
         <div class="flex items-center gap-1.5">
           <span>{tab.label}</span>
-          {#if tab.id === "live_match" && $draft}
-            <!-- Pulsing LIVE badge when champ select is active -->
+          {#if tab.id === "live_match" && ($draft || ["ChampSelect", "GameStart", "InProgress", "Reconnect"].includes($gameflowPhase))}
+            <!-- Pulsing LIVE badge when champ select or match is active -->
             <span class="flex h-2 w-2 relative">
               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>

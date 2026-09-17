@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { connection } from "../stores/connection";
-import { draft } from "../stores/draft";
+import { draft, gameflowPhase } from "../stores/draft";
 import { profile } from "../stores/profile";
 import { rankRefreshing, rankRefreshProgress, rankTier } from "../stores/rank";
 import { recommendations } from "../stores/recommendations";
@@ -47,9 +47,12 @@ export async function initIpc(): Promise<void> {
   await listen<ConnectionStatus>("lcu://connection", (e) =>
     connection.set(e.payload),
   );
+  await listen<string>("gameflow://phase", (e) => {
+    gameflowPhase.set(e.payload);
+  });
   await listen<Summoner | null>("lcu://profile", (e) => profile.set(e.payload));
   await listen<DraftState | null>("champ-select://update", (e) => {
-    const isNowEmpty = !e.payload || (e.payload.allies.length === 0 && e.payload.enemies.length === 0);
+    const isNowEmpty = !e.payload;
     if (prevDraftEmpty && !isNowEmpty) {
       // Fresh champ select session started -> reset scoring focus to default
       scoringMode.set("default");
@@ -78,9 +81,13 @@ export async function initIpc(): Promise<void> {
   // Prime with whatever the backend already knows (e.g. app opened mid-draft).
   try {
     connection.set(await invoke<ConnectionStatus>("get_connection_status"));
+    try {
+      const phase = await invoke<string>("get_gameflow_phase");
+      if (phase) gameflowPhase.set(phase);
+    } catch (_) {}
     profile.set(await invoke<Summoner | null>("get_profile"));
     const initialDraft = await invoke<DraftState | null>("get_draft_state");
-    prevDraftEmpty = !initialDraft || (initialDraft.allies.length === 0 && initialDraft.enemies.length === 0);
+    prevDraftEmpty = !initialDraft;
     draft.set(initialDraft);
     recommendations.set(await invoke<Recommendation[]>("get_recommendations"));
     try {
@@ -558,6 +565,16 @@ export async function simulateMatchAnalysis(
   } catch (err) {
     console.error("Failed to simulate match analysis", err);
     return null;
+  }
+}
+
+export async function getGameflowPhase(): Promise<string> {
+  if (!isTauri) return "None";
+  try {
+    return await invoke<string>("get_gameflow_phase");
+  } catch (err) {
+    console.error("Failed to get gameflow phase", err);
+    return "None";
   }
 }
 

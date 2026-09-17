@@ -33,8 +33,10 @@ export interface DraftPick {
   champion_id: number;
   role: Role | null;
   is_local: boolean;
+  is_hover?: boolean;
   spell1_id?: number | null;
   spell2_id?: number | null;
+  player_name?: string | null;
 }
 
 export interface DraftState {
@@ -359,6 +361,8 @@ export interface SimulatedTeamComp {
   magic_count: number;
   mixed_count: number;
   frontline_count: number;
+  cc_count?: number;
+  cc_level?: string;
   physical_pct: number;
   magic_pct: number;
   warnings: string[];

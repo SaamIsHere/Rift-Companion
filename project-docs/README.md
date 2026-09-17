@@ -16,8 +16,8 @@ To understand or extend the application, refer to the following documents:
    Explores the mathematics and code behind champion pick scoring: Bayesian smoothing, the role-specific ally/enemy weight matrices, and team-composition balancing.
 5. **[Data Management & Ingestion](data-management.md)**
    Explains how Champion datasets are loaded, stored, crawled in the background, ingested through the CLI tool, and mapped to League of Legends Data Dragon resources.
-6. **[Project Issues & Feature Backlog](issues-backlog.md)**
-   Provides a structured roadmap of open issues and planned features, developer implementation notes, and key clarification questions.
+
+> **Note**: Project issues, bug tracking, and feature roadmaps are managed directly on [GitHub Issues](https://github.com/SaamIsHere/Rift-Companion/issues).
 
 ---
 

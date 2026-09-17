@@ -50,6 +50,46 @@ pub async fn get_session(lock: &Lockfile) -> Result<Option<serde_json::Value>> {
     }
 }
 
+/// Fetch the current gameflow phase ("ChampSelect", "GameStart", "InProgress", "None", etc.).
+pub async fn get_gameflow_phase(lock: &Lockfile) -> Result<Option<String>> {
+    let client = http_client()?;
+    let url = format!(
+        "https://127.0.0.1:{}/lol-gameflow/v1/gameflow-phase",
+        lock.port
+    );
+    let resp = client
+        .get(url)
+        .header("Authorization", auth_header(lock))
+        .send()
+        .await?;
+
+    if resp.status().is_success() {
+        Ok(Some(resp.json().await?))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Fetch the current gameflow session, if any.
+pub async fn get_gameflow_session(lock: &Lockfile) -> Result<Option<serde_json::Value>> {
+    let client = http_client()?;
+    let url = format!(
+        "https://127.0.0.1:{}/lol-gameflow/v1/session",
+        lock.port
+    );
+    let resp = client
+        .get(url)
+        .header("Authorization", auth_header(lock))
+        .send()
+        .await?;
+
+    if resp.status().is_success() {
+        Ok(Some(resp.json().await?))
+    } else {
+        Ok(None)
+    }
+}
+
 /// Active account's summoner profile, fetched on client connect (Issue #9, persisted in Issue #40).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Summoner {

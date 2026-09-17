@@ -1,31 +1,51 @@
 <script lang="ts">
-  import { draft } from "../stores/draft";
+  import { draft, gameflowPhase } from "../stores/draft";
   import { championCatalog } from "../stores/champions";
   import DraftBoard from "./DraftBoard.svelte";
   import RecommendationList from "./RecommendationList.svelte";
   import ChampionOverview from "./ChampionOverview.svelte";
+  import InGameDashboard from "./InGameDashboard.svelte";
 
-  let viewMode: "draft" | "overview" = "draft";
+  let viewMode: "dashboard" | "draft" | "overview" = "draft";
   let previewChampionId: number | null = null;
+  let userExplicitMode = false;
 
   $: localChampId = $draft?.local_champion_id || null;
   $: localRole = $draft?.local_role || null;
   $: localChampName = localChampId ? $championCatalog.get(localChampId)?.name : null;
 
-  // If player locks in a champion and switches to overview, target that champion
+  $: isInGame = ["GameStart", "InProgress", "Reconnect"].includes($gameflowPhase);
+
+  // Auto-transition to in-game live dashboard when match starts or if already in game
+  $: if (isInGame && !userExplicitMode && viewMode === "draft") {
+    viewMode = "dashboard";
+  } else if (!isInGame && !userExplicitMode && $draft && viewMode === "dashboard") {
+    // If returning to draft/champ select, default back to draft
+    viewMode = "draft";
+  }
+
+  // If player previews a champion from recommendations or locks in, target that champion for overview
   $: targetChampId = previewChampionId || localChampId;
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-  <!-- Top Switcher Bar when player has locked in or selected a champion -->
-  {#if localChampId}
-    <div class="flex items-center justify-between border-b border-purple-500/15 bg-[#0a0517]/90 px-6 py-2 backdrop-blur-md">
+  <!-- Top Switcher Bar when player has locked in or game is in progress -->
+  {#if localChampId || isInGame}
+    <div class="flex items-center justify-between border-b border-purple-500/15 bg-[#0a0517]/90 px-6 py-2 backdrop-blur-md shrink-0">
       <div class="flex items-center gap-3">
-        <span class="text-xs text-slate-400">
-          Locked Champion:
-          <strong class="text-purple-300 ml-1">{localChampName || `ID ${localChampId}`}</strong>
+        <span class="text-xs text-slate-400 flex items-center gap-1.5">
+          {#if isInGame}
+            <span class="flex h-2 w-2 relative">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <strong class="text-emerald-400 font-bold uppercase tracking-wider text-[11px]">In-Game:</strong>
+          {:else}
+            <span>Locked:</span>
+          {/if}
+          <strong class="text-purple-300 ml-0.5">{localChampName || (localChampId ? `ID ${localChampId}` : "Your Champion")}</strong>
           {#if localRole}
-            <span class="text-purple-400/80 uppercase text-[10px] ml-1">({localRole})</span>
+            <span class="text-purple-400/80 uppercase text-[10px]">({localRole})</span>
           {/if}
         </span>
       </div>
@@ -34,7 +54,16 @@
       <div class="flex items-center gap-1 rounded-xl border border-purple-500/20 bg-purple-950/40 p-1">
         <button
           type="button"
-          on:click={() => { viewMode = "draft"; previewChampionId = null; }}
+          on:click={() => { viewMode = "dashboard"; userExplicitMode = true; }}
+          class="rounded-lg px-3 py-1 text-xs font-bold transition {viewMode === 'dashboard'
+            ? 'bg-purple-600 text-white shadow-sm'
+            : 'text-slate-400 hover:text-white'}"
+        >
+          🎮 In-Game Dashboard
+        </button>
+        <button
+          type="button"
+          on:click={() => { viewMode = "draft"; previewChampionId = null; userExplicitMode = true; }}
           class="rounded-lg px-3 py-1 text-xs font-bold transition {viewMode === 'draft'
             ? 'bg-purple-600 text-white shadow-sm'
             : 'text-slate-400 hover:text-white'}"
@@ -43,24 +72,28 @@
         </button>
         <button
           type="button"
-          on:click={() => { viewMode = "overview"; }}
+          on:click={() => { viewMode = "overview"; userExplicitMode = true; }}
           class="rounded-lg px-3 py-1 text-xs font-bold transition {viewMode === 'overview'
             ? 'bg-purple-600 text-white shadow-sm'
             : 'text-slate-400 hover:text-white'}"
         >
-          ⚡ In-Game Build &amp; Overview
+          ⚡ Full Overview
         </button>
       </div>
     </div>
   {/if}
 
-  <!-- Active View Mode -->
-  {#if viewMode === "overview" && targetChampId}
-    <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+  <!-- Active View Mode Rendering -->
+  {#if viewMode === "dashboard"}
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden animate-fade-in">
+      <InGameDashboard />
+    </div>
+  {:else if viewMode === "overview" && targetChampId}
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden animate-fade-in">
       <ChampionOverview
         championId={targetChampId}
         initialRole={localRole}
-        onBack={() => { viewMode = "draft"; previewChampionId = null; }}
+        onBack={() => { viewMode = isInGame ? "dashboard" : "draft"; previewChampionId = null; }}
       />
     </div>
   {:else}

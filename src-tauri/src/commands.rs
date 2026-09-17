@@ -38,6 +38,11 @@ pub fn get_recommendations(state: State<Shared>) -> Vec<Recommendation> {
 
 /// Re-tune the algorithm weights live and return a freshly ranked list.
 #[tauri::command]
+pub fn get_gameflow_phase(state: State<Shared>) -> String {
+    state.gameflow_phase.lock().unwrap().clone()
+}
+
+#[tauri::command]
 pub fn set_weights(state: State<Shared>, weights: Weights, app: AppHandle) -> Vec<Recommendation> {
     *state.weights.lock().unwrap() = weights;
     let recs = compute(&state);
@@ -1163,6 +1168,10 @@ pub struct SimulatedTeamComp {
     pub magic_count: usize,
     pub mixed_count: usize,
     pub frontline_count: usize,
+    #[serde(default)]
+    pub cc_count: usize,
+    #[serde(default)]
+    pub cc_level: String,
     pub physical_pct: f64,
     pub magic_pct: f64,
     pub warnings: Vec<String>,
@@ -1354,6 +1363,7 @@ pub fn simulate_match_analysis(state: State<Shared>, draft: DraftState) -> Simul
         let mut magic = 0;
         let mut mixed = 0;
         let mut frontline = 0;
+        let mut cc_count = 0;
 
         for p in picks {
             if let Some(c) = repo.get(p.champion_id) {
@@ -1364,6 +1374,12 @@ pub fn simulate_match_analysis(state: State<Shared>, draft: DraftState) -> Simul
                 }
                 if c.frontline {
                     frontline += 1;
+                    cc_count += 2;
+                }
+                if p.role == Some(Role::Support) {
+                    cc_count += 2;
+                } else if p.role == Some(Role::Mid) && c.damage == DamageType::Magic {
+                    cc_count += 1;
                 }
             }
         }
@@ -1372,6 +1388,14 @@ pub fn simulate_match_analysis(state: State<Shared>, draft: DraftState) -> Simul
         let total_dmg_dealers = (physical + magic + mixed).max(1) as f64;
         let physical_pct = ((physical as f64 + mixed as f64 * 0.5) / total_dmg_dealers) * 100.0;
         let magic_pct = ((magic as f64 + mixed as f64 * 0.5) / total_dmg_dealers) * 100.0;
+
+        let cc_level = if cc_count >= 5 {
+            "Hoch".to_string()
+        } else if cc_count >= 3 {
+            "Mittel".to_string()
+        } else {
+            "Niedrig".to_string()
+        };
 
         let mut warnings = Vec::new();
         let mut strengths = Vec::new();
@@ -1390,6 +1414,12 @@ pub fn simulate_match_analysis(state: State<Shared>, draft: DraftState) -> Simul
             } else {
                 strengths.push(format!("{frontline}x Frontline/Tank für Teamfights vorhanden"));
             }
+
+            if cc_count >= 5 {
+                strengths.push("Starke Crowd Control / Engage für Teamfights".to_string());
+            } else if cc_count <= 2 && count >= 4 {
+                warnings.push("Wenig Crowd Control: Kaum Stuns oder Festhalte-Effekte".to_string());
+            }
         }
 
         SimulatedTeamComp {
@@ -1398,6 +1428,8 @@ pub fn simulate_match_analysis(state: State<Shared>, draft: DraftState) -> Simul
             magic_count: magic,
             mixed_count: mixed,
             frontline_count: frontline,
+            cc_count,
+            cc_level,
             physical_pct,
             magic_pct,
             warnings,

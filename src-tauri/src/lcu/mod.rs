@@ -108,9 +108,22 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                     }
                 }
 
-                // We may already be in champ select — pull the current state once.
-                if let Ok(Some(value)) = client::get_session(&lock).await {
-                    handle_session(&app, &shared, value);
+                // Check current gameflow phase first!
+                let initial_phase = match client::get_gameflow_phase(&lock).await {
+                    Ok(Some(p)) => p,
+                    _ => "None".to_string(),
+                };
+                *shared.gameflow_phase.lock().unwrap() = initial_phase.clone();
+                let _ = app.emit("gameflow://phase", &initial_phase);
+
+                if initial_phase == "ChampSelect" {
+                    if let Ok(Some(value)) = client::get_session(&lock).await {
+                        handle_session(&app, &shared, value);
+                    }
+                } else if is_in_match(&initial_phase) {
+                    if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
+                        handle_gameflow_session(&app, &shared, gf_val);
+                    }
                 }
 
                 while let Some(msg) = ws.next().await {
@@ -119,15 +132,37 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                             if let Some(ev) = parse_event(&txt) {
                                 if ev.uri.contains("gameflow-phase") {
                                     if let Some(phase) = ev.data.as_str() {
-                                        if phase != "ChampSelect" {
-                                            tracing::info!(phase, "gameflow phase is not ChampSelect; clearing champ-select state");
+                                        tracing::info!(phase, "gameflow phase update");
+                                        *shared.gameflow_phase.lock().unwrap() = phase.to_string();
+                                        let _ = app.emit("gameflow://phase", phase);
+
+                                        if phase == "ChampSelect" {
+                                            tracing::info!(phase, "entered champ select");
+                                        } else if phase == "GameStart" || phase == "InProgress" || phase == "Reconnect" {
+                                            tracing::info!(phase, "match active / in-progress; preserving match state");
+                                            if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
+                                                handle_gameflow_session(&app, &shared, gf_val);
+                                            }
+                                        } else if !is_in_match(phase) {
+                                            tracing::info!(phase, "gameflow phase is not an active match; clearing session");
                                             clear_session(&app, &shared);
                                         }
+                                    }
+                                } else if ev.uri.contains("gameflow") && ev.uri.contains("session") {
+                                    let current_phase = shared.gameflow_phase.lock().unwrap().clone();
+                                    if is_in_match(&current_phase) {
+                                        handle_gameflow_session(&app, &shared, ev.data);
                                     }
                                 } else if ev.uri.contains("champ-select") {
                                     let is_404 = ev.data.get("httpStatus").and_then(|s| s.as_i64()) == Some(404);
                                     if ev.event_type == "Delete" || ev.data.is_null() || is_404 {
-                                        clear_session(&app, &shared);
+                                        let current_phase = shared.gameflow_phase.lock().unwrap().clone();
+                                        if !is_in_match(&current_phase) {
+                                            tracing::info!(current_phase, "champ-select session closed and not in match; clearing session");
+                                            clear_session(&app, &shared);
+                                        } else {
+                                            tracing::info!(current_phase, "champ-select session closed but match is starting/in-progress; preserving state");
+                                        }
                                     } else {
                                         handle_session(&app, &shared, ev.data);
                                     }
@@ -148,6 +183,10 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
     }
 }
 
+pub fn is_in_match(phase: &str) -> bool {
+    matches!(phase, "ChampSelect" | "GameStart" | "InProgress" | "Reconnect")
+}
+
 struct LcuEvent {
     event_type: String,
     uri: String,
@@ -166,11 +205,61 @@ fn parse_event(txt: &str) -> Option<LcuEvent> {
 
 fn clear_session(app: &AppHandle, shared: &Shared) {
     *shared.latest_draft.lock().unwrap() = None;
+    *shared.gameflow_phase.lock().unwrap() = "None".to_string();
     shared.weights.lock().unwrap().mode = crate::engine::weights::ScoringMode::Default;
     shared.enemy_role_overrides.lock().unwrap().clear();
     let _ = app.emit("champ-select://update", None::<DraftState>);
+    let _ = app.emit("gameflow://phase", "None");
     let _ = app.emit("recommendations://update", Vec::<crate::engine::Recommendation>::new());
     let _ = app.emit("scoring-mode://update", crate::engine::weights::ScoringMode::Default);
+}
+
+fn handle_gameflow_session(app: &AppHandle, shared: &Shared, data: serde_json::Value) {
+    let session: models::GameflowSession = match serde_json::from_value(data) {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::debug!("ignoring non-gameflow-session payload: {e}");
+            return;
+        }
+    };
+
+    let repo = shared.repo.lock().unwrap().clone();
+    let local_profile = shared.profile.lock().unwrap().clone();
+    let local_puuid = local_profile.as_ref().map(|p| p.puuid.as_str());
+    let local_name = local_profile.as_ref().map(|p| p.display_name.as_str());
+    let existing_draft = shared.latest_draft.lock().unwrap().clone();
+
+    if let Some(mut state) = draft::from_gameflow(
+        repo.as_ref(),
+        &session,
+        local_puuid,
+        local_name,
+        existing_draft.as_ref(),
+    ) {
+        // Re-apply any enemy role overrides
+        {
+            let mut overrides = shared.enemy_role_overrides.lock().unwrap();
+            if !overrides.is_empty() {
+                let live_ids: std::collections::HashSet<u32> =
+                    state.enemies.iter().map(|p| p.champion_id).collect();
+                overrides.retain(|id, _| live_ids.contains(id));
+                for pick in state.enemies.iter_mut() {
+                    if let Some(role) = overrides.get(&pick.champion_id) {
+                        pick.role = Some(*role);
+                    }
+                }
+            }
+        }
+
+        tracing::info!(
+            allies = state.allies.len(),
+            enemies = state.enemies.len(),
+            "in-game match state updated from gameflow"
+        );
+
+        *shared.latest_draft.lock().unwrap() = Some(state.clone());
+        let _ = app.emit("champ-select://update", &state);
+    }
 }
 
 /// Normalise → score → emit. This is the heart of Phase 1/2 wiring.

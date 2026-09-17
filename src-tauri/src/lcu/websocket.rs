@@ -19,6 +19,7 @@ pub type WsStream = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 
 const CHAMP_SELECT_EVENT: &str = "OnJsonApiEvent_lol-champ-select_v1_session";
 const GAMEFLOW_PHASE_EVENT: &str = "OnJsonApiEvent_lol-gameflow_v1_gameflow-phase";
+const GAMEFLOW_SESSION_EVENT: &str = "OnJsonApiEvent_lol-gameflow_v1_session";
 
 pub async fn connect(lock: &Lockfile) -> Result<WsStream> {
     let url = format!("wss://127.0.0.1:{}/", lock.port);
@@ -42,8 +43,11 @@ pub async fn connect(lock: &Lockfile) -> Result<WsStream> {
     let subscribe_cs = format!("[5, \"{CHAMP_SELECT_EVENT}\"]");
     ws.send(Message::Text(subscribe_cs.into())).await?;
 
-    let subscribe_gf = format!("[5, \"{GAMEFLOW_PHASE_EVENT}\"]");
-    ws.send(Message::Text(subscribe_gf.into())).await?;
+    let subscribe_gfp = format!("[5, \"{GAMEFLOW_PHASE_EVENT}\"]");
+    ws.send(Message::Text(subscribe_gfp.into())).await?;
+
+    let subscribe_gfs = format!("[5, \"{GAMEFLOW_SESSION_EVENT}\"]");
+    ws.send(Message::Text(subscribe_gfs.into())).await?;
 
     Ok(ws)
 }

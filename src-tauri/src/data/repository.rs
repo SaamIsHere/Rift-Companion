@@ -132,9 +132,11 @@ mod tests {
         let draft = DraftState {
             local_role: Some(Role::Top),
             local_champion_id: None,
+            hovered_champion_id: None,
+            is_locked: false,
             bans: vec![],
-            allies: vec![DraftPick { champion_id: 64, role: Some(Role::Jungle), is_local: false, spell1_id: None, spell2_id: None }],
-            enemies: vec![DraftPick { champion_id: 122, role: Some(Role::Top), is_local: false, spell1_id: None, spell2_id: None }],
+            allies: vec![DraftPick { champion_id: 64, role: Some(Role::Jungle), is_local: false, is_hover: false, spell1_id: None, spell2_id: None, player_name: None }],
+            enemies: vec![DraftPick { champion_id: 122, role: Some(Role::Top), is_local: false, is_hover: false, spell1_id: None, spell2_id: None, player_name: None }],
         };
         let recs = recommend(&repo, &draft, &Weights::default());
         let expected = repo

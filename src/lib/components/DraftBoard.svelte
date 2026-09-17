@@ -18,8 +18,10 @@
   let draggedEnemy: { championId: number; role: Role } | null = null;
   let dragOverRole: Role | null = null;
 
-  $: inChampSelect = !!($draft && ($draft.allies.length > 0 || $draft.enemies.length > 0));
+  $: inChampSelect = $draft !== null;
   $: referenceName = inChampSelect && $referenceChampionId !== null ? $championCatalog.get($referenceChampionId)?.name : undefined;
+  $: lockedAlliesCount = $draft?.allies.filter((p) => !p.is_hover).length ?? 0;
+  $: lockedEnemiesCount = $draft?.enemies.filter((p) => !p.is_hover).length ?? 0;
 
   function mapPicksToRoles(picks: DraftPick[], isEnemy = false) {
     const assigned = new Set<number>();
@@ -44,6 +46,8 @@
     result.forEach((slot) => {
       if (slot.pick) {
         slot.playerLabel = slot.pick.is_local ? "You" : isEnemy ? `Enemy ${playerCounter++}` : `Player ${playerCounter++}`;
+      } else if (!isEnemy && slot.role === $draft?.local_role) {
+        slot.playerLabel = "You";
       }
     });
 
@@ -128,12 +132,12 @@
   </div>
 
   {#if $draft && inChampSelect}
-    <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+    <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto py-1 pl-1.5 pr-4">
       <!-- Your Team -->
       <div class="flex flex-col gap-2">
         <div class="flex items-center justify-between px-1">
           <h3 class="text-xs font-bold uppercase tracking-wider text-purple-300/80">Your Team</h3>
-          <span class="text-[11px] text-slate-400 font-medium">{$draft.allies.length}/5 picked</span>
+          <span class="text-[11px] text-slate-400 font-medium">{lockedAlliesCount}/5 picked</span>
         </div>
         <div class="flex flex-col gap-1.5">
           {#each allySlots as slot (slot.role)}
@@ -152,7 +156,7 @@
       <div class="flex flex-col gap-2 pt-1 border-t border-purple-500/15">
         <div class="flex items-center justify-between px-1">
           <h3 class="text-xs font-bold uppercase tracking-wider text-rose-300/80">Enemy Team</h3>
-          <span class="text-[11px] text-slate-400 font-medium">{$draft.enemies.length}/5 picked</span>
+          <span class="text-[11px] text-slate-400 font-medium">{lockedEnemiesCount}/5 picked</span>
         </div>
         <div class="flex flex-col gap-1.5">
           {#each enemySlots as slot (slot.role)}

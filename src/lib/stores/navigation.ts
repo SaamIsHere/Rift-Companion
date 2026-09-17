@@ -1,5 +1,5 @@
-import { writable } from "svelte/store";
-import { draft } from "./draft";
+import { writable, get } from "svelte/store";
+import { draft, gameflowPhase } from "./draft";
 import type { Role } from "../types";
 
 export type NavTab = "startseite" | "profil" | "champions" | "ranglisten" | "simulation" | "live_match";
@@ -20,16 +20,30 @@ activeTab.subscribe((tab) => {
 
 let previousDraftState: boolean = false;
 
-// Automatically navigate to LIVE MATCH when champion select begins,
-// and return to STARTSEITE when champion select closes.
+// Automatically navigate to LIVE MATCH when champion select or match begins,
+// and return to STARTSEITE only when the active match fully ends.
 draft.subscribe((d) => {
   const isInDraft = d !== null;
-  if (isInDraft && !previousDraftState) {
+  const phase = get(gameflowPhase);
+  const isMatchActive = isInDraft || ["ChampSelect", "GameStart", "InProgress", "Reconnect"].includes(phase);
+
+  if (isMatchActive && !previousDraftState) {
     activeTab.set("live_match");
-  } else if (!isInDraft && previousDraftState) {
+  } else if (!isMatchActive && previousDraftState) {
     activeTab.update((current) => (current === "live_match" ? "startseite" : current));
   }
-  previousDraftState = isInDraft;
+  previousDraftState = isMatchActive;
+});
+
+gameflowPhase.subscribe((phase) => {
+  const isMatchActive = ["ChampSelect", "GameStart", "InProgress", "Reconnect"].includes(phase);
+  if (isMatchActive && !previousDraftState) {
+    activeTab.set("live_match");
+    previousDraftState = true;
+  } else if (!isMatchActive && previousDraftState && get(draft) === null) {
+    activeTab.update((current) => (current === "live_match" ? "startseite" : current));
+    previousDraftState = false;
+  }
 });
 
 export const championsViewReset = writable<number>(0);

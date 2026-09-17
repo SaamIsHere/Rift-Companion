@@ -1,6 +1,6 @@
 # Scoring Engine & Algorithm
 
-The Rift Companion scoring engine evaluates every eligible champion for the local player's role and returns the full pool ranked by score (no top-N cutoff — see [Issue 14](issues-backlog.md#issue-14-expand-playable-champions-pool-per-role-split-from-issue-5)). It ranks picks by refining the champion's base role win rate with role-specific ally/enemy weight matrices, plus a small composition-balance bonus.
+The Rift Companion scoring engine evaluates every eligible champion for the local player's role and returns the full pool ranked by score (no top-N cutoff — see [GitHub Issue #14](https://github.com/SaamIsHere/Rift-Companion/issues/14)). It ranks picks by refining the champion's base role win rate with role-specific ally/enemy weight matrices, plus a small composition-balance bonus.
 
 The core scoring implementation resides in [src-tauri/src/engine/scoring.rs](../src-tauri/src/engine/scoring.rs).
 
@@ -93,7 +93,7 @@ Every badge carries a `BadgeKind` (`Positive` green / `Negative` red / `Comp` bl
 * **Synergy badge** (allies): the strongest ally relationship in *either* direction — by $|w_{\text{ally}} \cdot \Delta|$, not just the first one found — produces "High synergy with [Ally]" (green, $WR_{\text{smoothed}} > 0.52$) or "Weak synergy with [Ally]" (red, $WR_{\text{smoothed}} < 0.48$).
 * **Comp badges**: unchanged from §4 below, always `Comp` (blue) since there's no "made the gap worse" case.
 * Final badge list order is `[matchup, synergy, ...comp]`, truncated to 3; falls back to a single `Neutral` "Solid blind pick for your role" badge if nothing cleared any threshold.
-* A `get_pairwise_stat` Tauri command exposes the same smoothed-and-gated lookup for a single ally/enemy cell on demand, powering a draft-board hover preview independent of whichever role is currently being scored (see [Issue 7 in the backlog](issues-backlog.md#issue-7-refined-champion-badges-counter-and-synergy-highlights)).
+* A `get_pairwise_stat` Tauri command exposes the same smoothed-and-gated lookup for a single ally/enemy cell on demand, powering a draft-board hover preview independent of whichever role is currently being scored (see [GitHub Issue #7](https://github.com/SaamIsHere/Rift-Companion/issues/7)).
 
 ---
 
