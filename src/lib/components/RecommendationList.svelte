@@ -193,12 +193,10 @@
   {#if inChampSelect}
     {#if activePreviewId}
       <!-- Hovered / Preselected Champion Banner -->
-      <div class="mb-3 flex flex-col rounded-xl border border-purple-500/35 bg-void-950/50 backdrop-blur-md p-3 shadow-lg shadow-purple-950/40 animate-fade-in relative overflow-hidden shrink-0">
-        <div class="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-purple-500 to-transparent"></div>
-
+      <div class="mb-3 flex flex-col rounded-xl border border-purple-500/20 bg-void-950/20 p-3 shadow-md relative overflow-hidden shrink-0">
         <div class="flex items-center gap-2 mb-2">
-          <span class="inline-flex items-center gap-1.5 rounded-md bg-purple-500/20 border border-purple-500/40 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-purple-200">
-            <span class="h-1.5 w-1.5 rounded-full bg-purple-400 animate-ping"></span>
+          <span class="inline-flex items-center gap-1.5 rounded-md bg-purple-500/15 border border-purple-500/30 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-purple-200">
+            <span class="h-1.5 w-1.5 rounded-full bg-purple-400"></span>
             Hovered Pick
           </span>
           {#if localRole}
@@ -210,7 +208,7 @@
 
         <div class="flex items-center justify-between gap-3">
           <div class="flex items-center gap-3 min-w-0">
-            <div class="relative h-11 w-11 shrink-0 rounded-xl overflow-hidden ring-2 ring-purple-500/50 bg-[#120924] shadow-md">
+            <div class="relative h-11 w-11 shrink-0 rounded-xl overflow-hidden ring-1 ring-purple-500/30 bg-[#120924] shadow-sm">
               {#if displayImage}
                 <img
                   src={squareIconUrl(displayImage, $ddragonVersion)}
@@ -379,7 +377,7 @@
     <!-- Recommendations List -->
     {#if filtered.length}
       <div class="flex min-h-0 flex-1 flex-col overflow-y-auto py-1 pl-0.5 pr-3.5">
-        <div class="flex flex-col rounded-xl border border-purple-500/20 bg-void-950/35 backdrop-blur-sm overflow-hidden shadow-inner divide-y divide-purple-500/10 shrink-0">
+        <div class="flex flex-col rounded-xl border border-purple-500/15 bg-void-950/15 overflow-hidden divide-y divide-purple-500/10 shrink-0">
           {#each filtered as rec (rec.champion_id)}
             <RecommendationCard
               {rec}

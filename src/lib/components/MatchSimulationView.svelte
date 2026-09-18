@@ -718,7 +718,7 @@
       <!-- Left Column: 5v5 Simulation Board (Map or Classic) -->
       <section class="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1">
         <!-- Board Top Bar: Team Counts -->
-        <div class="flex items-center justify-between rounded-xl border border-purple-500/20 bg-void-950/40 px-3.5 py-2 backdrop-blur-md shadow-md">
+        <div class="flex items-center justify-between rounded-xl border border-purple-500/20 bg-void-950/20 px-3.5 py-2 backdrop-blur-sm shadow-sm">
           <div class="flex items-center gap-3">
             <div class="flex items-center gap-1.5">
               <span class="h-2.5 w-2.5 rounded-full bg-cyan-400 ring-2 ring-cyan-400/30"></span>
@@ -737,17 +737,17 @@
         </div>
 
         <!-- Tactical Summoner's Rift Map Board -->
-        <div class="relative w-full aspect-square max-h-[500px] rounded-2xl overflow-hidden border border-purple-500/25 bg-[#06030e] shadow-2xl mx-auto select-none group/map">
+        <div class="glass relative w-full aspect-square max-h-[500px] rounded-2xl overflow-hidden border border-purple-500/25 shadow-xl mx-auto select-none group/map">
           <!-- Summoner's Rift Satellite Map Background -->
           <img
             src={summonersRiftMapUrl($ddragonVersion)}
             alt="Summoner's Rift Tactical Map"
-            class="absolute inset-0 h-full w-full object-cover opacity-85 contrast-[1.15] brightness-90"
+            class="absolute inset-0 h-full w-full object-cover opacity-70 contrast-[1.12] brightness-95"
           />
 
           <!-- Ambient Lighting & Dark Edge Vignette -->
-          <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#06030e]/80 via-transparent to-[#06030e]/50"></div>
-          <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#06030e]/40 via-transparent to-[#06030e]/40"></div>
+          <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-void-950/50 via-transparent to-void-950/25"></div>
+          <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-void-950/25 via-transparent to-void-950/25"></div>
 
           <!-- Base Landmarks -->
           <div class="pointer-events-none absolute left-2.5 bottom-2.5 flex items-center gap-1.5 rounded-lg border border-cyan-500/30 bg-black/60 px-2 py-0.5 backdrop-blur-md">
@@ -780,10 +780,10 @@
                     type="button"
                     on:click={() => openPicker({ type: slot.team, role: slot.role })}
                     class="relative flex h-11 w-11 items-center justify-center rounded-full overflow-hidden transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none {isUserSlot
-                      ? 'ring-2 ring-purple-400 bg-purple-950/90 shadow-lg shadow-purple-500/50'
+                      ? 'ring-2 ring-purple-400 bg-purple-950/90 shadow-md'
                       : isAlly
-                      ? 'ring-2 ring-cyan-400/80 bg-[#0c1326]/90 shadow-md shadow-cyan-500/30 hover:ring-cyan-300'
-                      : 'ring-2 ring-rose-500/80 bg-[#260c14]/90 shadow-md shadow-rose-500/30 hover:ring-rose-400'}"
+                      ? 'ring-2 ring-cyan-400/80 bg-[#0c1326]/90 shadow-md hover:ring-cyan-300'
+                      : 'ring-2 ring-rose-500/80 bg-[#260c14]/90 shadow-md hover:ring-rose-400'}"
                     title="{slot.label}: {champInfo ? champInfo.name : 'Click to pick champion'}"
                   >
                     {#if champId && champInfo}
@@ -862,7 +862,7 @@
 
 
         <!-- Bans Section -->
-        <div class="rounded-xl border border-purple-500/15 bg-void-950/40 backdrop-blur-md p-2.5">
+        <div class="rounded-xl border border-purple-500/15 bg-void-950/20 p-2.5">
           <div class="mb-2 flex items-center justify-between">
             <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
               Banned Champions ({bans.length}/10)
@@ -1018,8 +1018,8 @@
 
                   <div
                     class="group relative flex items-center justify-between gap-3 rounded-xl border p-2.5 transition-all duration-150 {isCurrentlyLocked
-                      ? 'border-purple-400 bg-purple-950/50 shadow-md shadow-purple-500/20'
-                      : 'border-purple-500/15 bg-void-950/35 hover:border-purple-400/40 hover:bg-purple-900/30 backdrop-blur-sm'}"
+                      ? 'border-purple-400 bg-purple-950/40 shadow-sm'
+                      : 'border-purple-500/15 bg-void-950/15 hover:border-purple-400/40 hover:bg-purple-900/20'}"
                   >
                     <!-- Left: Rank + Avatar + Name & Roles (Fixed width ensures straight vertical alignment across all rows) -->
                     <div class="flex items-center gap-2.5 w-48 shrink-0 overflow-hidden">

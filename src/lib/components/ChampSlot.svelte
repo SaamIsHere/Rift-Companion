@@ -122,23 +122,23 @@
   on:mouseenter={() => { if (!isAnyDragging) hovering = true; }}
   on:mouseleave={() => { hovering = false; }}
   class="group relative flex items-center gap-2.5 rounded-xl px-3 py-2 border transition-[background-color,border-color,box-shadow,opacity] duration-100 select-none {isDragging
-    ? 'opacity-40 border-dashed border-rose-400/60 bg-void-950/40'
+    ? 'opacity-40 border-dashed border-rose-400/60 bg-void-950/30'
     : isDragOver
       ? (accent === 'rose'
-          ? 'border-rose-400 bg-rose-900/40 ring-2 ring-rose-400/50 shadow-lg shadow-rose-500/20'
-          : 'border-purple-400 bg-purple-900/40 ring-2 ring-purple-400/50 shadow-lg shadow-purple-500/20')
+          ? 'border-rose-400 bg-rose-900/30 ring-2 ring-rose-400/50 shadow-md'
+          : 'border-purple-400 bg-purple-900/30 ring-2 ring-purple-400/50 shadow-md')
       : isSelected
         ? (accent === 'rose'
-            ? 'border-rose-400 bg-rose-950/70 ring-2 ring-rose-400/50 shadow-lg shadow-rose-500/30'
-            : 'border-purple-400 bg-purple-950/70 ring-2 ring-purple-400/50 shadow-lg shadow-purple-500/30')
+            ? 'border-rose-400 bg-rose-950/50 ring-2 ring-rose-400/50 shadow-md'
+            : 'border-purple-400 bg-purple-950/50 ring-2 ring-purple-400/50 shadow-md')
         : isSwapTarget
           ? (accent === 'rose'
               ? 'border-dashed border-rose-400/60 bg-rose-950/20 hover:bg-rose-900/30 hover:border-rose-300 cursor-pointer shadow-sm'
               : 'border-dashed border-purple-400/60 bg-purple-950/20 hover:bg-purple-900/30 hover:border-purple-300 cursor-pointer shadow-sm')
           : isHoveredPick
-            ? 'border-dashed border-amber-500/40 bg-void-950/30 hover:bg-void-900/45 shadow-sm'
-            : 'border-purple-500/15 bg-void-950/35 hover:bg-purple-900/30 backdrop-blur-sm'} {isLocalSlot
-    ? 'ring-1 ring-inset ring-purple-400/80 bg-purple-950/40 shadow-sm'
+            ? 'border-dashed border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/15 shadow-sm'
+            : 'border-purple-500/15 bg-void-950/15 hover:bg-purple-900/20'} {isLocalSlot
+    ? 'ring-1 ring-inset ring-purple-400/60 bg-purple-950/20 shadow-sm'
     : ''} {editable && pick ? 'cursor-grab active:cursor-grabbing' : editable ? 'cursor-pointer' : ''}"
 >
   <!-- Hover Preview Tooltip -->
