@@ -4,19 +4,15 @@ import type { Role } from "../types";
 
 export type NavTab = "startseite" | "profil" | "champions" | "ranglisten" | "simulation" | "live_match";
 
-const validTabs: NavTab[] = ["startseite", "profil", "champions", "ranglisten", "simulation", "live_match"];
-const savedTab = typeof localStorage !== "undefined" ? (localStorage.getItem("rift_active_tab") as NavTab) : null;
-const initialTab: NavTab = savedTab && validTabs.includes(savedTab) && savedTab !== "live_match" ? savedTab : "startseite";
+// Always start on startseite on cold launch
+export const activeTab = writable<NavTab>("startseite");
 
-export const activeTab = writable<NavTab>(initialTab);
-
-activeTab.subscribe((tab) => {
-  try {
-    if (typeof localStorage !== "undefined" && tab && tab !== "live_match") {
-      localStorage.setItem("rift_active_tab", tab);
-    }
-  } catch {}
-});
+// Clean up any previously stored active tab from earlier versions
+try {
+  if (typeof localStorage !== "undefined") {
+    localStorage.removeItem("rift_active_tab");
+  }
+} catch {}
 
 let previousDraftState: boolean = false;
 
