@@ -1,9 +1,12 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import type { Role, DraftState, Recommendation, SimulatedMatchAnalysis } from "../types";
+  import { get } from "svelte/store";
+  import { invoke } from "@tauri-apps/api/core";
+  import type { Role, DraftState, Recommendation, SimulatedMatchAnalysis, Summoner, DetailedParticipant } from "../types";
   import { championCatalog, ddragonVersion } from "../stores/champions";
   import { draft as liveDraft } from "../stores/draft";
   import { scoringMode } from "../stores/scoring";
+  import { profile, viewedProfile, viewedMatches, loadPlayerProfile, loadMatchDetail } from "../stores/profile";
   import { squareIconUrl, roleIconUrl, summonersRiftMapUrl } from "../utils/ddragon";
   import { simulateDraft, simulateMatchAnalysis, getPairwiseStat, getChampionsByRole } from "../ipc/tauri";
   import ChampionOverview from "./ChampionOverview.svelte";
@@ -29,18 +32,18 @@
   // Exact positions on Summoner's Rift tactical layout
   const MAP_SLOTS: MapSlotDef[] = [
     // Blue Team (Allies)
-    { role: "top", team: "ally", label: "Top", x: 18, y: 30 },
-    { role: "jungle", team: "ally", label: "Jungle", x: 30, y: 62 },
-    { role: "mid", team: "ally", label: "Mid", x: 41, y: 53 },
-    { role: "adc", team: "ally", label: "ADC", x: 68, y: 82 },
-    { role: "support", team: "ally", label: "Support", x: 80, y: 87 },
+    { role: "top", team: "ally", label: "Top", x: 9, y: 24 },
+    { role: "jungle", team: "ally", label: "Jungle", x: 23, y: 49 },
+    { role: "mid", team: "ally", label: "Mid", x: 44, y: 56 },
+    { role: "adc", team: "ally", label: "ADC", x: 63, y: 94 },
+    { role: "support", team: "ally", label: "Support", x: 76, y: 94 },
 
     // Red Team (Enemies)
-    { role: "top", team: "enemy", label: "Top", x: 32, y: 18 },
-    { role: "jungle", team: "enemy", label: "Jungle", x: 70, y: 38 },
-    { role: "mid", team: "enemy", label: "Mid", x: 59, y: 47 },
-    { role: "adc", team: "enemy", label: "ADC", x: 82, y: 68 },
-    { role: "support", team: "enemy", label: "Support", x: 87, y: 80 },
+    { role: "top", team: "enemy", label: "Top", x: 24, y: 7 },
+    { role: "jungle", team: "enemy", label: "Jungle", x: 78.5, y: 51 },
+    { role: "mid", team: "enemy", label: "Mid", x: 56, y: 44 },
+    { role: "adc", team: "enemy", label: "ADC", x: 90.5, y: 63 },
+    { role: "support", team: "enemy", label: "Support", x: 90.5, y: 76 },
   ];
 
   // Role champions cache for accurate position filtering in picker
@@ -243,6 +246,238 @@
     overviewRole = role;
   }
 
+  // Assign 5 participants of a team to standard roles
+  function assignTeamRoles(
+    participants: DetailedParticipant[],
+    roleCache: Partial<Record<Role, Set<number>>>
+  ): Record<Role, number | null> {
+    const result: Record<Role, number | null> = {
+      top: null,
+      jungle: null,
+      mid: null,
+      adc: null,
+      support: null,
+    };
+
+    const unassigned = [...participants];
+    const assignedRoles = new Set<Role>();
+
+    function normalizePosString(pos?: string): Role | null {
+      if (!pos) return null;
+      const p = pos.toLowerCase().trim();
+      if (p.includes("top")) return "top";
+      if (p.includes("jungle") || p === "jug") return "jungle";
+      if (p.includes("mid") || p.includes("middle")) return "mid";
+      if (p.includes("adc") || p === "bottom" || p === "bot" || p.includes("carry")) return "adc";
+      if (p.includes("support") || p.includes("utility") || p === "supp" || p === "sup") return "support";
+      return null;
+    }
+
+    // 1. Pass: participants with an explicit position if distinct
+    for (let i = unassigned.length - 1; i >= 0; i--) {
+      const p = unassigned[i];
+      let pos = normalizePosString(p.position);
+
+      // Disambiguate bot lane if lane was reported as bottom
+      if (pos === "adc") {
+        const hasSmite = p.spells?.includes(11);
+        const hasSuppItem = p.items?.some((it) => [3865, 3866, 3867, 3869, 3870, 3871, 3876, 3877].includes(it));
+        if (hasSmite) {
+          pos = "jungle";
+        } else if (hasSuppItem) {
+          pos = "support";
+        }
+      }
+
+      if (pos && !assignedRoles.has(pos)) {
+        result[pos] = p.champion_id;
+        assignedRoles.add(pos);
+        unassigned.splice(i, 1);
+      }
+    }
+
+    // 2. Pass: identify Jungler by Smite (spell ID 11) if jungle unassigned
+    if (!assignedRoles.has("jungle")) {
+      const smiteIdx = unassigned.findIndex((p) => p.spells?.includes(11));
+      if (smiteIdx !== -1) {
+        result.jungle = unassigned[smiteIdx].champion_id;
+        assignedRoles.add("jungle");
+        unassigned.splice(smiteIdx, 1);
+      }
+    }
+
+    // 3. Pass: identify Support by Support Quest item if support unassigned
+    if (!assignedRoles.has("support")) {
+      const suppItemIdx = unassigned.findIndex((p) =>
+        p.items?.some((it) => [3865, 3866, 3867, 3869, 3870, 3871, 3876, 3877].includes(it))
+      );
+      if (suppItemIdx !== -1) {
+        result.support = unassigned[suppItemIdx].champion_id;
+        assignedRoles.add("support");
+        unassigned.splice(suppItemIdx, 1);
+      }
+    }
+
+    // 4. Pass: match remaining participants against roleCache
+    const remainingRoles: Role[] = (["top", "jungle", "mid", "adc", "support"] as Role[]).filter(
+      (r) => !assignedRoles.has(r)
+    );
+
+    for (const r of remainingRoles) {
+      const champSet = roleCache[r];
+      if (champSet) {
+        const matchIdx = unassigned.findIndex((p) => champSet.has(p.champion_id));
+        if (matchIdx !== -1) {
+          result[r] = unassigned[matchIdx].champion_id;
+          assignedRoles.add(r);
+          unassigned.splice(matchIdx, 1);
+        }
+      }
+    }
+
+    // 5. Pass: fill remaining empty slots in order
+    const finalEmpty: Role[] = (["top", "jungle", "mid", "adc", "support"] as Role[]).filter(
+      (r) => !assignedRoles.has(r)
+    );
+    for (let i = 0; i < finalEmpty.length && i < unassigned.length; i++) {
+      result[finalEmpty[i]] = unassigned[i].champion_id;
+      assignedRoles.add(finalEmpty[i]);
+    }
+
+    return result;
+  }
+
+  // Quick Action: Import Last Match (with background profile refresh)
+  let isImportingLastMatch = false;
+  let importFeedback: { type: "success" | "error"; text: string } | null = null;
+  let feedbackTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function showImportFeedback(type: "success" | "error", text: string) {
+    if (feedbackTimer) clearTimeout(feedbackTimer);
+    importFeedback = { type, text };
+    feedbackTimer = setTimeout(() => {
+      importFeedback = null;
+    }, 4500);
+  }
+
+  async function importLastMatch() {
+    if (isImportingLastMatch) return;
+    isImportingLastMatch = true;
+    importFeedback = null;
+
+    try {
+      // 1. Identify active profile / connected summoner
+      let localSummoner = get(profile);
+      if (!localSummoner) {
+        try {
+          const fetched = await invoke<Summoner | null>("get_profile");
+          if (fetched) {
+            profile.set(fetched);
+            localSummoner = fetched;
+          }
+        } catch {}
+      }
+
+      const viewed = get(viewedProfile);
+      const activeSummoner = localSummoner || viewed;
+
+      if (!activeSummoner) {
+        showImportFeedback("error", "Kein Spielerprofil oder verbundener League-Client gefunden.");
+        return;
+      }
+
+      const gn = activeSummoner.game_name || activeSummoner.display_name?.split("#")[0];
+      const tl = activeSummoner.tag_line || activeSummoner.display_name?.split("#")[1];
+      const region = viewed?.region || "EUW";
+
+      // 2. Perform background profile refresh (forceRefresh = true)
+      await loadPlayerProfile(gn, tl, region, true);
+
+      // 3. Retrieve latest match
+      const matches = get(viewedMatches);
+      if (!matches || matches.length === 0) {
+        showImportFeedback("error", "Kein Match im Verlauf gefunden.");
+        return;
+      }
+
+      const lastMatch = matches[0];
+
+      // 4. Ensure full 10-player participants are loaded
+      let participants = lastMatch.participants;
+      if (!participants || participants.length < 10) {
+        const loaded = await loadMatchDetail(
+          lastMatch.id,
+          region,
+          lastMatch.raw_created_at || lastMatch.game_creation,
+          gn ? `${gn}#${tl || region}` : undefined
+        );
+        if (loaded && loaded.length > 0) {
+          participants = loaded;
+        }
+      }
+
+      if (!participants || participants.length === 0) {
+        showImportFeedback("error", "Teilnehmer des letzten Matches konnten nicht geladen werden.");
+        return;
+      }
+
+      // 5. Ensure all role caches are ready
+      await Promise.all(ROLE_DEFS.map((r) => ensureRoleCache(r.role)));
+
+      // 6. Find user participant
+      const targetIdent = (gn || "").toLowerCase();
+      const localPart =
+        participants.find((p) => p.is_local) ||
+        participants.find(
+          (p) =>
+            p.champion_id === lastMatch.champion_id ||
+            p.game_name?.toLowerCase() === targetIdent ||
+            p.summoner_name?.toLowerCase() === targetIdent
+        ) ||
+        participants[0];
+
+      const userTeamId = localPart.team_id;
+      const allyParts = participants.filter((p) => p.team_id === userTeamId);
+      const enemyParts = participants.filter((p) => p.team_id !== userTeamId);
+
+      // 7. Assign roles
+      const assignedAllies = assignTeamRoles(allyParts, roleChampionsMap);
+      const assignedEnemies = assignTeamRoles(enemyParts, roleChampionsMap);
+
+      // 8. Find user's detected role
+      let detectedUserRole: Role | null = null;
+      for (const [r, champId] of Object.entries(assignedAllies) as [Role, number | null][]) {
+        if (champId === localPart.champion_id) {
+          detectedUserRole = r;
+          break;
+        }
+      }
+
+      if (detectedUserRole) {
+        userRole = detectedUserRole;
+      }
+
+      allies = assignedAllies;
+      enemies = assignedEnemies;
+
+      // 9. Bans
+      const matchBans = lastMatch.bans || [];
+      bans = [...matchBans.slice(0, 10)];
+
+      // Recompute simulation and switch to analysis tab
+      activeRightTab = "match_analysis";
+      triggerEngineRecompute();
+
+      const userChamp = $championCatalog.get(localPart.champion_id)?.name || "Champion";
+      showImportFeedback("success", `Letztes Match importiert (${userChamp} - ${userRole.toUpperCase()})`);
+    } catch (err: any) {
+      console.error("Failed to import last match:", err);
+      showImportFeedback("error", err?.message || "Fehler beim Importieren des letzten Matches.");
+    } finally {
+      isImportingLastMatch = false;
+    }
+  }
+
   // Quick Action: Import from Live Draft
   function importFromLiveDraft() {
     if (!$liveDraft) return;
@@ -368,18 +603,15 @@
   <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#07040d] text-slate-100 select-none">
     <!-- Top Action Bar -->
     <header class="flex flex-wrap items-center justify-between gap-3 border-b border-purple-500/15 bg-[#090514]/90 px-6 py-2.5 backdrop-blur-md">
-      <!-- Left: Title & Role Selector -->
-      <div class="flex items-center gap-4">
+      <!-- Left: Title, Role Selector & Action Controls -->
+      <div class="flex flex-wrap items-center gap-4">
         <div class="flex items-center gap-2">
           <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-600/20 border border-purple-500/30 text-purple-300">
             <span class="text-sm">⚔️</span>
           </div>
           <div>
-            <h1 class="text-sm font-black tracking-wide text-white flex items-center gap-2">
+            <h1 class="text-sm font-black tracking-wide text-white">
               MATCH SIMULATION
-              <span class="rounded bg-purple-500/20 border border-purple-400/30 px-1.5 py-0.5 text-[9px] font-bold text-purple-300 uppercase tracking-widest">
-                Simulator
-              </span>
             </h1>
             <p class="text-[10px] text-purple-300/70">
               Mock Champion Select &amp; calculate win rates, lane matchups &amp; synergies
@@ -414,43 +646,71 @@
             {/each}
           </div>
         </div>
-      </div>
 
-      <!-- Right: Action Buttons -->
-      <div class="flex items-center gap-2">
-        {#if $liveDraft}
+        <!-- Divider -->
+        <div class="h-6 w-[1px] bg-purple-500/20"></div>
+
+        <!-- Action Buttons directly next to My Role -->
+        <div class="flex items-center gap-2">
+          <!-- Import Last Match -->
           <button
             type="button"
-            on:click={importFromLiveDraft}
-            class="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-950/40 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-900/50 transition shadow-sm"
-            title="Import current champion select from League client"
+            on:click={importLastMatch}
+            disabled={isImportingLastMatch}
+            class="flex items-center gap-1.5 rounded-xl border border-purple-500/30 bg-purple-950/40 px-3 py-1.5 text-xs font-semibold text-purple-200 hover:bg-purple-900/50 hover:border-purple-400/40 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+            title="Refresh profile &amp; import champions from your last played match"
           >
-            <span class="relative flex h-2 w-2">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span>Import Live Draft</span>
+            {#if isImportingLastMatch}
+              <div class="h-3 w-3 animate-spin rounded-full border-2 border-purple-300 border-t-transparent"></div>
+              <span>Importing…</span>
+            {:else}
+              <span class="text-xs">📜</span>
+              <span>Import Last Match</span>
+            {/if}
           </button>
-        {/if}
 
-        <button
-          type="button"
-          on:click={fillRandomChampions}
-          class="flex items-center gap-1.5 rounded-xl border border-purple-500/25 bg-purple-950/30 px-3 py-1.5 text-xs font-semibold text-purple-200 hover:bg-purple-900/50 hover:border-purple-400/40 transition"
-          title="Fill all slots with random champions (except your slot)"
-        >
-          <span>🎲 Random Fill</span>
-        </button>
+          {#if $liveDraft}
+            <button
+              type="button"
+              on:click={importFromLiveDraft}
+              class="flex items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-950/40 px-3 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-900/50 transition shadow-sm"
+              title="Import current champion select from League client"
+            >
+              <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span>Import Live Draft</span>
+            </button>
+          {/if}
 
-        <button
-          type="button"
-          on:click={clearAll}
-          class="flex items-center gap-1.5 rounded-xl border border-rose-500/25 bg-rose-950/20 px-2.5 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-900/40 transition"
-          title="Reset all picks and bans"
-        >
-          <span>✕ Reset</span>
-        </button>
+          <button
+            type="button"
+            on:click={fillRandomChampions}
+            class="flex items-center gap-1.5 rounded-xl border border-purple-500/25 bg-purple-950/30 px-3 py-1.5 text-xs font-semibold text-purple-200 hover:bg-purple-900/50 hover:border-purple-400/40 transition"
+            title="Fill all slots with random champions (except your slot)"
+          >
+            <span>🎲 Random Fill</span>
+          </button>
+
+          <button
+            type="button"
+            on:click={clearAll}
+            class="flex items-center gap-1.5 rounded-xl border border-rose-500/25 bg-rose-950/20 px-2.5 py-1.5 text-xs font-semibold text-rose-300 hover:bg-rose-900/40 transition"
+            title="Reset all picks and bans"
+          >
+            <span>✕ Reset</span>
+          </button>
+        </div>
       </div>
+
+      <!-- Right: Status / Feedback message -->
+      {#if importFeedback}
+        <div class="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium backdrop-blur transition animate-fade-in {importFeedback.type === 'error' ? 'bg-rose-950/60 border border-rose-500/30 text-rose-300' : 'bg-emerald-950/60 border border-emerald-500/30 text-emerald-300'}">
+          <span>{importFeedback.type === 'error' ? '⚠️' : '✓'}</span>
+          <span>{importFeedback.text}</span>
+        </div>
+      {/if}
     </header>
 
     <!-- Main Simulator Workspace -->
@@ -489,11 +749,6 @@
           <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#06030e]/80 via-transparent to-[#06030e]/50"></div>
           <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#06030e]/40 via-transparent to-[#06030e]/40"></div>
 
-          <!-- River Flow Line -->
-          <svg class="pointer-events-none absolute inset-0 h-full w-full opacity-35" viewBox="0 0 100 100">
-            <path d="M 12 30 Q 30 35, 50 50 T 88 70" fill="none" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="2 2" />
-          </svg>
-
           <!-- Base Landmarks -->
           <div class="pointer-events-none absolute left-2.5 bottom-2.5 flex items-center gap-1.5 rounded-lg border border-cyan-500/30 bg-black/60 px-2 py-0.5 backdrop-blur-md">
             <span class="h-2 w-2 rounded-full bg-cyan-400 shadow-sm shadow-cyan-400"></span>
@@ -503,11 +758,6 @@
           <div class="pointer-events-none absolute right-2.5 top-2.5 flex items-center gap-1.5 rounded-lg border border-rose-500/30 bg-black/60 px-2 py-0.5 backdrop-blur-md">
             <span class="h-2 w-2 rounded-full bg-rose-400 shadow-sm shadow-rose-400"></span>
             <span class="text-[8px] font-black uppercase tracking-wider text-rose-300">Red Base</span>
-          </div>
-
-          <!-- Pit Landmarks -->
-          <div class="pointer-events-none absolute left-[26%] top-[38%] -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 rounded bg-black/50 border border-purple-500/25 px-1.5 py-0.5 text-[8px] font-bold text-purple-300/80 backdrop-blur-sm">
-            <span>⚔️</span> Baron Pit
           </div>
 
             <!-- 10 Interactive Map Slots -->
@@ -767,15 +1017,15 @@
                   {@const champCat = $championCatalog.get(rec.champion_id)}
 
                   <div
-                    class="group relative flex items-center justify-between rounded-xl border p-3 transition-all duration-150 {isCurrentlyLocked
+                    class="group relative flex items-center justify-between gap-3 rounded-xl border p-2.5 transition-all duration-150 {isCurrentlyLocked
                       ? 'border-purple-400 bg-purple-950/50 shadow-md shadow-purple-500/20'
                       : 'border-purple-500/15 bg-[#120826]/70 hover:border-purple-400/40 hover:bg-[#180b32]/85'}"
                   >
-                    <!-- Left: Rank + Avatar + Name -->
-                    <div class="flex items-center gap-3 min-w-0">
-                      <span class="w-5 text-center text-xs font-black text-slate-400">#{idx + 1}</span>
+                    <!-- Left: Rank + Avatar + Name & Roles (Fixed width ensures straight vertical alignment across all rows) -->
+                    <div class="flex items-center gap-2.5 w-48 shrink-0 overflow-hidden">
+                      <span class="w-5 text-center text-xs font-black text-slate-400 shrink-0">#{idx + 1}</span>
 
-                      <div class="relative h-10 w-10 shrink-0 overflow-hidden rounded-full ring-1 ring-purple-400/40 group-hover:ring-purple-300 transition">
+                      <div class="relative h-9 w-9 shrink-0 overflow-hidden rounded-full ring-1 ring-purple-400/40 group-hover:ring-purple-300 transition">
                         <img
                           src={squareIconUrl(rec.image, $ddragonVersion)}
                           alt={rec.name}
@@ -783,36 +1033,36 @@
                         />
                       </div>
 
-                      <div class="min-w-0 flex flex-col justify-center">
-                        <div class="flex items-center gap-2">
-                          <h4 class="truncate text-xs font-bold text-white group-hover:text-purple-200 transition">
+                      <div class="min-w-0 flex-1 flex flex-col justify-center overflow-hidden">
+                        <div class="flex items-center gap-1.5 overflow-hidden">
+                          <h4 class="truncate text-xs font-bold text-white group-hover:text-purple-200 transition" title={rec.name}>
                             {rec.name}
                           </h4>
                           {#if isCurrentlyLocked}
-                            <span class="rounded bg-purple-600 px-1.5 py-0.2 text-[8px] font-black text-white uppercase tracking-wider">
+                            <span class="rounded bg-purple-600 px-1 py-0.2 text-[7px] font-black text-white uppercase tracking-wider shrink-0">
                               My Pick
                             </span>
                           {/if}
                         </div>
-                        <span class="text-[10px] text-purple-300/70 font-medium">
+                        <span class="truncate text-[10px] text-purple-300/70 font-medium" title={champCat?.tags?.join(" • ") || "Flex"}>
                           {champCat?.tags?.join(" • ") || "Flex"}
                         </span>
                       </div>
                     </div>
 
-                    <!-- Center: Win Rate Score & Badges -->
-                    <div class="flex items-center gap-4 px-2">
-                      <div class="flex flex-col items-center">
-                        <span class="text-sm font-black {rec.score >= 53 ? 'text-emerald-400' : rec.score >= 50 ? 'text-purple-300' : 'text-amber-400'}">
-                          {rec.score.toFixed(1)}%
-                        </span>
-                        <span class="text-[8px] uppercase tracking-wider text-slate-400 font-bold">Score</span>
-                      </div>
+                    <!-- Score Column: Fixed width and border-l ensures perfect vertical alignment down the entire list -->
+                    <div class="flex flex-col items-center justify-center shrink-0 w-16 text-center border-l border-purple-500/15 pl-2">
+                      <span class="text-sm font-black tracking-tight {rec.score >= 53 ? 'text-emerald-400' : rec.score >= 50 ? 'text-purple-300' : 'text-amber-400'}">
+                        {rec.score.toFixed(1)}%
+                      </span>
+                      <span class="text-[8px] uppercase tracking-wider text-slate-400 font-bold">Score</span>
+                    </div>
 
-                      <!-- Badges list -->
-                      <div class="hidden lg:flex flex-wrap items-center gap-1.5 max-w-[280px]">
+                    <!-- Center / Right of Score: Badges list (Strong Lane, High Synergy, etc.) -->
+                    <div class="flex flex-1 items-center gap-1.5 min-w-0 px-1 overflow-hidden">
+                      <div class="flex flex-wrap items-center gap-1.5 min-w-0 overflow-hidden">
                         {#each rec.badges as badge}
-                          <span class="rounded-md px-2 py-0.5 text-[9px] font-bold {badge.kind === 'positive'
+                          <span class="rounded-md px-2 py-0.5 text-[9px] font-bold shrink-0 {badge.kind === 'positive'
                             ? 'border border-emerald-500/30 bg-emerald-950/40 text-emerald-300'
                             : badge.kind === 'negative'
                             ? 'border border-rose-500/30 bg-rose-950/40 text-rose-300'

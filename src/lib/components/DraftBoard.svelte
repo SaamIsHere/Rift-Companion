@@ -3,7 +3,7 @@
   import { draft } from "../stores/draft";
   import { championCatalog, ddragonVersion } from "../stores/champions";
   import { squareIconUrl } from "../utils/ddragon";
-  import { setEnemyRole } from "../ipc/tauri";
+  import { setChampionRole, swapChampionRoles } from "../ipc/tauri";
   import { referenceChampionId } from "../stores/preselect";
   import ChampSlot from "./ChampSlot.svelte";
 
@@ -15,8 +15,9 @@
     { role: "support", label: "Support" },
   ];
 
-  let draggedEnemy: { championId: number; role: Role } | null = null;
-  let dragOverRole: Role | null = null;
+  let draggedSlot: { championId: number; role: Role; team: "ally" | "enemy" } | null = null;
+  let dragOverSlot: { role: Role; team: "ally" | "enemy" } | null = null;
+  let selectedSlot: { championId: number; role: Role; team: "ally" | "enemy" } | null = null;
 
   $: inChampSelect = $draft !== null;
   $: referenceName = inChampSelect && $referenceChampionId !== null ? $championCatalog.get($referenceChampionId)?.name : undefined;
@@ -57,54 +58,129 @@
   $: allySlots = mapPicksToRoles($draft?.allies || [], false);
   $: enemySlots = mapPicksToRoles($draft?.enemies || [], true);
 
-  function handleDragStart(champId: number, fromRole: Role, e: DragEvent) {
-    draggedEnemy = { championId: champId, role: fromRole };
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = "move";
-      e.dataTransfer.setData("text/plain", String(champId));
+  async function executeRoleReassign(
+    sourceChampId: number,
+    sourceRole: Role,
+    targetRole: Role,
+    targetPick: DraftPick | null,
+    team: "ally" | "enemy",
+  ) {
+    if (sourceRole === targetRole) return;
+    const isEnemy = team === "enemy";
+
+    // Optimistic store update
+    draft.update((d) => {
+      if (!d) return d;
+      const next = { ...d };
+      const picks = isEnemy ? [...next.enemies] : [...next.allies];
+
+      const sourceIdx = picks.findIndex((p) => p.champion_id === sourceChampId);
+      const targetIdx = targetPick ? picks.findIndex((p) => p.champion_id === targetPick.champion_id) : -1;
+
+      if (sourceIdx !== -1) {
+        picks[sourceIdx] = { ...picks[sourceIdx], role: targetRole };
+        if (!isEnemy && picks[sourceIdx].is_local) {
+          next.local_role = targetRole;
+        }
+      }
+      if (targetIdx !== -1 && targetPick) {
+        picks[targetIdx] = { ...picks[targetIdx], role: sourceRole };
+        if (!isEnemy && picks[targetIdx].is_local) {
+          next.local_role = sourceRole;
+        }
+      }
+
+      if (isEnemy) {
+        next.enemies = picks;
+      } else {
+        next.allies = picks;
+      }
+      return next;
+    });
+
+    try {
+      if (targetPick && targetPick.champion_id !== sourceChampId) {
+        await swapChampionRoles(sourceChampId, targetRole, targetPick.champion_id, sourceRole, isEnemy);
+      } else {
+        await setChampionRole(sourceChampId, targetRole, isEnemy);
+      }
+    } catch (err) {
+      console.error(`Failed to reassign ${team} role`, err);
     }
   }
 
-  function handleDragOver(role: Role, e: DragEvent) {
+  function handleDragStart(champId: number, fromRole: Role, team: "ally" | "enemy", e: DragEvent) {
+    selectedSlot = null; // Clear click selection on drag
+    draggedSlot = { championId: champId, role: fromRole, team };
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", `${team}:${champId}:${fromRole}`);
+    }
+  }
+
+  function handleDragOver(role: Role, team: "ally" | "enemy", e: DragEvent) {
+    if (!draggedSlot || draggedSlot.team !== team) {
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "none";
+      return;
+    }
     e.preventDefault();
     if (e.dataTransfer) {
       e.dataTransfer.dropEffect = "move";
     }
-    dragOverRole = role;
-  }
-
-  function handleDragLeave(role: Role) {
-    if (dragOverRole === role) {
-      dragOverRole = null;
+    if (dragOverSlot?.role !== role || dragOverSlot?.team !== team) {
+      dragOverSlot = { role, team };
     }
   }
 
-  async function handleEnemyDrop(targetRole: Role, targetPick: DraftPick | null, e: DragEvent) {
-    e.preventDefault();
-    const currentDrag = draggedEnemy;
-    draggedEnemy = null;
-    dragOverRole = null;
+  function handleDragEnd() {
+    draggedSlot = null;
+    dragOverSlot = null;
+  }
 
-    if (!currentDrag || currentDrag.role === targetRole) {
+  async function handleDrop(targetRole: Role, targetPick: DraftPick | null, team: "ally" | "enemy", e: DragEvent) {
+    e.preventDefault();
+    const currentDrag = draggedSlot;
+    draggedSlot = null;
+    dragOverSlot = null;
+
+    if (!currentDrag || currentDrag.team !== team || currentDrag.role === targetRole) {
       return;
     }
 
-    const { championId: sourceChampId, role: sourceRole } = currentDrag;
+    await executeRoleReassign(currentDrag.championId, currentDrag.role, targetRole, targetPick, team);
+  }
 
-    try {
-      if (targetPick && targetPick.champion_id !== sourceChampId) {
-        // Swap roles between the two enemy champions
-        await setEnemyRole(sourceChampId, targetRole);
-        await setEnemyRole(targetPick.champion_id, sourceRole);
-      } else {
-        // Reassign to empty slot
-        await setEnemyRole(sourceChampId, targetRole);
+  async function handleSlotClick(role: Role, pick: DraftPick | null, team: "ally" | "enemy") {
+    if (team !== "enemy") return;
+
+    // If nothing selected yet:
+    if (!selectedSlot) {
+      if (pick) {
+        selectedSlot = { championId: pick.champion_id, role, team };
       }
-    } catch (err) {
-      console.error("Failed to reassign enemy role", err);
+      return;
     }
+
+    // Clicking the same slot cancels selection
+    if (selectedSlot.role === role && selectedSlot.team === team) {
+      selectedSlot = null;
+      return;
+    }
+
+    // Clicking across teams (or invalid) resets
+    if (selectedSlot.team !== team) {
+      selectedSlot = pick ? { championId: pick.champion_id, role, team } : null;
+      return;
+    }
+
+    // Same team: perform swap or reassign!
+    const source = selectedSlot;
+    selectedSlot = null;
+    await executeRoleReassign(source.championId, source.role, role, pick, team);
   }
 </script>
+
+<svelte:window on:keydown={(e) => { if (e.key === "Escape") { selectedSlot = null; } }} />
 
 <section class="glass flex min-h-0 flex-col rounded-2xl p-5 overflow-hidden">
   <!-- Header -->
@@ -120,11 +196,21 @@
       </div>
       <div>
         <h2 class="text-sm font-bold text-white tracking-wide">Picked Champions</h2>
-        <p class="text-[11px] text-slate-400">Drag enemy champions to reassign their roles.</p>
+        <p class="text-[11px] text-slate-400">Drag or click enemy champions to swap roles.</p>
       </div>
     </div>
 
-    {#if inChampSelect && referenceName}
+    {#if selectedSlot}
+      <button
+        type="button"
+        on:click={() => (selectedSlot = null)}
+        class="flex items-center gap-1.5 text-xs text-rose-300 bg-rose-900/50 hover:bg-rose-800/70 border border-rose-500/40 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+        title="Cancel role swap"
+      >
+        <span>Cancel Swap</span>
+        <span class="text-[10px] text-slate-400 font-mono">(Esc)</span>
+      </button>
+    {:else if inChampSelect && referenceName}
       <span class="text-xs text-slate-400 bg-purple-950/40 border border-purple-500/20 px-2.5 py-1 rounded-lg">
         Preview: <strong class="text-purple-300 font-semibold">{referenceName}</strong>
       </span>
@@ -133,7 +219,7 @@
 
   {#if $draft && inChampSelect}
     <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto py-1 pl-1.5 pr-4">
-      <!-- Your Team -->
+      <!-- Your Team (Auto-detected from live client, read-only) -->
       <div class="flex flex-col gap-2">
         <div class="flex items-center justify-between px-1">
           <h3 class="text-xs font-bold uppercase tracking-wider text-purple-300/80">Your Team</h3>
@@ -146,14 +232,23 @@
               role={slot.role}
               roleLabel={slot.label}
               accent="purple"
+              editable={false}
               playerLabel={slot.playerLabel}
             />
           {/each}
         </div>
       </div>
 
-      <!-- Enemy Team -->
-      <div class="flex flex-col gap-2 pt-1 border-t border-purple-500/15">
+      <!-- Enemy Team (Manually adjustable via Drag & Drop or Click to Swap) -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div
+        class="flex flex-col gap-2 pt-1 border-t border-purple-500/15"
+        on:dragleave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+            dragOverSlot = null;
+          }
+        }}
+      >
         <div class="flex items-center justify-between px-1">
           <h3 class="text-xs font-bold uppercase tracking-wider text-rose-300/80">Enemy Team</h3>
           <span class="text-[11px] text-slate-400 font-medium">{lockedEnemiesCount}/5 picked</span>
@@ -167,30 +262,18 @@
               accent="rose"
               editable={true}
               playerLabel={slot.playerLabel}
-              isDragOver={dragOverRole === slot.role}
-              on:dragstart={(e) => slot.pick && handleDragStart(slot.pick.champion_id, slot.role, e.detail)}
-              on:dragover={(e) => handleDragOver(slot.role, e.detail)}
-              on:dragleave={() => handleDragLeave(slot.role)}
-              on:drop={(e) => handleEnemyDrop(slot.role, slot.pick, e.detail)}
+              isDragOver={dragOverSlot?.team === "enemy" && dragOverSlot?.role === slot.role}
+              isSelected={selectedSlot?.team === "enemy" && selectedSlot?.role === slot.role}
+              isSwapTarget={Boolean(selectedSlot && selectedSlot.team === "enemy" && selectedSlot.role !== slot.role && !draggedSlot)}
+              isDragging={draggedSlot?.team === "enemy" && draggedSlot?.role === slot.role}
+              isAnyDragging={Boolean(draggedSlot)}
+              on:dragstart={(e) => slot.pick && handleDragStart(slot.pick.champion_id, slot.role, "enemy", e.detail)}
+              on:dragover={(e) => handleDragOver(slot.role, "enemy", e.detail)}
+              on:dragend={handleDragEnd}
+              on:drop={(e) => handleDrop(slot.role, slot.pick, "enemy", e.detail)}
+              on:slotclick={() => handleSlotClick(slot.role, slot.pick, "enemy")}
             />
           {/each}
-        </div>
-      </div>
-
-      <!-- Drag & Drop Explanation Note (matching mockup) -->
-      <div class="flex items-start gap-2.5 rounded-xl border border-purple-500/20 bg-purple-950/25 p-3 text-xs">
-        <div class="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full bg-purple-500/20 text-purple-300 ring-1 ring-purple-400/30">
-          <svg class="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="16" x2="12" y2="12" />
-            <line x1="12" y1="8" x2="12.01" y2="8" />
-          </svg>
-        </div>
-        <div>
-          <span class="font-bold text-slate-200 block mb-0.5">Drag &amp; Drop</span>
-          <p class="text-slate-400 text-[11px] leading-relaxed">
-            Drag enemy champions to reassign them to another role (e.g. if a flex pick is played on a different lane).
-          </p>
         </div>
       </div>
 

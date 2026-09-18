@@ -324,6 +324,7 @@ export interface PlayerMatch {
   op_score?: number;
   op_score_rank?: number;
   participants?: DetailedParticipant[];
+  bans?: number[];
 }
 
 export interface FullPlayerProfile {

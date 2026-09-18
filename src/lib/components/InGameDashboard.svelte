@@ -659,6 +659,7 @@
           {#if build.boots && build.boots.length}
             <div class="flex flex-col gap-1.5">
               {#each build.boots.slice(0, 3) as boot, bIdx (`boot-${bIdx}`)}
+                {@const bootPr = getBootPickRate(boot, build.boots[1 - bIdx], bIdx, overviewData?.games)}
                 <div class="flex items-center justify-between rounded-lg border border-purple-500/15 bg-purple-950/20 p-2 transition hover:bg-purple-900/25">
                   <div class="flex items-center gap-2 min-w-0 pr-2">
                     <img
@@ -673,10 +674,13 @@
                   <div class="flex items-center gap-4 shrink-0">
                     <div class="w-16 text-right">
                       <span class="text-xs font-bold text-white block">
-                        {formatPercent(getBootPickRate(boot, build.boots[1 - bIdx], bIdx, overviewData?.games), bIdx + 70)}
+                        {formatPercent(bootPr, bIdx + 70)}
                       </span>
                       {#if boot.play}
                         <span class="text-[9px] text-slate-400">{formatGames(boot.play)} Games</span>
+                      {:else if overviewData?.games && bootPr}
+                        {@const estPlay = Math.round(bootPr * overviewData.games)}
+                        <span class="text-[9px] text-slate-400">{formatGames(estPlay)} Games</span>
                       {/if}
                     </div>
                     <div class="w-14 text-right">

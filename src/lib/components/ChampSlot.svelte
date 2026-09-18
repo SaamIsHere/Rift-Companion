@@ -14,12 +14,18 @@
   export let editable = false;
   export let playerLabel: string = "";
   export let isDragOver = false;
+  export let isSelected = false;
+  export let isSwapTarget = false;
+  export let isDragging = false;
+  export let isAnyDragging = false;
 
   const dispatch = createEventDispatcher<{
     dragstart: DragEvent;
     dragover: DragEvent;
     dragleave: DragEvent;
     drop: DragEvent;
+    dragend: DragEvent;
+    slotclick: void;
   }>();
 
   let imgError = false;
@@ -34,6 +40,8 @@
   $: isLocalSlot = pick?.is_local || (!pick && isAllySlot && localRole === role);
   $: isHoveredPick = pick?.is_hover ?? false;
   $: canPreview =
+    !isAnyDragging &&
+    !isDragging &&
     Boolean(pick) &&
     !pick?.is_local &&
     $referenceChampionId !== null &&
@@ -60,31 +68,78 @@
     }
   }
 
-  $: if (hovering && canPreview) {
+  $: if (hovering && canPreview && !isAnyDragging) {
     void loadStat();
-  } else if (!hovering) {
+  } else if (!hovering || isAnyDragging) {
     stat = null;
   }
 
   $: referenceName = $referenceChampionId !== null ? $championCatalog.get($referenceChampionId)?.name : undefined;
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_tabindex a11y_no_noninteractive_element_interactions -->
 <div
-  role="group"
-  draggable={editable && Boolean(pick)}
-  on:dragstart={(e) => dispatch("dragstart", e)}
-  on:dragover={(e) => dispatch("dragover", e)}
-  on:dragleave={(e) => dispatch("dragleave", e)}
-  on:drop={(e) => dispatch("drop", e)}
-  on:mouseenter={() => (hovering = true)}
-  on:mouseleave={() => (hovering = false)}
-  class="group relative flex items-center gap-2.5 rounded-xl px-3 py-2 transition-all duration-150 select-none {isDragOver
-    ? 'ring-2 ring-purple-400 bg-purple-900/40 shadow-lg shadow-purple-500/20'
-    : isHoveredPick
-      ? 'bg-[#120826]/55 hover:bg-[#190c33]/75 border border-dashed border-amber-500/40 shadow-sm'
-      : 'bg-[#120826]/70 hover:bg-[#190c33]/85 border border-purple-500/15'} {isLocalSlot
+  role={editable ? "button" : "group"}
+  draggable={editable && Boolean(pick) ? "true" : "false"}
+  on:dragstart={(e) => {
+    if (e.dataTransfer && pick) {
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", `${role}`);
+      if (e.currentTarget instanceof Element) {
+        try {
+          e.dataTransfer.setDragImage(e.currentTarget, 20, 20);
+        } catch (_) {}
+      }
+    }
+    dispatch("dragstart", e);
+  }}
+  on:dragover={(e) => {
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = "move";
+    }
+    dispatch("dragover", e);
+  }}
+  on:dragleave={(e) => {
+    const current = e.currentTarget;
+    if (current && !current.contains(e.relatedTarget as Node | null)) {
+      dispatch("dragleave", e);
+    }
+  }}
+  on:drop={(e) => {
+    e.preventDefault();
+    dispatch("drop", e);
+  }}
+  on:dragend={(e) => dispatch("dragend", e)}
+  on:click={() => dispatch("slotclick")}
+  on:keydown={(e) => {
+    if ((e.key === "Enter" || e.key === " ") && editable) {
+      e.preventDefault();
+      dispatch("slotclick");
+    }
+  }}
+  tabindex={editable ? 0 : -1}
+  on:mouseenter={() => { if (!isAnyDragging) hovering = true; }}
+  on:mouseleave={() => { hovering = false; }}
+  class="group relative flex items-center gap-2.5 rounded-xl px-3 py-2 border transition-[background-color,border-color,box-shadow,opacity] duration-100 select-none {isDragging
+    ? 'opacity-40 border-dashed border-rose-400/60 bg-[#120826]/40'
+    : isDragOver
+      ? (accent === 'rose'
+          ? 'border-rose-400 bg-rose-900/40 ring-2 ring-rose-400/50 shadow-lg shadow-rose-500/20'
+          : 'border-purple-400 bg-purple-900/40 ring-2 ring-purple-400/50 shadow-lg shadow-purple-500/20')
+      : isSelected
+        ? (accent === 'rose'
+            ? 'border-rose-400 bg-rose-950/70 ring-2 ring-rose-400/50 shadow-lg shadow-rose-500/30'
+            : 'border-purple-400 bg-purple-950/70 ring-2 ring-purple-400/50 shadow-lg shadow-purple-500/30')
+        : isSwapTarget
+          ? (accent === 'rose'
+              ? 'border-dashed border-rose-400/60 bg-rose-950/20 hover:bg-rose-900/30 hover:border-rose-300 cursor-pointer shadow-sm'
+              : 'border-dashed border-purple-400/60 bg-purple-950/20 hover:bg-purple-900/30 hover:border-purple-300 cursor-pointer shadow-sm')
+          : isHoveredPick
+            ? 'border-dashed border-amber-500/40 bg-[#120826]/55 hover:bg-[#190c33]/75 shadow-sm'
+            : 'border-purple-500/15 bg-[#120826]/70 hover:bg-[#190c33]/85'} {isLocalSlot
     ? 'ring-1 ring-inset ring-purple-400/80 bg-purple-950/40 shadow-sm'
-    : ''} {editable && pick ? 'cursor-grab active:cursor-grabbing' : ''}"
+    : ''} {editable && pick ? 'cursor-grab active:cursor-grabbing' : editable ? 'cursor-pointer' : ''}"
 >
   <!-- Hover Preview Tooltip -->
   {#if hovering && canPreview}
@@ -112,13 +167,13 @@
     </div>
   {/if}
 
-  <!-- Drag Handle for Enemy Slots / Spacer for Ally Slots -->
+  <!-- Drag Handle for Slots / Spacer if empty -->
   {#if editable}
     <div
-      class="flex w-4 items-center justify-center text-slate-500 group-hover:text-purple-300 shrink-0 {pick ? 'cursor-grab active:cursor-grabbing' : 'opacity-25'}"
+      class="flex w-4 items-center justify-center text-slate-500 {accent === 'rose' ? 'group-hover:text-rose-300' : 'group-hover:text-purple-300'} shrink-0 pointer-events-none select-none {pick ? 'cursor-grab active:cursor-grabbing' : 'opacity-25'}"
       title="Drag to reassign role"
     >
-      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+      <svg class="h-4 w-4 pointer-events-none" viewBox="0 0 24 24" fill="currentColor">
         <circle cx="8" cy="6" r="1.5" />
         <circle cx="16" cy="6" r="1.5" />
         <circle cx="8" cy="12" r="1.5" />
@@ -128,56 +183,63 @@
       </svg>
     </div>
   {:else}
-    <div class="w-4 shrink-0" aria-hidden="true"></div>
+    <div class="w-4 shrink-0 pointer-events-none" aria-hidden="true"></div>
   {/if}
 
   <!-- Role Icon (Icon only with tooltip, ensuring avatar vertical alignment) -->
-  <div class="flex w-6 items-center justify-center shrink-0" title={roleLabel}>
+  <div class="flex w-6 items-center justify-center shrink-0 pointer-events-none select-none" title={roleLabel}>
     <img
       src={roleIconUrl(role)}
       alt={roleLabel}
-      class="h-4.5 w-4.5 opacity-75 group-hover:opacity-100 object-contain filter brightness-110 shrink-0"
+      draggable="false"
+      class="h-4.5 w-4.5 opacity-75 group-hover:opacity-100 object-contain filter brightness-110 shrink-0 pointer-events-none select-none"
     />
   </div>
 
   <!-- Champion Avatar -->
   {#if pick && info && !imgError}
     <div
-      class="relative h-9 w-9 rounded-full overflow-hidden {isHoveredPick
+      class="relative h-9 w-9 rounded-full overflow-hidden pointer-events-none select-none {isHoveredPick
         ? 'ring-2 ring-dashed ring-amber-400/80'
         : 'ring-1 ring-purple-500/30'} bg-[#120924] shrink-0"
     >
       <img
         src={squareIconUrl(info.key, $ddragonVersion)}
         alt={name}
-        class="h-full w-full object-cover scale-[1.18] {isHoveredPick ? 'opacity-85' : ''}"
+        draggable="false"
+        class="h-full w-full object-cover scale-[1.18] pointer-events-none select-none {isHoveredPick ? 'opacity-85' : ''}"
         on:error={() => (imgError = true)}
       />
     </div>
   {:else if pick}
     <div
-      class="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-[10px] font-bold {accent === 'rose'
+      class="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-[10px] font-bold pointer-events-none select-none {accent === 'rose'
         ? 'text-rose-300'
         : 'text-purple-300'} {isHoveredPick ? 'ring-2 ring-dashed ring-amber-400/80' : 'ring-1 ring-purple-500/20'} shrink-0"
     >
       {pick.champion_id}
     </div>
   {:else}
-    <div class="grid h-9 w-9 place-items-center rounded-full border border-dashed border-purple-500/30 bg-purple-950/15 text-slate-600 shrink-0">
-      <svg class="h-3.5 w-3.5 opacity-40 text-purple-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <div class="grid h-9 w-9 place-items-center rounded-full border border-dashed border-purple-500/30 bg-purple-950/15 text-slate-600 shrink-0 pointer-events-none select-none">
+      <svg class="h-3.5 w-3.5 opacity-40 text-purple-300 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M12 5v14M5 12h14" stroke-linecap="round" />
       </svg>
     </div>
   {/if}
 
   <!-- Champion Name & Subtitle -->
-  <div class="min-w-0 flex-1 flex flex-col justify-center">
+  <div class="min-w-0 flex-1 flex flex-col justify-center pointer-events-none select-none">
     {#if pick}
       <div class="flex items-center gap-1.5 flex-wrap">
         <span class="truncate text-sm font-medium {isHoveredPick ? 'text-slate-200' : 'text-white'}">{name}</span>
         {#if pick.is_local}
           <span class="rounded bg-purple-500/25 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-purple-300 ring-1 ring-purple-400/40">
             You
+          </span>
+        {/if}
+        {#if isSelected}
+          <span class="inline-flex items-center gap-1 rounded bg-purple-500/30 border border-purple-400/60 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-purple-200 animate-pulse">
+            Selected
           </span>
         {/if}
         {#if isHoveredPick}
@@ -188,8 +250,18 @@
         {/if}
       </div>
       <span class="truncate text-[11px] text-slate-400">
-        {playerLabel || (editable ? "Enemy" : "Teammate")}
+        {#if isSwapTarget}
+          <span class="{accent === 'rose' ? 'text-rose-300' : 'text-purple-300'} font-medium">Click to swap here</span>
+        {:else}
+          {playerLabel || (accent === 'rose' ? "Enemy" : "Teammate")}
+        {/if}
       </span>
+    {:else if isSwapTarget}
+      <div class="flex items-center gap-1.5">
+        <span class="text-xs italic font-medium {accent === 'rose' ? 'text-rose-300' : 'text-purple-300'} animate-pulse">
+          Click to move here
+        </span>
+      </div>
     {:else if isAllySlot && localRole === role}
       <div class="flex items-center gap-1.5">
         <span class="text-xs italic text-purple-300/80 font-medium">Waiting for pick...</span>
@@ -199,26 +271,28 @@
       </div>
     {:else}
       <span class="text-xs italic text-slate-500">
-        {editable ? "Pick open" : "Waiting for pick..."}
+        {accent === 'rose' ? "Pick open" : "Waiting for pick..."}
       </span>
     {/if}
   </div>
 
   <!-- Spells on the right -->
   {#if pick && (pick.spell1_id || pick.spell2_id)}
-    <div class="flex items-center gap-1 shrink-0">
+    <div class="flex items-center gap-1 shrink-0 pointer-events-none select-none">
       {#if pick.spell1_id}
         <img
           src={summonerSpellIconUrl(pick.spell1_id, $ddragonVersion)}
           alt="Spell 1"
-          class="h-6 w-6 rounded-md object-cover ring-1 ring-white/10"
+          draggable="false"
+          class="h-6 w-6 rounded-md object-cover ring-1 ring-white/10 pointer-events-none select-none"
         />
       {/if}
       {#if pick.spell2_id}
         <img
           src={summonerSpellIconUrl(pick.spell2_id, $ddragonVersion)}
           alt="Spell 2"
-          class="h-6 w-6 rounded-md object-cover ring-1 ring-white/10"
+          draggable="false"
+          class="h-6 w-6 rounded-md object-cover ring-1 ring-white/10 pointer-events-none select-none"
         />
       {/if}
     </div>

@@ -101,10 +101,32 @@ pub fn set_enemy_role(
     role: Option<Role>,
     app: AppHandle,
 ) -> Vec<Recommendation> {
+    set_champion_role(state, champion_id, role, true, app)
+}
+
+/// Manually reassign an ally or enemy pick's role from the draft board.
+#[tauri::command]
+pub fn set_champion_role(
+    state: State<Shared>,
+    champion_id: u32,
+    role: Option<Role>,
+    is_enemy: bool,
+    app: AppHandle,
+) -> Vec<Recommendation> {
     let repo = state.repo.lock().unwrap().clone();
 
-    {
+    if is_enemy {
         let mut overrides = state.enemy_role_overrides.lock().unwrap();
+        match role {
+            Some(r) => {
+                overrides.insert(champion_id, r);
+            }
+            None => {
+                overrides.remove(&champion_id);
+            }
+        }
+    } else {
+        let mut overrides = state.ally_role_overrides.lock().unwrap();
         match role {
             Some(r) => {
                 overrides.insert(champion_id, r);
@@ -120,8 +142,76 @@ pub fn set_enemy_role(
     let updated_draft = {
         let mut draft = state.latest_draft.lock().unwrap();
         if let Some(d) = draft.as_mut() {
-            if let Some(pick) = d.enemies.iter_mut().find(|p| p.champion_id == champion_id) {
+            let list = if is_enemy {
+                &mut d.enemies
+            } else {
+                &mut d.allies
+            };
+            if let Some(pick) = list.iter_mut().find(|p| p.champion_id == champion_id) {
                 pick.role = resolved_role;
+                if !is_enemy && pick.is_local {
+                    d.local_role = resolved_role;
+                }
+            }
+        }
+        draft.clone()
+    };
+
+    let recs = compute(&state);
+    if let Some(d) = updated_draft {
+        let _ = app.emit("champ-select://update", &d);
+    }
+    let _ = app.emit("recommendations://update", &recs);
+    recs
+}
+
+/// Atomically swaps or reassigns roles for champions in the draft board.
+#[tauri::command]
+pub fn swap_champion_roles(
+    state: State<Shared>,
+    champion_a: u32,
+    role_a: Role,
+    champion_b: Option<u32>,
+    role_b: Option<Role>,
+    is_enemy: bool,
+    app: AppHandle,
+) -> Vec<Recommendation> {
+    if is_enemy {
+        let mut overrides = state.enemy_role_overrides.lock().unwrap();
+        overrides.insert(champion_a, role_a);
+        if let (Some(b_id), Some(b_role)) = (champion_b, role_b) {
+            overrides.insert(b_id, b_role);
+        }
+    } else {
+        let mut overrides = state.ally_role_overrides.lock().unwrap();
+        overrides.insert(champion_a, role_a);
+        if let (Some(b_id), Some(b_role)) = (champion_b, role_b) {
+            overrides.insert(b_id, b_role);
+        }
+    }
+
+    let updated_draft = {
+        let mut draft = state.latest_draft.lock().unwrap();
+        if let Some(d) = draft.as_mut() {
+            let list = if is_enemy {
+                &mut d.enemies
+            } else {
+                &mut d.allies
+            };
+
+            if let Some(pick) = list.iter_mut().find(|p| p.champion_id == champion_a) {
+                pick.role = Some(role_a);
+                if !is_enemy && pick.is_local {
+                    d.local_role = Some(role_a);
+                }
+            }
+            if let (Some(b_id), Some(b_role)) = (champion_b, role_b) {
+                if let Some(pick) = list.iter_mut().find(|p| p.champion_id == b_id) {
+                    pick.role = Some(b_role);
+                    if !is_enemy && pick.is_local {
+                        d.local_role = Some(b_role);
+                    }
+                }
             }
         }
         draft.clone()

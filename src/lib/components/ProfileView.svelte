@@ -25,6 +25,7 @@
     itemIconUrl,
     summonerSpellIconUrl,
     getRuneIconUrl,
+    runeStyleIconUrl,
     tierMedalUrl,
     formatTimeAgo,
     formatDuration,
@@ -55,10 +56,13 @@
   let searchInputEl: HTMLInputElement | null = null;
   let lastSyncedProfileName = "";
 
-  onMount(() => {
+  $: if ($ddragonVersion) {
     loadRunesReforged($ddragonVersion).then((map) => {
       runesMap = map;
     });
+  }
+
+  onMount(() => {
 
     // If an explicit search was already initiated (e.g. from LandingPage) or profile is loading/loaded, do not overwrite!
     if ($isExplicitSearch || $viewedProfileLoading || $viewedProfile) {
@@ -888,11 +892,11 @@
               ></div>
 
               <!-- CARD MAIN ROW -->
-              <div class="flex flex-wrap items-center justify-between gap-4 p-4 pl-5">
+              <div class="flex flex-wrap items-center justify-between gap-3 sm:gap-4 py-2.5 px-3.5 pl-4 sm:py-3 sm:px-4 sm:pl-4.5">
                 <!-- 1. Match Outcome & Queue Info -->
-                <div class="w-24 shrink-0">
+                <div class="w-24 sm:w-28 shrink-0">
                   <span
-                    class="text-xs font-black uppercase tracking-wider block {isRemake
+                    class="text-xs sm:text-sm font-black uppercase tracking-wider block {isRemake
                       ? 'text-slate-300'
                       : isWin
                         ? 'text-emerald-400'
@@ -900,115 +904,115 @@
                   >
                     {isRemake ? "Remake" : isWin ? "Victory" : "Defeat"}
                   </span>
-                  <span class="text-[11px] font-bold text-white block mt-0.5 truncate" title={match.queue_label}>
+                  <span class="text-xs font-bold text-white block mt-0.5 truncate" title={match.queue_label}>
                     {match.queue_label}
                   </span>
-                  <span class="text-[10px] text-slate-400 block mt-0.5">
+                  <span class="text-[11px] text-slate-400 block mt-0.5">
                     {formatTimeAgo(match.game_creation)}
                   </span>
-                  <span class="text-[10px] font-semibold text-purple-300/70 block">
+                  <span class="text-[11px] font-semibold text-purple-300/80 block mt-0.5">
                     {formatDuration(match.game_duration)}
                   </span>
                 </div>
 
                 <!-- 2. Champion Portrait, Spells & Runes -->
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2.5">
                   <!-- Champion Avatar -->
                   <div class="relative">
                     <img
                       src={squareIconUrl(champInfo.key, $ddragonVersion)}
                       alt={champInfo.name}
-                      class="h-12 w-12 rounded-xl border border-purple-500/30 object-cover bg-black"
+                      class="h-11 w-11 rounded-lg border border-purple-500/30 object-cover bg-black"
                     />
                     <span class="absolute -bottom-1 -right-1 rounded bg-[#0a0518] border border-purple-400/40 px-1 text-[9px] font-black text-purple-200">
                       {match.champion_level}
                     </span>
                   </div>
 
-                  <!-- Summoner Spells & Runes Icons (2x2 grid) -->
-                  <div class="grid grid-cols-2 gap-1 shrink-0">
-                    <!-- Spell 1 -->
-                    {#if match.spells[0]}
-                      <img
-                        src={summonerSpellIconUrl(match.spells[0], $ddragonVersion)}
-                        alt="Spell"
-                        class="h-5 w-5 rounded border border-purple-500/30 object-cover bg-black"
-                      />
-                    {:else}
-                      <div class="h-5 w-5 rounded border border-purple-500/20 bg-purple-950/40"></div>
-                    {/if}
+                  <!-- Summoner Spells & Runes: Left column for Spells, Right column for Runes -->
+                  <div class="flex items-center gap-1 shrink-0">
+                    <!-- Spells Column: Spell 1 on top, Spell 2 underneath -->
+                    <div class="flex flex-col gap-1">
+                      {#if match.spells[0]}
+                        <img
+                          src={summonerSpellIconUrl(match.spells[0], $ddragonVersion)}
+                          alt="Spell 1"
+                          class="h-5 w-5 rounded border border-purple-500/30 object-cover bg-black"
+                        />
+                      {:else}
+                        <div class="h-5 w-5 rounded border border-purple-500/20 bg-purple-950/40"></div>
+                      {/if}
+                      {#if match.spells[1]}
+                        <img
+                          src={summonerSpellIconUrl(match.spells[1], $ddragonVersion)}
+                          alt="Spell 2"
+                          class="h-5 w-5 rounded border border-purple-500/30 object-cover bg-black"
+                        />
+                      {:else}
+                        <div class="h-5 w-5 rounded border border-purple-500/20 bg-purple-950/40"></div>
+                      {/if}
+                    </div>
 
-                    <!-- Primary Rune / Keystone -->
-                    {#if match.primary_rune_id}
-                      <img
-                        src={getRuneIconUrl(match.primary_rune_id, runesMap)}
-                        alt="Keystone"
-                        class="h-5 w-5 rounded border border-purple-500/30 object-contain bg-black/80"
-                      />
-                    {:else}
-                      <div class="h-5 w-5 rounded border border-purple-500/20 bg-purple-950/40"></div>
-                    {/if}
-
-                    <!-- Spell 2 -->
-                    {#if match.spells[1]}
-                      <img
-                        src={summonerSpellIconUrl(match.spells[1], $ddragonVersion)}
-                        alt="Spell"
-                        class="h-5 w-5 rounded border border-purple-500/30 object-cover bg-black"
-                      />
-                    {:else}
-                      <div class="h-5 w-5 rounded border border-purple-500/20 bg-purple-950/40"></div>
-                    {/if}
-
-                    <!-- Secondary Rune Style -->
-                    {#if match.secondary_style_id}
-                      <img
-                        src={getRuneIconUrl(match.secondary_style_id, runesMap)}
-                        alt="Secondary Style"
-                        class="h-5 w-5 rounded border border-purple-500/30 object-contain bg-black/80"
-                      />
-                    {:else}
-                      <div class="h-5 w-5 rounded border border-purple-500/20 bg-purple-950/40"></div>
-                    {/if}
+                    <!-- Runes Column: Main Rune on top, Secondary Rune Page underneath -->
+                    <div class="flex flex-col gap-1">
+                      {#if match.primary_rune_id}
+                        <img
+                          src={getRuneIconUrl(match.primary_rune_id, runesMap)}
+                          alt="Keystone"
+                          class="h-5 w-5 rounded-full border border-purple-500/30 object-contain bg-black/80"
+                        />
+                      {:else}
+                        <div class="h-5 w-5 rounded-full border border-purple-500/20 bg-purple-950/40"></div>
+                      {/if}
+                      {#if match.secondary_style_id}
+                        <img
+                          src={runeStyleIconUrl(match.secondary_style_id) || getRuneIconUrl(match.secondary_style_id, runesMap)}
+                          alt="Secondary Style"
+                          class="h-5 w-5 rounded-full border border-purple-500/30 object-contain bg-black/80"
+                        />
+                      {:else}
+                        <div class="h-5 w-5 rounded-full border border-purple-500/20 bg-purple-950/40"></div>
+                      {/if}
+                    </div>
                   </div>
                 </div>
 
                 <!-- 3. KDA & Kill Participation -->
-                <div class="w-28 text-center shrink-0">
-                  <div class="text-sm font-black tracking-wide text-white">
+                <div class="w-24 sm:w-28 text-center shrink-0">
+                  <div class="text-sm sm:text-base font-black tracking-wide text-white">
                     <span>{match.kills}</span>
                     <span class="text-slate-500">/</span>
                     <span class="text-rose-400">{match.deaths}</span>
                     <span class="text-slate-500">/</span>
                     <span>{match.assists}</span>
                   </div>
-                  <div class="text-[11px] {getKdaColor(match.kda)} mt-0.5">
+                  <div class="text-xs font-bold {getKdaColor(match.kda)} mt-0.5">
                     {match.kda.toFixed(2)}:1 KDA
                   </div>
                   {#if match.kill_participation != null && match.kill_participation > 0}
-                    <div class="text-[10px] font-semibold text-purple-300/80 mt-0.5">
+                    <div class="text-[11px] font-semibold text-purple-300/80 mt-0.5">
                       P/Kill {formatPct(match.kill_participation)}
                     </div>
                   {/if}
                 </div>
 
                 <!-- 4. CS, Damage & Vision -->
-                <div class="w-28 text-right shrink-0">
-                  <div class="text-xs font-bold text-slate-200">
-                    {match.cs} <span class="text-[10px] text-slate-400 font-normal">({match.cs_per_min} CS/m)</span>
+                <div class="w-24 sm:w-28 text-right shrink-0">
+                  <div class="text-xs sm:text-sm font-bold text-slate-200">
+                    {match.cs} <span class="text-[11px] text-slate-400 font-normal">({match.cs_per_min} CS/m)</span>
                   </div>
-                  <div class="text-[11px] font-semibold text-rose-300/90 mt-0.5">
+                  <div class="text-xs font-semibold text-rose-300/90 mt-0.5">
                     {match.total_damage.toLocaleString()} DMG
                   </div>
                   {#if match.vision_score}
-                    <div class="text-[10px] text-slate-400 mt-0.5">
+                    <div class="text-[11px] text-slate-400 mt-0.5">
                       {match.vision_score} Vision
                     </div>
                   {/if}
                 </div>
 
                 <!-- 5. Items Grid (6 items + Trinket) -->
-                <div class="flex items-center gap-1 shrink-0">
+                <div class="flex items-center gap-1.5 shrink-0">
                   <div class="grid grid-cols-3 gap-1">
                     {#each match.items.slice(0, 6) as itId, i}
                       {#if itId && itId > 0}
@@ -1023,7 +1027,7 @@
                     {/each}
                   </div>
                   <!-- Trinket Slot (Slot 6) -->
-                  <div class="ml-1 pl-1 border-l border-purple-500/20">
+                  <div class="ml-1 pl-1.5 border-l border-purple-500/20">
                     {#if match.items[6] && match.items[6] > 0}
                       <img
                         src={itemIconUrl(match.items[6], $ddragonVersion)}
@@ -1071,7 +1075,7 @@
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Blue Team (100) -->
                     <div class="flex flex-col gap-1.5">
-                      <div class="flex items-center justify-between px-2 pb-1 border-b border-cyan-500/20 text-[10px] font-black uppercase text-cyan-300">
+                      <div class="flex items-center justify-between px-2 pb-1 border-b border-cyan-500/20 text-[11px] font-black uppercase text-cyan-300">
                         <span class="flex items-center gap-1.5">
                           <span>Blue Team</span>
                           {#if blueTeam.length > 0 && blueTeam[0].win !== undefined}
@@ -1084,33 +1088,70 @@
                       </div>
                       {#each blueTeam as p}
                         {@const pChamp = getChampInfo(p.champion_id)}
-                        <div class="flex items-center justify-between rounded-lg p-1.5 transition {p.is_local ? 'bg-purple-900/30 border border-purple-500/30' : 'hover:bg-purple-950/20'}">
+                        <div class="flex items-center justify-between rounded-lg py-1.5 px-2 transition {p.is_local ? 'bg-purple-900/30 border border-purple-500/30' : 'hover:bg-purple-950/20'}">
                           <div class="flex items-center gap-2 min-w-0 pr-2">
                             <img
                               src={squareIconUrl(pChamp.key, $ddragonVersion)}
                               alt={pChamp.name}
-                              class="h-7 w-7 rounded-md border border-purple-500/30 object-cover bg-black shrink-0"
+                              class="h-8.5 w-8.5 rounded-lg border border-purple-500/30 object-cover bg-black shrink-0"
                             />
-                            <div class="min-w-0">
+                            <!-- Summoners & Runes -->
+                            <div class="flex items-center gap-0.5 shrink-0">
+                              {#if p.spells && p.spells.length >= 2}
+                                <div class="flex flex-col gap-0.5">
+                                  <img
+                                    src={summonerSpellIconUrl(p.spells[0], $ddragonVersion)}
+                                    alt="Spell"
+                                    class="h-4 w-4 rounded border border-purple-500/25 object-cover bg-black shrink-0"
+                                  />
+                                  <img
+                                    src={summonerSpellIconUrl(p.spells[1], $ddragonVersion)}
+                                    alt="Spell"
+                                    class="h-4 w-4 rounded border border-purple-500/25 object-cover bg-black shrink-0"
+                                  />
+                                </div>
+                              {/if}
+                              <div class="flex flex-col gap-0.5">
+                                {#if p.primary_rune_id}
+                                  <img
+                                    src={getRuneIconUrl(p.primary_rune_id, runesMap)}
+                                    alt="Keystone"
+                                    class="h-4 w-4 rounded-full border border-purple-500/30 object-contain bg-black/80 shrink-0"
+                                  />
+                                {:else}
+                                  <div class="h-4 w-4 rounded-full border border-purple-500/15 bg-purple-950/40 shrink-0"></div>
+                                {/if}
+                                {#if p.secondary_style_id}
+                                  <img
+                                    src={runeStyleIconUrl(p.secondary_style_id) || getRuneIconUrl(p.secondary_style_id, runesMap)}
+                                    alt="Secondary Style"
+                                    class="h-4 w-4 rounded-full border border-purple-500/30 object-contain bg-black/80 shrink-0"
+                                  />
+                                {:else}
+                                  <div class="h-4 w-4 rounded-full border border-purple-500/15 bg-purple-950/40 shrink-0"></div>
+                                {/if}
+                              </div>
+                            </div>
+                            <div class="min-w-0 max-w-[125px]">
                               <span class="text-xs font-bold truncate block {p.is_local ? 'text-amber-300 font-extrabold' : 'text-white'}">
                                 {p.summoner_name}
                               </span>
-                              <span class="text-[9px] text-slate-400">Lv. {p.champion_level}</span>
+                              <span class="text-[11px] font-medium text-slate-400">Lv. {p.champion_level}</span>
                             </div>
                           </div>
                           <div class="flex items-center gap-3 shrink-0">
-                            <span class="text-[11px] font-semibold text-slate-300">
+                            <span class="text-xs font-bold text-slate-100 w-16 text-center shrink-0">
                               {p.kills}/{p.deaths}/{p.assists}
                             </span>
-                            <span class="text-[10px] text-rose-300/80 w-12 text-right">
+                            <span class="text-xs font-semibold text-rose-300/90 w-12 text-right shrink-0">
                               {p.total_damage > 0 ? (p.total_damage / 1000).toFixed(1) + "k" : "–"}
                             </span>
-                            <div class="flex items-center gap-0.5">
+                            <div class="flex items-center gap-1 shrink-0">
                               {#each p.items.slice(0, 6) as itId}
                                 {#if itId > 0}
-                                  <img src={itemIconUrl(itId, $ddragonVersion)} alt="Item" class="h-4 w-4 rounded border border-purple-500/20 bg-black" />
+                                  <img src={itemIconUrl(itId, $ddragonVersion)} alt="Item" class="h-5.5 w-5.5 rounded-md border border-purple-500/25 bg-black" />
                                 {:else}
-                                  <div class="h-4 w-4 rounded border border-purple-500/10 bg-purple-950/20"></div>
+                                  <div class="h-5.5 w-5.5 rounded-md border border-purple-500/15 bg-purple-950/30"></div>
                                 {/if}
                               {/each}
                             </div>
@@ -1121,7 +1162,7 @@
 
                     <!-- Red Team (200) -->
                     <div class="flex flex-col gap-1.5">
-                      <div class="flex items-center justify-between px-2 pb-1 border-b border-rose-500/20 text-[10px] font-black uppercase text-rose-300">
+                      <div class="flex items-center justify-between px-2 pb-1 border-b border-rose-500/20 text-[11px] font-black uppercase text-rose-300">
                         <span class="flex items-center gap-1.5">
                           <span>Red Team</span>
                           {#if redTeam.length > 0 && redTeam[0].win !== undefined}
@@ -1134,33 +1175,70 @@
                       </div>
                       {#each redTeam as p}
                         {@const pChamp = getChampInfo(p.champion_id)}
-                        <div class="flex items-center justify-between rounded-lg p-1.5 transition {p.is_local ? 'bg-purple-900/30 border border-purple-500/30' : 'hover:bg-purple-950/20'}">
+                        <div class="flex items-center justify-between rounded-lg py-1.5 px-2 transition {p.is_local ? 'bg-purple-900/30 border border-purple-500/30' : 'hover:bg-purple-950/20'}">
                           <div class="flex items-center gap-2 min-w-0 pr-2">
                             <img
                               src={squareIconUrl(pChamp.key, $ddragonVersion)}
                               alt={pChamp.name}
-                              class="h-7 w-7 rounded-md border border-purple-500/30 object-cover bg-black shrink-0"
+                              class="h-8.5 w-8.5 rounded-lg border border-purple-500/30 object-cover bg-black shrink-0"
                             />
-                            <div class="min-w-0">
+                            <!-- Summoners & Runes -->
+                            <div class="flex items-center gap-0.5 shrink-0">
+                              {#if p.spells && p.spells.length >= 2}
+                                <div class="flex flex-col gap-0.5">
+                                  <img
+                                    src={summonerSpellIconUrl(p.spells[0], $ddragonVersion)}
+                                    alt="Spell"
+                                    class="h-4 w-4 rounded border border-purple-500/25 object-cover bg-black shrink-0"
+                                  />
+                                  <img
+                                    src={summonerSpellIconUrl(p.spells[1], $ddragonVersion)}
+                                    alt="Spell"
+                                    class="h-4 w-4 rounded border border-purple-500/25 object-cover bg-black shrink-0"
+                                  />
+                                </div>
+                              {/if}
+                              <div class="flex flex-col gap-0.5">
+                                {#if p.primary_rune_id}
+                                  <img
+                                    src={getRuneIconUrl(p.primary_rune_id, runesMap)}
+                                    alt="Keystone"
+                                    class="h-4 w-4 rounded-full border border-purple-500/30 object-contain bg-black/80 shrink-0"
+                                  />
+                                {:else}
+                                  <div class="h-4 w-4 rounded-full border border-purple-500/15 bg-purple-950/40 shrink-0"></div>
+                                {/if}
+                                {#if p.secondary_style_id}
+                                  <img
+                                    src={runeStyleIconUrl(p.secondary_style_id) || getRuneIconUrl(p.secondary_style_id, runesMap)}
+                                    alt="Secondary Style"
+                                    class="h-4 w-4 rounded-full border border-purple-500/30 object-contain bg-black/80 shrink-0"
+                                  />
+                                {:else}
+                                  <div class="h-4 w-4 rounded-full border border-purple-500/15 bg-purple-950/40 shrink-0"></div>
+                                {/if}
+                              </div>
+                            </div>
+                            <div class="min-w-0 max-w-[125px]">
                               <span class="text-xs font-bold truncate block {p.is_local ? 'text-amber-300 font-extrabold' : 'text-white'}">
                                 {p.summoner_name}
                               </span>
-                              <span class="text-[9px] text-slate-400">Lv. {p.champion_level}</span>
+                              <span class="text-[11px] font-medium text-slate-400">Lv. {p.champion_level}</span>
                             </div>
                           </div>
                           <div class="flex items-center gap-3 shrink-0">
-                            <span class="text-[11px] font-semibold text-slate-300">
+                            <span class="text-xs font-bold text-slate-100 w-16 text-center shrink-0">
                               {p.kills}/{p.deaths}/{p.assists}
                             </span>
-                            <span class="text-[10px] text-rose-300/80 w-12 text-right">
+                            <span class="text-xs font-semibold text-rose-300/90 w-12 text-right shrink-0">
                               {p.total_damage > 0 ? (p.total_damage / 1000).toFixed(1) + "k" : "–"}
                             </span>
-                            <div class="flex items-center gap-0.5">
+                            <div class="flex items-center gap-1 shrink-0">
                               {#each p.items.slice(0, 6) as itId}
                                 {#if itId > 0}
-                                  <img src={itemIconUrl(itId, $ddragonVersion)} alt="Item" class="h-4 w-4 rounded border border-purple-500/20 bg-black" />
+                                  <img src={itemIconUrl(itId, $ddragonVersion)} alt="Item" class="h-5.5 w-5.5 rounded-md border border-purple-500/25 bg-black" />
                                 {:else}
-                                  <div class="h-4 w-4 rounded border border-purple-500/10 bg-purple-950/20"></div>
+                                  <div class="h-5.5 w-5.5 rounded-md border border-purple-500/15 bg-purple-950/30"></div>
                                 {/if}
                               {/each}
                             </div>

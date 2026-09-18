@@ -9,6 +9,15 @@ export default {
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
       },
+      spacing: {
+        '4.5': '1.125rem',
+        '5.5': '1.375rem',
+        '6.5': '1.625rem',
+        '7.5': '1.875rem',
+        '8.5': '2.125rem',
+        '10.5': '2.625rem',
+        '13': '3.25rem',
+      },
       colors: {
         void: {
           950: "#06030c",

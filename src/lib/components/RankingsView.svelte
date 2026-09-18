@@ -1,7 +1,7 @@
 <script lang="ts">
   import { rankTier, rankRefreshing, rankRefreshProgress } from "../stores/rank";
   import { settings } from "../stores/settings";
-  import { setRankTier, forceRefreshData } from "../ipc/tauri";
+  import { setRankTier } from "../ipc/tauri";
   import type { RankTier } from "../types";
 
   const tiers: { id: RankTier; label: string; desc: string }[] = [
@@ -21,25 +21,11 @@
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col p-6 overflow-y-auto max-w-4xl mx-auto w-full select-none">
-  <div class="mb-6 flex items-center justify-between">
-    <div>
-      <h2 class="text-xl font-bold tracking-wide text-white">Rankings & Tier Dataset</h2>
-      <p class="text-xs text-purple-300/70">
-        Select the rank tier driving the OP.GG matchup and recommendation dataset.
-      </p>
-    </div>
-
-    <button
-      type="button"
-      on:click={() => forceRefreshData()}
-      disabled={$rankRefreshing}
-      class="flex items-center gap-2 rounded-xl border border-purple-500/30 bg-purple-950/40 px-3.5 py-2 text-xs font-semibold text-purple-200 backdrop-blur-md transition hover:border-purple-400 hover:bg-purple-900/60 disabled:opacity-50"
-    >
-      <svg class="h-3.5 w-3.5 {$rankRefreshing ? 'animate-spin' : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-      </svg>
-      <span>{$rankRefreshing ? "Refreshing..." : "Refresh Data Now"}</span>
-    </button>
+  <div class="mb-6">
+    <h2 class="text-xl font-bold tracking-wide text-white">Rankings & Tier Dataset</h2>
+    <p class="text-xs text-purple-300/70">
+      Select the rank tier driving the OP.GG matchup and recommendation dataset.
+    </p>
   </div>
 
   <!-- Rank Tiers List -->

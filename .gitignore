@@ -17,3 +17,6 @@ server/data/
 # Claude Code local settings
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# Temporary screenshots
+Current-*.png

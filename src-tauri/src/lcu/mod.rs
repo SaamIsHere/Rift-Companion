@@ -275,6 +275,7 @@ fn clear_session(app: &AppHandle, shared: &Shared) {
     *shared.gameflow_phase.lock().unwrap() = "None".to_string();
     shared.weights.lock().unwrap().mode = crate::engine::weights::ScoringMode::Default;
     shared.enemy_role_overrides.lock().unwrap().clear();
+    shared.ally_role_overrides.lock().unwrap().clear();
     let _ = app.emit("champ-select://update", None::<DraftState>);
     let _ = app.emit("gameflow://phase", "None");
     let _ = app.emit("recommendations://update", Vec::<crate::engine::Recommendation>::new());
@@ -313,6 +314,23 @@ fn handle_gameflow_session(app: &AppHandle, shared: &Shared, data: serde_json::V
                 for pick in state.enemies.iter_mut() {
                     if let Some(role) = overrides.get(&pick.champion_id) {
                         pick.role = Some(*role);
+                    }
+                }
+            }
+        }
+        // Re-apply any ally role overrides
+        {
+            let mut overrides = shared.ally_role_overrides.lock().unwrap();
+            if !overrides.is_empty() {
+                let live_ids: std::collections::HashSet<u32> =
+                    state.allies.iter().map(|p| p.champion_id).collect();
+                overrides.retain(|id, _| live_ids.contains(id));
+                for pick in state.allies.iter_mut() {
+                    if let Some(role) = overrides.get(&pick.champion_id) {
+                        pick.role = Some(*role);
+                        if pick.is_local {
+                            state.local_role = Some(*role);
+                        }
                     }
                 }
             }
@@ -366,6 +384,23 @@ fn handle_session(app: &AppHandle, shared: &Shared, data: serde_json::Value) {
             for pick in state.enemies.iter_mut() {
                 if let Some(role) = overrides.get(&pick.champion_id) {
                     pick.role = Some(*role);
+                }
+            }
+        }
+    }
+    // Re-apply any manual ally-role reassignments
+    {
+        let mut overrides = shared.ally_role_overrides.lock().unwrap();
+        if !overrides.is_empty() {
+            let live_ids: std::collections::HashSet<u32> =
+                state.allies.iter().map(|p| p.champion_id).collect();
+            overrides.retain(|id, _| live_ids.contains(id));
+            for pick in state.allies.iter_mut() {
+                if let Some(role) = overrides.get(&pick.champion_id) {
+                    pick.role = Some(*role);
+                    if pick.is_local {
+                        state.local_role = Some(*role);
+                    }
                 }
             }
         }

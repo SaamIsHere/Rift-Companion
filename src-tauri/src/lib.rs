@@ -48,6 +48,8 @@ pub struct Shared {
     /// Manual enemy-role reassignments from the draft board, keyed by champion id.
     /// Re-applied on every LCU session push so they survive the next websocket frame.
     pub enemy_role_overrides: Arc<Mutex<HashMap<u32, Role>>>,
+    /// Manual ally-role reassignments from the draft board, keyed by champion id.
+    pub ally_role_overrides: Arc<Mutex<HashMap<u32, Role>>>,
     /// Rank tier OP.GG data is currently fetched for (Issue #13).
     pub rank_tier: Arc<Mutex<RankTier>>,
     /// Whether `rank_tier` was set explicitly via the UI dropdown; if so, LCU
@@ -121,6 +123,7 @@ pub fn run() {
         connection: Arc::new(Mutex::new(ConnectionStatus::Searching)),
         profile: Arc::new(Mutex::new(cached_profile)),
         enemy_role_overrides: Arc::new(Mutex::new(HashMap::new())),
+        ally_role_overrides: Arc::new(Mutex::new(HashMap::new())),
         rank_tier: Arc::new(Mutex::new(rank_tier)),
         rank_manual: Arc::new(Mutex::new(rank_manual)),
         refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
@@ -142,6 +145,8 @@ pub fn run() {
             commands::hover_champion,
             commands::get_champion_recommendation,
             commands::set_enemy_role,
+            commands::set_champion_role,
+            commands::swap_champion_roles,
             commands::get_rank_tier,
             commands::set_rank_tier,
             commands::get_settings,

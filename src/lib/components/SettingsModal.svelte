@@ -1,7 +1,6 @@
 <script lang="ts">
   import { settings, settingsOpen } from "../stores/settings";
-  import { rankRefreshing, rankRefreshProgress } from "../stores/rank";
-  import { forceRefreshData, setSettings, testServerConnection } from "../ipc/tauri";
+  import { setSettings, testServerConnection } from "../ipc/tauri";
   import type { ServerStatus } from "../types";
 
   let testing = false;
@@ -27,15 +26,6 @@
   function onAlwaysOnTopChange(e: Event) {
     settings.update((s) => ({ ...s, always_on_top: (e.target as HTMLInputElement).checked }));
     push();
-  }
-
-  function onCompWeightInput(e: Event) {
-    // Live-update the label while dragging, without hammering the backend.
-    settings.update((s) => ({ ...s, comp_weight: Number((e.target as HTMLInputElement).value) }));
-  }
-
-  function onCompWeightChange() {
-    push(); // fires on release
   }
 
   function onServerUrlInput(e: Event) {
@@ -122,22 +112,6 @@
         <section>
           <h3 class="mb-2 text-xs uppercase tracking-wide text-purple-300/70">Behavior</h3>
           <div class="flex flex-col gap-3">
-            <div>
-              <div class="mb-1 flex items-center justify-between">
-                <span class="text-slate-300">Team-comp weight</span>
-                <span class="tabular-nums text-purple-300 font-semibold">{$settings.comp_weight.toFixed(2)}</span>
-              </div>
-              <input
-                type="range"
-                min="0"
-                max="0.3"
-                step="0.01"
-                value={$settings.comp_weight}
-                on:input={onCompWeightInput}
-                on:change={onCompWeightChange}
-                class="w-full accent-purple-500"
-              />
-            </div>
             <label class="flex items-center justify-between gap-3 py-1">
               <span class="text-slate-300">Always on top</span>
               <input
@@ -186,25 +160,6 @@
               <p class="text-[11px] text-slate-400">
                 Dataset is streamed directly over the local network into RAM.
               </p>
-            {/if}
-          </div>
-        </section>
-
-        <!-- Data Controls -->
-        <section>
-          <h3 class="mb-2 text-xs uppercase tracking-wide text-purple-300/70">Data Controls</h3>
-          <div class="flex items-center gap-3">
-            <button
-              class="glass-soft rounded-lg px-3 py-1.5 text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={$rankRefreshing}
-              on:click={() => forceRefreshData()}
-            >
-              {$rankRefreshing ? "Refreshing…" : "Refresh data now"}
-            </button>
-            {#if $rankRefreshing && $rankRefreshProgress}
-              <span class="text-[11px] tabular-nums text-purple-300">
-                {$rankRefreshProgress.done}/{$rankRefreshProgress.total}
-              </span>
             {/if}
           </div>
         </section>

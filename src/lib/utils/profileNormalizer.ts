@@ -443,6 +443,16 @@ export function normalizeMatches(raw: any, targetNameOrPuuid?: string): PlayerMa
       const detailedParticipants: DetailedParticipant[] = participants.map((p: any) => {
         const ident = identities.find((i: any) => i.participantId === p.participantId)?.player || {};
         const pStats = p.stats || {};
+        const pos =
+          p.teamPosition ||
+          p.individualPosition ||
+          p.selectedPosition ||
+          (p.timeline?.lane === "BOTTOM" && p.timeline?.role === "DUO_SUPPORT"
+            ? "UTILITY"
+            : p.timeline?.lane === "BOTTOM" && p.timeline?.role === "DUO_CARRY"
+            ? "BOTTOM"
+            : p.timeline?.lane) ||
+          undefined;
         return {
           summoner_name: ident.gameName || ident.summonerName || `Player ${p.participantId}`,
           game_name: ident.gameName,
@@ -450,6 +460,7 @@ export function normalizeMatches(raw: any, targetNameOrPuuid?: string): PlayerMa
           champion_id: p.championId,
           champion_name: "",
           team_id: p.teamId,
+          position: pos,
           is_local: p.participantId === targetPartId,
           kills: pStats.kills || 0,
           deaths: pStats.deaths || 0,
@@ -474,6 +485,18 @@ export function normalizeMatches(raw: any, targetNameOrPuuid?: string): PlayerMa
           win: !!pStats.win,
         };
       });
+
+      const matchBans: number[] = [];
+      if (Array.isArray(g.teams)) {
+        for (const t of g.teams) {
+          if (Array.isArray(t.bans)) {
+            for (const b of t.bans) {
+              const cid = b.championId || b.champion_id;
+              if (typeof cid === "number" && cid > 0) matchBans.push(cid);
+            }
+          }
+        }
+      }
 
       matches.push({
         id: String(g.gameId),
@@ -501,6 +524,7 @@ export function normalizeMatches(raw: any, targetNameOrPuuid?: string): PlayerMa
         primary_rune_id: stats.perk0,
         secondary_style_id: stats.perkSubStyle,
         participants: detailedParticipants,
+        bans: matchBans.length > 0 ? matchBans : undefined,
       });
     }
 
@@ -598,6 +622,17 @@ export function normalizeGameDetail(raw: any, focusNameOrPuuid?: string): Detail
            `${ident.gameName || ""}#${ident.tagLine || ""}`.toLowerCase() === focusNameOrPuuid.toLowerCase())
         : false;
 
+      const pos =
+        p.teamPosition ||
+        p.individualPosition ||
+        p.selectedPosition ||
+        (p.timeline?.lane === "BOTTOM" && p.timeline?.role === "DUO_SUPPORT"
+          ? "UTILITY"
+          : p.timeline?.lane === "BOTTOM" && p.timeline?.role === "DUO_CARRY"
+          ? "BOTTOM"
+          : p.timeline?.lane) ||
+        undefined;
+
       return {
         summoner_name: ident.gameName || ident.summonerName || `Player ${p.participantId}`,
         game_name: ident.gameName,
@@ -605,6 +640,7 @@ export function normalizeGameDetail(raw: any, focusNameOrPuuid?: string): Detail
         champion_id: p.championId,
         champion_name: "",
         team_id: p.teamId,
+        position: pos,
         is_local: isLocal,
         kills: pStats.kills || 0,
         deaths: pStats.deaths || 0,
@@ -659,6 +695,8 @@ export function normalizeGameDetail(raw: any, focusNameOrPuuid?: string): Detail
            `${sum.game_name || ""}#${sum.tagline || ""}`.toLowerCase() === focusNameOrPuuid.toLowerCase() ||
            (focusNameOrPuuid.includes("#") && sum.game_name?.toLowerCase() === focusNameOrPuuid.split("#")[0].trim().toLowerCase())));
 
+      const pos = p.position || p.role || p.stats?.position || undefined;
+
       participants.push({
         summoner_name: sum.game_name || `Player ${p.champion_id}`,
         game_name: sum.game_name,
@@ -666,6 +704,7 @@ export function normalizeGameDetail(raw: any, focusNameOrPuuid?: string): Detail
         champion_id: p.champion_id,
         champion_name: p.champion_name || "",
         team_id: teamId,
+        position: pos,
         is_local: !!isLocal,
         kills: stats.kill || 0,
         deaths: stats.death || 0,
@@ -686,4 +725,48 @@ export function normalizeGameDetail(raw: any, focusNameOrPuuid?: string): Detail
   });
 
   return participants;
+}
+
+export function extractBansFromGameDetail(raw: any): number[] {
+  if (!raw) return [];
+  const bans: number[] = [];
+
+  // 1. LCU
+  const lcuData = raw.data?.data || raw.data || raw;
+  if (Array.isArray(lcuData.teams)) {
+    for (const t of lcuData.teams) {
+      if (Array.isArray(t.bans)) {
+        for (const b of t.bans) {
+          const cid = b.championId || b.champion_id;
+          if (typeof cid === "number" && cid > 0) {
+            bans.push(cid);
+          }
+        }
+      }
+    }
+  }
+
+  // 2. OP.GG
+  const gameDetail =
+    raw.data?.data?.game_detail ||
+    raw.data?.game_detail ||
+    raw.game_detail ||
+    raw.data?.data ||
+    raw.data ||
+    raw;
+  if (Array.isArray(gameDetail.teams)) {
+    for (const t of gameDetail.teams) {
+      const list = t.banned_champions || t.bans || [];
+      if (Array.isArray(list)) {
+        for (const b of list) {
+          const cid = typeof b === "number" ? b : b?.champion_id || b?.championId;
+          if (typeof cid === "number" && cid > 0) {
+            bans.push(cid);
+          }
+        }
+      }
+    }
+  }
+
+  return bans;
 }

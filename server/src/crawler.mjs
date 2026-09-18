@@ -254,7 +254,7 @@ export async function fetchOpggBuildData(championKey, role, tier, dd) {
     }
 
     function resolveNode(node, depth = 0) {
-      if (depth > 25 || node == null) return node;
+      if (depth > 75 || node == null) return node;
       if (typeof node === "string") {
         const m = node.match(/^\$L([0-9a-f]+)$/);
         if (m) {

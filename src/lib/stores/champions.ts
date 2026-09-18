@@ -9,7 +9,7 @@ export interface ChampionInfo {
 }
 
 // Used until the live version is fetched (also the offline fallback).
-const FALLBACK_VERSION = "14.12.1";
+const FALLBACK_VERSION = "16.18.1";
 
 export const ddragonVersion = writable<string>(FALLBACK_VERSION);
 export const championCatalog = writable<Map<number, ChampionInfo>>(new Map());

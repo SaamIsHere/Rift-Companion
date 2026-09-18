@@ -109,29 +109,63 @@ const STYLE_ICONS: Record<number, string> = {
   8400: "perk-images/Styles/7204_Resolve.png",
 };
 
+const WELL_KNOWN_RUNE_ICONS: Record<number, string> = {
+  // Precision
+  8005: "perk-images/Styles/Precision/PressTheAttack/PressTheAttack.png",
+  8008: "perk-images/Styles/Precision/LethalTempo/LethalTempoTemp.png",
+  8010: "perk-images/Styles/Precision/Conqueror/Conqueror.png",
+  8021: "perk-images/Styles/Precision/FleetFootwork/FleetFootwork.png",
+  // Domination
+  8112: "perk-images/Styles/Domination/Electrocute/Electrocute.png",
+  8124: "perk-images/Styles/Domination/Predator/Predator.png",
+  8128: "perk-images/Styles/Domination/DarkHarvest/DarkHarvest.png",
+  9923: "perk-images/Styles/Domination/HailOfBlades/HailOfBlades.png",
+  // Sorcery
+  8214: "perk-images/Styles/Sorcery/SummonAery/SummonAery.png",
+  8229: "perk-images/Styles/Sorcery/ArcaneComet/ArcaneComet.png",
+  8230: "perk-images/Styles/Sorcery/PhaseRush/StormraidersSurgeRuneIcon2.png",
+  // Resolve
+  8437: "perk-images/Styles/Resolve/GraspOfTheUndying/GraspOfTheUndying.png",
+  8439: "perk-images/Styles/Resolve/VeteranAftershock/VeteranAftershock.png",
+  8465: "perk-images/Styles/Resolve/Guardian/Guardian.png",
+  // Inspiration
+  8351: "perk-images/Styles/Inspiration/GlacialAugment/GlacialAugment.png",
+  8360: "perk-images/Styles/Inspiration/UnsealedSpellbook/UnsealedSpellbook.png",
+  8369: "perk-images/Styles/Inspiration/FirstStrike/FirstStrike.png",
+};
+
 /** Style/Path tree icon URL (Precision, Domination, Sorcery, etc.). */
-export function runeStyleIconUrl(styleId?: number): string {
-  const path = (styleId && STYLE_ICONS[styleId]) || "perk-images/Styles/7201_Precision.png";
+export function runeStyleIconUrl(styleId?: number | null): string {
+  if (!styleId) return "";
+  const path = STYLE_ICONS[styleId] || "perk-images/Styles/7201_Precision.png";
   return `https://ddragon.leagueoflegends.com/cdn/img/${path}`;
 }
 
 /**
  * Load all runes and styles from Data Dragon once and cache them.
  */
-export async function loadRunesReforged(version = "16.17.1"): Promise<Map<number, RuneMeta>> {
+export async function loadRunesReforged(version = "16.18.1"): Promise<Map<number, RuneMeta>> {
   if (runesCache) return runesCache;
   if (runesPromise) return runesPromise;
 
   runesPromise = (async () => {
     try {
       const res = await fetch(`https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/runesReforged.json`, {
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(5000),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const styles = await res.json();
       const map = new Map<number, RuneMeta>();
 
       for (const s of styles) {
+        map.set(s.id, {
+          id: s.id,
+          name: s.name,
+          icon: s.icon,
+          styleId: s.id,
+          styleName: s.name,
+          styleIcon: s.icon,
+        });
         for (const slot of s.slots || []) {
           for (const r of slot.runes || []) {
             map.set(r.id, {
@@ -165,6 +199,14 @@ export function getRuneIconUrl(runeId?: number | null, runesMap?: Map<number, Ru
   const meta = runesMap?.get(runeId) || runesCache?.get(runeId);
   if (meta?.icon) {
     return `https://ddragon.leagueoflegends.com/cdn/img/${meta.icon}`;
+  }
+  // Check well-known keystones (e.g. Lethal Tempo 8008, Conqueror 8010, etc.)
+  if (WELL_KNOWN_RUNE_ICONS[runeId]) {
+    return `https://ddragon.leagueoflegends.com/cdn/img/${WELL_KNOWN_RUNE_ICONS[runeId]}`;
+  }
+  // Check style path icons (8000, 8100, 8200, 8300, 8400)
+  if (STYLE_ICONS[runeId]) {
+    return runeStyleIconUrl(runeId);
   }
   // Check stat mod fallback
   if (STAT_MOD_ICONS[runeId]) {

@@ -157,6 +157,43 @@ export async function setEnemyRole(
 }
 
 /**
+ * Manually reassign a champion pick's (ally or enemy) role.
+ * Pass `role: null` to clear the override and revert to default.
+ */
+export async function setChampionRole(
+  championId: number,
+  role: Role | null,
+  isEnemy: boolean,
+): Promise<Recommendation[]> {
+  if (!isTauri) return [];
+  return invoke<Recommendation[]>("set_champion_role", {
+    championId,
+    role,
+    isEnemy,
+  });
+}
+
+/**
+ * Atomically swap or reassign roles between two champions (or one champion and an empty slot).
+ */
+export async function swapChampionRoles(
+  championA: number,
+  roleA: Role,
+  championB: number | null,
+  roleB: Role | null,
+  isEnemy: boolean,
+): Promise<Recommendation[]> {
+  if (!isTauri) return [];
+  return invoke<Recommendation[]>("swap_champion_roles", {
+    championA,
+    roleA,
+    championB,
+    roleB,
+    isEnemy,
+  });
+}
+
+/**
  * Manually select a rank tier for OP.GG data fetching. Triggers a background
  * re-crawl; the resolved dataset lands via the "recommendations://update" and
  * "rank-refresh://status" events rather than this call's return value.

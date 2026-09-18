@@ -382,19 +382,17 @@
                 <!-- Shards Divider -->
                 <div class="my-0.5 w-full border-t border-purple-500/15"></div>
 
-                <!-- 3 Stat Shards -->
-                <div class="flex flex-col items-center gap-1.5">
+                <!-- 3 Stat Shards (icons strictly aligned vertically in a line, text on the right) -->
+                <div class="grid grid-cols-[20px_1fr] items-center gap-x-2 gap-y-1.5 w-fit mx-auto">
                   {#each activeRunePage.shards as shard, idx (`${shard.id || 'sh'}-${idx}`)}
-                    <div class="flex items-center gap-1.5" title={shard.name}>
-                      <div class="flex h-5 w-5 max-h-5 max-w-5 shrink-0 items-center justify-center rounded-full border border-purple-400/30 bg-purple-950/60 p-0.5">
-                        <img
-                          src={statModIconUrl(shard.id)}
-                          alt={shard.name}
-                          class="h-3.5 w-3.5 max-h-3.5 max-w-3.5 object-contain"
-                        />
-                      </div>
-                      <span class="text-[9px] text-slate-300 line-clamp-1 max-w-[80px]">{shard.name}</span>
+                    <div class="flex h-5 w-5 max-h-5 max-w-5 shrink-0 items-center justify-center rounded-full border border-purple-400/30 bg-purple-950/60 p-0.5" title={shard.name}>
+                      <img
+                        src={statModIconUrl(shard.id)}
+                        alt={shard.name}
+                        class="h-3.5 w-3.5 max-h-3.5 max-w-3.5 object-contain"
+                      />
                     </div>
+                    <span class="text-[9px] text-slate-300 truncate max-w-[85px] text-left" title={shard.name}>{shard.name}</span>
                   {/each}
                 </div>
               </div>
@@ -623,6 +621,7 @@
           {#if build?.boots && build.boots.length}
             <div class="flex flex-col gap-2">
               {#each build.boots.slice(0, 2) as boot, bIdx (`boot-${bIdx}`)}
+                {@const bootPr = getBootPickRate(boot, build.boots[1 - bIdx], bIdx, overview?.games)}
                 <div class="flex items-center justify-between rounded-lg border border-purple-500/15 bg-purple-950/20 p-2 transition hover:bg-purple-900/25">
                   <div class="flex items-center gap-2 min-w-0 pr-2">
                     <img
@@ -638,10 +637,13 @@
                   <div class="flex items-center gap-3 shrink-0">
                     <div class="w-20 text-right">
                       <span class="text-xs font-bold text-white block">
-                        {formatPercent(getBootPickRate(boot, build.boots[1 - bIdx], bIdx, overview?.games), bIdx + 70)}
+                        {formatPercent(bootPr, bIdx + 70)}
                       </span>
                       {#if boot.play}
                         <span class="text-[9px] text-slate-400">{formatGames(boot.play)} Games</span>
+                      {:else if overview?.games && bootPr}
+                        {@const estPlay = Math.round(bootPr * overview.games)}
+                        <span class="text-[9px] text-slate-400">{formatGames(estPlay)} Games</span>
                       {/if}
                     </div>
                     <div class="w-14 text-right">

@@ -1,7 +1,7 @@
 import { writable, get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import type { Summoner, FullPlayerProfile, PlayerMatch, DetailedParticipant } from "../types";
-import { normalizeProfile, normalizeMatches, normalizeGameDetail } from "../utils/profileNormalizer";
+import { normalizeProfile, normalizeMatches, normalizeGameDetail, extractBansFromGameDetail } from "../utils/profileNormalizer";
 
 const STORAGE_KEY = "rift_cached_profile";
 const RECENT_SEARCHES_KEY = "rift_recent_searches";
@@ -319,9 +319,14 @@ export async function loadMatchDetail(
       focus_riot_id: focusRiotId,
     });
     const participants = normalizeGameDetail(raw, focusRiotId);
+    const bans = extractBansFromGameDetail(raw);
     if (participants.length > 0) {
       viewedMatches.update((matches) =>
-        matches.map((m) => (m.id === matchId ? { ...m, participants } : m))
+        matches.map((m) =>
+          m.id === matchId
+            ? { ...m, participants, ...(bans.length > 0 ? { bans } : {}) }
+            : m
+        )
       );
       return participants;
     }
