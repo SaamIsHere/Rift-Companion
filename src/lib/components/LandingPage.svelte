@@ -14,9 +14,11 @@
   import { openInBrowser, getLatestPatchInfo, type PatchInfo } from "../ipc/tauri";
   import { inferRegionFromTag } from "../utils/profileNormalizer";
   import { activeTheme, customWallpaper } from "../stores/theme";
+  import PatchNotesModal from "./PatchNotesModal.svelte";
 
   let searchQuery = "";
   let showDropdown = false;
+  let showPatchNotesModal = false;
   let selectedSuggestionIndex = -1;
 
   $: effectiveBg = $customWallpaper || "/landing-bg.jpg";
@@ -609,32 +611,38 @@
 
     <!-- Action buttons row -->
     <div class="mt-9 flex flex-wrap items-center justify-center gap-3">
-      <!-- Match Simulation Button -->
+      <!-- Latest Changes Button (in-app Patch Notes Highlights) -->
       <button
         type="button"
-        on:click={() => activeTab.set("simulation")}
-        class="group flex items-center gap-3 rounded-xl border border-purple-400/30 bg-gradient-to-r from-purple-800/80 via-violet-700/80 to-purple-900/80 px-4 py-2 text-left shadow-md backdrop-blur-lg transition-all duration-200 hover:scale-[1.02] hover:border-purple-300 hover:from-purple-700 hover:to-indigo-700 hover:shadow-lg active:scale-[0.98]"
-        title="Simulate Champion Select & Matchups"
+        on:click={() => (showPatchNotesModal = true)}
+        class="group flex items-center gap-3 rounded-xl border border-purple-400/30 bg-gradient-to-r from-purple-900/75 via-purple-800/65 to-purple-950/80 px-4 py-2 text-left shadow-md backdrop-blur-lg transition-all duration-200 hover:scale-[1.02] hover:border-purple-300 hover:from-purple-800/85 hover:to-purple-900/85 hover:shadow-lg active:scale-[0.98]"
+        title="View Latest Changes & Patch Highlights"
       >
-        <div class="flex h-8 w-8 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white shadow-inner">
-          <span class="text-base">⚔️</span>
+        <div class="flex h-8 w-8 items-center justify-center rounded-lg border border-purple-400/30 bg-purple-950/50 text-purple-200 shadow-inner">
+          <svg class="h-4 w-4 text-purple-300 transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <polyline points="10 9 9 9 8 9" />
+          </svg>
         </div>
         <div class="flex flex-col">
-          <span class="text-[11px] font-semibold tracking-wide text-purple-200">Simulator</span>
-          <span class="text-sm font-bold text-white leading-none">Match Simulation</span>
+          <span class="text-[11px] font-semibold tracking-wide text-purple-200">Patch Notes</span>
+          <span class="text-sm font-bold text-white leading-none">Latest Changes</span>
         </div>
       </button>
 
-      <!-- Latest Patch button -->
+      <!-- Latest Patch button (Full Riot Patch Notes in Browser) -->
       <button
         type="button"
         on:click={openPatchNotes}
-        class="group flex items-center gap-3 rounded-xl border border-purple-400/30 bg-gradient-to-r from-purple-700/85 via-violet-600/85 to-indigo-700/85 px-4 py-2 text-left shadow-md backdrop-blur-lg transition-all duration-200 hover:scale-[1.02] hover:border-purple-300 hover:from-purple-600 hover:to-indigo-600 hover:shadow-lg active:scale-[0.98]"
-        title="Open patch notes in default browser"
+        class="group flex items-center gap-3 rounded-xl border border-purple-400/30 bg-gradient-to-r from-purple-900/75 via-purple-800/65 to-purple-950/80 px-4 py-2 text-left shadow-md backdrop-blur-lg transition-all duration-200 hover:scale-[1.02] hover:border-purple-300 hover:from-purple-800/85 hover:to-purple-900/85 hover:shadow-lg active:scale-[0.98]"
+        title="Open official patch notes in default browser"
       >
         <!-- Patch/Book icon box -->
-        <div class="flex h-8 w-8 items-center justify-center rounded-lg border border-white/20 bg-white/10 text-white shadow-inner">
-          <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <div class="flex h-8 w-8 items-center justify-center rounded-lg border border-purple-400/30 bg-purple-950/50 text-purple-200 shadow-inner">
+          <svg class="h-4 w-4 text-purple-300 transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z" />
             <path d="M6 6h10" />
             <path d="M6 10h10" />
@@ -643,12 +651,12 @@
 
         <!-- Text details -->
         <div class="flex flex-col">
-          <span class="text-[11px] font-semibold tracking-wide text-purple-200">Latest Patch</span>
-          <span class="text-sm font-bold text-white leading-none">v{currentPatch.display} <span class="text-xs font-normal text-purple-200/80">(Browser)</span></span>
+          <span class="text-[11px] font-semibold tracking-wide text-purple-200">Official Web</span>
+          <span class="text-sm font-bold text-white leading-none">Patch v{currentPatch.display} <span class="text-xs font-normal text-purple-200/80">(Browser)</span></span>
         </div>
 
         <!-- External link icon -->
-        <div class="ml-1 text-purple-200/80 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-white">
+        <div class="ml-1 text-purple-200/80 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-purple-100">
           <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
             <polyline points="15 3 21 3 21 9" />
@@ -659,3 +667,11 @@
     </div>
   </div>
 </div>
+
+{#if showPatchNotesModal}
+  <PatchNotesModal
+    isOpen={showPatchNotesModal}
+    {currentPatch}
+    onClose={() => (showPatchNotesModal = false)}
+  />
+{/if}
