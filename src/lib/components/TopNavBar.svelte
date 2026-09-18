@@ -28,7 +28,7 @@
 <!-- Slimmer, sleek topbar with native draggable region -->
 <header
   data-tauri-drag-region
-  class="relative z-30 flex h-11 w-full items-center justify-between border-b border-purple-500/15 bg-[#080412]/95 px-4 backdrop-blur-xl select-none"
+  class="relative z-30 flex h-11 w-full items-center justify-between border-b border-purple-500/15 bg-void-950/95 px-4 backdrop-blur-xl select-none transition-colors duration-300"
 >
   <!-- Left: Clickable Brand Logo & Title (opens STARTSEITE) -->
   <button
@@ -141,7 +141,7 @@
               : 'ring-purple-500/20 opacity-85'} transition group-hover:ring-purple-300"
           />
           <span
-            class="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-[#0c061a] {$connection === 'connected'
+            class="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-void-950 {$connection === 'connected'
               ? 'bg-emerald-400'
               : 'bg-amber-400/85'}"
             title={$connection === 'connected' ? 'Client connected' : 'Client offline (last active account)'}

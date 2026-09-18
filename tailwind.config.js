@@ -4,7 +4,7 @@ export default {
   theme: {
     extend: {
       borderColor: {
-        DEFAULT: "rgba(168, 85, 247, 0.15)",
+        DEFAULT: "rgb(var(--theme-primary-500, 168 85 247) / 0.15)",
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
@@ -19,26 +19,39 @@ export default {
         '13': '3.25rem',
       },
       colors: {
+        purple: {
+          50: "rgb(var(--theme-primary-50, 250 245 255) / <alpha-value>)",
+          100: "rgb(var(--theme-primary-100, 243 232 255) / <alpha-value>)",
+          200: "rgb(var(--theme-primary-200, 233 213 255) / <alpha-value>)",
+          300: "rgb(var(--theme-primary-300, 216 180 254) / <alpha-value>)",
+          400: "rgb(var(--theme-primary-400, 192 132 252) / <alpha-value>)",
+          500: "rgb(var(--theme-primary-500, 168 85 247) / <alpha-value>)",
+          600: "rgb(var(--theme-primary-600, 147 51 234) / <alpha-value>)",
+          700: "rgb(var(--theme-primary-700, 126 34 206) / <alpha-value>)",
+          800: "rgb(var(--theme-primary-800, 107 33 168) / <alpha-value>)",
+          900: "rgb(var(--theme-primary-900, 88 28 135) / <alpha-value>)",
+          950: "rgb(var(--theme-primary-950, 59 7 100) / <alpha-value>)",
+        },
         void: {
-          950: "#06030c",
-          900: "#0a0614",
-          850: "#0e081f",
-          800: "#140c2b",
-          700: "#1e113f",
-          600: "#2d1a58",
+          950: "rgb(var(--theme-void-950, 6 3 12) / <alpha-value>)",
+          900: "rgb(var(--theme-void-900, 10 6 20) / <alpha-value>)",
+          850: "rgb(var(--theme-void-850, 14 8 31) / <alpha-value>)",
+          800: "rgb(var(--theme-void-800, 20 12 43) / <alpha-value>)",
+          700: "rgb(var(--theme-void-700, 30 17 63) / <alpha-value>)",
+          600: "rgb(var(--theme-void-600, 45 26 88) / <alpha-value>)",
         },
         nexus: {
-          purple: "#9333ea",
-          violet: "#a855f7",
-          glow: "#c084fc",
-          dim: "#7e22ce",
+          purple: "rgb(var(--theme-primary-600, 147 51 234) / <alpha-value>)",
+          violet: "rgb(var(--theme-primary-500, 168 85 247) / <alpha-value>)",
+          glow: "rgb(var(--theme-primary-400, 192 132 252) / <alpha-value>)",
+          dim: "rgb(var(--theme-primary-700, 126 34 206) / <alpha-value>)",
         },
         hextech: {
           gold: "#c8aa6e",
           cyan: "#0ac8b9",
           blue: "#0397ab",
-          purple: "#a855f7",
-          violet: "#8b5cf6",
+          purple: "rgb(var(--theme-primary-500, 168 85 247) / <alpha-value>)",
+          violet: "rgb(var(--theme-primary-600, 147 51 234) / <alpha-value>)",
         },
       },
       keyframes: {

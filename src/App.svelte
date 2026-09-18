@@ -6,6 +6,7 @@
   import { collapsed } from "./lib/stores/ui";
   import { activeTab } from "./lib/stores/navigation";
   import { viewedProfile, loadPlayerProfile } from "./lib/stores/profile";
+  import { initTheme, activeTheme, customWallpaper, wallpaperScope } from "./lib/stores/theme";
   import TopNavBar from "./lib/components/TopNavBar.svelte";
   import LandingPage from "./lib/components/LandingPage.svelte";
   import ProfileView from "./lib/components/ProfileView.svelte";
@@ -15,7 +16,10 @@
   import MatchSimulationView from "./lib/components/MatchSimulationView.svelte";
   import SettingsModal from "./lib/components/SettingsModal.svelte";
 
+  $: effectiveWallpaper = $customWallpaper || "/landing-bg.jpg";
+
   onMount(() => {
+    initTheme();
     initChampions(); // load Data Dragon id→name/icon catalog
     initIpc();
 
@@ -60,13 +64,21 @@
 
 <svelte:window on:keydown={handleGlobalKeydown} on:contextmenu|preventDefault />
 
-<div class="flex h-screen w-screen flex-col overflow-hidden text-slate-100 bg-[#07040d]">
+<div class="relative flex h-screen w-screen flex-col overflow-hidden text-slate-100 bg-[var(--theme-bg-base)] transition-colors duration-500">
+  <!-- Optional subtle background for all tabs when enabled in settings -->
+  {#if $wallpaperScope === "all_tabs" && $activeTab !== "startseite"}
+    <div
+      class="pointer-events-none fixed inset-0 z-0 bg-center bg-no-repeat bg-cover opacity-[0.12] transition-all duration-700"
+      style="background-image: url('{effectiveWallpaper}'); filter: {$customWallpaper ? 'none' : $activeTheme.bgFilter};"
+    ></div>
+  {/if}
+
   <!-- Sleek, slim custom frameless navigation bar (window is decorations:false) -->
   <TopNavBar />
 
   <!-- Main view container (hidden when rolled-up into window-shade mode) -->
   {#if !$collapsed}
-    <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+    <div class="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
       {#if $activeTab === "startseite"}
         <LandingPage />
       {:else if $activeTab === "live_match"}

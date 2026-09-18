@@ -82,10 +82,27 @@ pub struct Settings {
     /// Whether rank tier was set manually by the user (Issue #40).
     #[serde(default)]
     pub rank_manual: bool,
+    /// Active UI theme (e.g. "void", "hextech", "noxus", "freljord", etc.)
+    #[serde(default = "default_theme")]
+    pub theme: String,
+    /// Optional custom wallpaper image path
+    #[serde(default)]
+    pub custom_wallpaper: Option<String>,
+    /// Wallpaper display scope: "landing_only" or "all_tabs"
+    #[serde(default = "default_wallpaper_scope")]
+    pub wallpaper_scope: String,
 }
 
 fn default_comp_weight() -> f64 {
     crate::engine::weights::Weights::default().comp
+}
+
+fn default_theme() -> String {
+    "void".to_string()
+}
+
+fn default_wallpaper_scope() -> String {
+    "landing_only".to_string()
 }
 
 impl Default for Settings {
@@ -97,6 +114,9 @@ impl Default for Settings {
             server_url: String::new(),
             rank_tier: None,
             rank_manual: false,
+            theme: default_theme(),
+            custom_wallpaper: None,
+            wallpaper_scope: default_wallpaper_scope(),
         }
     }
 }

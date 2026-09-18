@@ -94,12 +94,27 @@ export interface Weights {
   mode?: ScoringMode;
 }
 
+export type ThemeId =
+  | "void"
+  | "hextech"
+  | "noxus"
+  | "freljord"
+  | "shadow_isles"
+  | "shurima"
+  | "spirit_blossom"
+  | "chemtech";
+
+export type WallpaperScope = "landing_only" | "all_tabs";
+
 // User-adjustable app settings (Issue #15), persisted to settings.json.
 export interface Settings {
   compact_density: boolean;
   always_on_top: boolean;
   comp_weight: number;
   server_url: string;
+  theme?: ThemeId | string;
+  custom_wallpaper?: string | null;
+  wallpaper_scope?: WallpaperScope;
 }
 
 export interface ServerStatus {

@@ -13,10 +13,14 @@
   import { squareIconUrl, tierMedalUrl, profileIconUrl } from "../utils/ddragon";
   import { openInBrowser, getLatestPatchInfo, type PatchInfo } from "../ipc/tauri";
   import { inferRegionFromTag } from "../utils/profileNormalizer";
+  import { activeTheme, customWallpaper } from "../stores/theme";
 
   let searchQuery = "";
   let showDropdown = false;
   let selectedSuggestionIndex = -1;
+
+  $: effectiveBg = $customWallpaper || "/landing-bg.jpg";
+  $: bgFilter = $customWallpaper ? "none" : $activeTheme.bgFilter;
 
   interface LandingHistoryItem {
     id: string;
@@ -403,18 +407,18 @@
 <div class="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden px-4 select-none">
   <!-- Atmospheric background map with glowing runes (clean artwork from mockup) -->
   <div
-    class="pointer-events-none absolute inset-0 bg-center bg-no-repeat bg-cover opacity-90 transition-opacity duration-700"
-    style="background-image: url('/landing-bg.jpg');"
+    class="pointer-events-none absolute inset-0 bg-center bg-no-repeat bg-cover opacity-90 transition-all duration-700"
+    style="background-image: url('{effectiveBg}'); filter: {bgFilter};"
   >
-    <!-- Vignette gradients blending into deep dark void edges -->
-    <div class="absolute inset-0 bg-radial-gradient from-transparent via-[#07040d]/40 to-[#07040d]"></div>
-    <div class="absolute inset-0 bg-gradient-to-t from-[#07040d] via-transparent to-[#07040d]/80"></div>
+    <!-- Vignette gradients blending into deep dark theme edges -->
+    <div class="absolute inset-0 bg-radial-gradient from-transparent via-[var(--theme-bg-base)]/40 to-[var(--theme-bg-base)] transition-colors duration-500"></div>
+    <div class="absolute inset-0 bg-gradient-to-t from-[var(--theme-bg-base)] via-transparent to-[var(--theme-bg-base)]/80 transition-colors duration-500"></div>
   </div>
 
   <!-- Central Hero Content -->
   <div class="relative z-10 flex w-full max-w-2xl flex-col items-center text-center -mt-6">
     <!-- Main Title -->
-    <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold uppercase tracking-[0.22em] text-white drop-shadow-[0_4px_30px_rgba(168,85,247,0.45)]">
+    <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold uppercase tracking-[0.22em] text-white drop-shadow-[0_4px_30px_var(--theme-glow)] transition-all duration-500">
       Rift Companion
     </h1>
 
@@ -422,7 +426,7 @@
     <div class="relative mt-8 w-full max-w-xl">
       <form
         on:submit|preventDefault={handleSearchSubmit}
-        class="relative flex items-center rounded-2xl border border-purple-500/35 bg-[#0d071e]/85 shadow-xl backdrop-blur-xl transition-all duration-200 focus-within:border-purple-400 focus-within:ring-1 focus-within:ring-purple-400/30 hover:border-purple-400/60"
+        class="relative flex items-center rounded-2xl border border-purple-500/35 bg-void-900/85 shadow-xl backdrop-blur-xl transition-all duration-200 focus-within:border-purple-400 focus-within:ring-1 focus-within:ring-purple-400/30 hover:border-purple-400/60"
       >
         <span class="pointer-events-none absolute left-4 text-purple-300/80">
           <svg
@@ -471,7 +475,7 @@
           role="listbox"
           tabindex="-1"
           aria-label="Search suggestions"
-          class="absolute left-0 right-0 top-full mt-2 z-50 overflow-hidden rounded-2xl border border-purple-500/30 bg-[#0c071d]/95 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.85)] backdrop-blur-2xl ring-1 ring-purple-500/20 text-left"
+          class="absolute left-0 right-0 top-full mt-2 z-50 overflow-hidden rounded-2xl border border-purple-500/30 bg-void-950/95 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.85)] backdrop-blur-2xl ring-1 ring-purple-500/20 text-left"
           on:mousedown|preventDefault
         >
           <!-- CHAMPIONS SECTION -->

@@ -7,6 +7,9 @@ export const settings = writable<Settings>({
   always_on_top: false,
   comp_weight: 0.15,
   server_url: "",
+  theme: "void",
+  custom_wallpaper: null,
+  wallpaper_scope: "landing_only",
 });
 
 /** Whether the settings modal is currently open. */

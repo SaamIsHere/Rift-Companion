@@ -1621,3 +1621,51 @@ pub fn simulate_match_analysis(state: State<Shared>, draft: DraftState) -> Simul
     }
 }
 
+/// Save user uploaded custom wallpaper image to app data directory.
+#[tauri::command]
+pub fn save_custom_wallpaper(
+    app: AppHandle,
+    base64_data: String,
+    extension: String,
+) -> Result<String, String> {
+    use base64::Engine;
+    let clean_b64 = if let Some(idx) = base64_data.find(";base64,") {
+        &base64_data[idx + 8..]
+    } else {
+        &base64_data
+    };
+
+    let data = base64::engine::general_purpose::STANDARD
+        .decode(clean_b64.trim())
+        .map_err(|e| format!("Invalid base64: {}", e))?;
+
+    let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&app_dir).map_err(|e| e.to_string())?;
+
+    let ext = if extension.trim().is_empty() {
+        "jpg"
+    } else {
+        extension.trim()
+    };
+    let filename = format!("custom_wallpaper.{}", ext);
+    let target_path = app_dir.join(&filename);
+    std::fs::write(&target_path, data).map_err(|e| e.to_string())?;
+
+    Ok(target_path.to_string_lossy().to_string())
+}
+
+/// Delete user uploaded custom wallpaper image from app data directory.
+#[tauri::command]
+pub fn delete_custom_wallpaper(app: AppHandle) -> Result<(), String> {
+    if let Ok(app_dir) = app.path().app_data_dir() {
+        for ext in &["jpg", "jpeg", "png", "webp"] {
+            let p = app_dir.join(format!("custom_wallpaper.{}", ext));
+            if p.exists() {
+                let _ = std::fs::remove_file(p);
+            }
+        }
+    }
+    Ok(())
+}
+
+
