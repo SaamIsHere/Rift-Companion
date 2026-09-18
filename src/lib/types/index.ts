@@ -96,11 +96,13 @@ export interface Weights {
 
 export type ThemeId =
   | "void"
+  | "piltover"
   | "hextech"
   | "noxus"
   | "freljord"
   | "shadow_isles"
   | "shurima"
+  | "ionia"
   | "spirit_blossom"
   | "chemtech";
 

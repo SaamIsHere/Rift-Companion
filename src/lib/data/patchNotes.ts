@@ -251,7 +251,7 @@ export const LATEST_PATCH_DATA: PatchNotesData = {
       title: "Rift Companion: 8 Runeterra Region Themes",
       summary: "Personalize your app with official Runeterra faction themes and dynamic styling.",
       details: [
-        "Added Void, Hextech, Noxus, Freljord, Shurima, Bilgewater, Ionia, and Shadow Isles themes",
+        "Added Void, Piltover, Noxus, Freljord, Shurima, Ionia, Chemtech, and Shadow Isles themes",
         "Dynamic theme color variables adapt buttons, cards, tags, and icons to your chosen faction",
         "Includes a Shuffle 🎲 option in Settings for quick randomized switching",
       ],

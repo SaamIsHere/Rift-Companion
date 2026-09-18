@@ -33,11 +33,6 @@
     void setSettings($settings);
   }
 
-  function onCompactDensityChange(e: Event) {
-    settings.update((s) => ({ ...s, compact_density: (e.target as HTMLInputElement).checked }));
-    push();
-  }
-
   function onAlwaysOnTopChange(e: Event) {
     settings.update((s) => ({ ...s, always_on_top: (e.target as HTMLInputElement).checked }));
     push();
@@ -88,7 +83,7 @@
 
   async function handleTestConnection() {
     if (!$settings.server_url?.trim()) {
-      testResult = { success: false, message: "Please enter a server URL (e.g. http://192.168.1.100:8080)" };
+      testResult = { success: false, message: "Bitte eine Server-URL eingeben (z. B. http://192.168.1.100:8080)" };
       return;
     }
     testing = true;
@@ -98,13 +93,13 @@
       const tierCount = status.tiers ? Object.keys(status.tiers).length : 0;
       testResult = {
         success: true,
-        message: `Connected! Patch: ${status.patch ?? "Unknown"} • ${tierCount} tiers crawled`,
+        message: `Erfolgreich verbunden! Patch: ${status.patch ?? "Unbekannt"} • ${tierCount} Tiers gecrawlt`,
       };
       push();
     } catch (err: any) {
       testResult = {
         success: false,
-        message: `Connection failed: ${err?.message || err}`,
+        message: `Verbindung fehlgeschlagen: ${err?.message || err}`,
       };
     } finally {
       testing = false;
@@ -134,11 +129,11 @@
       <div class="mb-5 flex items-center justify-between border-b border-purple-500/15 pb-3 shrink-0">
         <div class="flex items-center gap-2">
           <div class="h-2 w-2 rounded-full bg-purple-400"></div>
-          <h2 class="text-sm font-bold uppercase tracking-widest text-slate-200">Settings & Customization</h2>
+          <h2 class="text-sm font-bold uppercase tracking-widest text-slate-200">Einstellungen &amp; Anpassung</h2>
         </div>
         <button
           class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 transition hover:bg-white/10 hover:text-slate-100 focus:outline-none"
-          aria-label="Close settings"
+          aria-label="Einstellungen schließen"
           on:click={close}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -182,7 +177,7 @@
                   ? 'border-purple-400 bg-purple-900/40 ring-1 ring-purple-400/80 shadow-sm'
                   : 'border-purple-500/20 bg-void-950/40 hover:border-purple-400/50 hover:bg-purple-950/40'}"
               >
-                <!-- Top: Color Swatches -->
+                <!-- Top: Color Swatches (2 distinct theme colors) -->
                 <div class="mb-2 flex items-center gap-1.5">
                   <div
                     class="h-3.5 w-3.5 rounded-full ring-1 ring-white/20 shadow-sm"
@@ -192,25 +187,16 @@
                     class="h-2.5 w-2.5 rounded-full ring-1 ring-white/10"
                     style="background-color: {t.swatch[1]};"
                   ></div>
-                  <div
-                    class="h-2 w-2 rounded-full border border-white/10"
-                    style="background-color: {t.swatch[2]};"
-                  ></div>
                 </div>
 
-                <!-- Bottom: Name & Subtitle -->
-                <div>
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-bold {isSelected ? 'text-white' : 'text-slate-200 group-hover:text-purple-200'}">
-                      {t.name}
-                    </span>
-                    {#if isSelected}
-                      <span class="h-1.5 w-1.5 rounded-full bg-purple-400"></span>
-                    {/if}
-                  </div>
-                  <span class="text-[10px] text-purple-300/70 truncate block">
-                    {t.subtitle}
+                <!-- Bottom: Name -->
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold {isSelected ? 'text-white' : 'text-slate-200 group-hover:text-purple-200'}">
+                    {t.name}
                   </span>
+                  {#if isSelected}
+                    <span class="h-1.5 w-1.5 rounded-full bg-purple-400"></span>
+                  {/if}
                 </div>
               </button>
             {/each}
@@ -329,26 +315,12 @@
           {/if}
         </section>
 
-        <!-- SECTION 3: APPEARANCE -->
+        <!-- SECTION 3: VERHALTEN -->
         <section>
-          <h3 class="mb-2 text-xs uppercase tracking-wide text-slate-400">Appearance</h3>
-          <label class="flex items-center justify-between gap-3 py-1 cursor-pointer">
-            <span class="text-slate-300">Compact card density</span>
-            <input
-              type="checkbox"
-              checked={$settings.compact_density}
-              on:change={onCompactDensityChange}
-              class="h-4 w-4 accent-purple-500 cursor-pointer"
-            />
-          </label>
-        </section>
-
-        <!-- SECTION 4: BEHAVIOR -->
-        <section>
-          <h3 class="mb-2 text-xs uppercase tracking-wide text-purple-300/70">Behavior</h3>
+          <h3 class="mb-2 text-xs uppercase tracking-wide text-purple-300/70">Verhalten</h3>
           <div class="flex flex-col gap-1">
             <label class="flex items-center justify-between gap-3 py-1 cursor-pointer">
-              <span class="text-slate-300">Always on top</span>
+              <span class="text-slate-300">Immer im Vordergrund</span>
               <input
                 type="checkbox"
                 checked={$settings.always_on_top}
@@ -359,11 +331,11 @@
           </div>
         </section>
 
-        <!-- SECTION 5: NAS / RIFT SERVER CONFIGURATION -->
+        <!-- SECTION 4: NAS / RIFT DATENSERVER -->
         <section>
           <div class="mb-2 flex items-center justify-between">
-            <h3 class="text-xs uppercase tracking-wide text-purple-300/70">NAS / Data Server</h3>
-            <span class="text-[10px] text-purple-300">No local disk writes</span>
+            <h3 class="text-xs uppercase tracking-wide text-purple-300/70">NAS / Datenserver</h3>
+            <span class="text-[10px] text-purple-300">Keine lokalen Schreibzugriffe</span>
           </div>
           <div class="flex flex-col gap-2">
             <div class="flex gap-2">
@@ -380,7 +352,7 @@
                 disabled={testing}
                 on:click={handleTestConnection}
               >
-                {testing ? "Testing…" : "Test"}
+                {testing ? "Wird getestet…" : "Testen"}
               </button>
             </div>
             {#if testResult}
@@ -393,7 +365,7 @@
               </div>
             {:else if $settings.server_url}
               <p class="text-[11px] text-slate-400">
-                Dataset is streamed directly over the local network into RAM.
+                Datensatz wird direkt über das lokale Netzwerk in den RAM gestreamt.
               </p>
             {/if}
           </div>
