@@ -167,6 +167,7 @@ pub fn run() {
             commands::simulate_match_analysis,
             commands::save_custom_wallpaper,
             commands::delete_custom_wallpaper,
+            commands::get_custom_wallpaper,
         ])
         .setup(move |app| {
             // Apply the persisted always-on-top preference to the freshly created window and ensure it is shown.

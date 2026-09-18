@@ -67,10 +67,18 @@
 <div class="relative flex h-screen w-screen flex-col overflow-hidden text-slate-100 bg-[var(--theme-bg-base)] transition-colors duration-500">
   <!-- Optional subtle background for all tabs when enabled in settings -->
   {#if $wallpaperScope === "all_tabs" && $activeTab !== "startseite"}
-    <div
-      class="pointer-events-none fixed inset-0 z-0 bg-center bg-no-repeat bg-cover opacity-[0.12] transition-all duration-700"
-      style="background-image: url('{effectiveWallpaper}'); filter: {$customWallpaper ? 'none' : $activeTheme.bgFilter};"
-    ></div>
+    <div class="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+      <div
+        class="absolute inset-0 bg-center bg-no-repeat bg-cover opacity-[0.12] transition-all duration-700"
+        style="background-image: url('{effectiveWallpaper}'); filter: {$customWallpaper ? 'none' : $activeTheme.bgFilter};"
+      ></div>
+      {#if !$customWallpaper}
+        <div
+          class="absolute inset-0 transition-all duration-700 pointer-events-none opacity-[0.12]"
+          style="background: {$activeTheme.tintGradient}; mix-blend-mode: {$activeTheme.tintBlendMode};"
+        ></div>
+      {/if}
+    </div>
   {/if}
 
   <!-- Sleek, slim custom frameless navigation bar (window is decorations:false) -->

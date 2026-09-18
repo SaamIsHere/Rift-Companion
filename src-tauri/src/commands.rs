@@ -1668,4 +1668,28 @@ pub fn delete_custom_wallpaper(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Load user uploaded custom wallpaper as base64 data URL.
+#[tauri::command]
+pub fn get_custom_wallpaper(app: AppHandle) -> Result<Option<String>, String> {
+    use base64::Engine;
+    if let Ok(app_dir) = app.path().app_data_dir() {
+        for ext in &["png", "jpg", "jpeg", "webp"] {
+            let p = app_dir.join(format!("custom_wallpaper.{}", ext));
+            if p.exists() {
+                if let Ok(bytes) = std::fs::read(&p) {
+                    let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes);
+                    let mime = match *ext {
+                        "png" => "image/png",
+                        "webp" => "image/webp",
+                        _ => "image/jpeg",
+                    };
+                    return Ok(Some(format!("data:{};base64,{}", mime, b64)));
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+
 

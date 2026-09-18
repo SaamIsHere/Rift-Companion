@@ -406,19 +406,30 @@
 
 <div class="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden px-4 select-none">
   <!-- Atmospheric background map with glowing runes (clean artwork from mockup) -->
-  <div
-    class="pointer-events-none absolute inset-0 bg-center bg-no-repeat bg-cover opacity-90 transition-all duration-700"
-    style="background-image: url('{effectiveBg}'); filter: {bgFilter};"
-  >
+  <div class="pointer-events-none absolute inset-0 overflow-hidden">
+    <!-- Base Map -->
+    <div
+      class="absolute inset-0 bg-center bg-no-repeat bg-cover opacity-90 transition-all duration-700"
+      style="background-image: url('{effectiveBg}'); filter: {bgFilter};"
+    ></div>
+
+    <!-- Theme Color Wash / Duotone Tint (only when using theme preset) -->
+    {#if !$customWallpaper}
+      <div
+        class="absolute inset-0 transition-all duration-700 pointer-events-none"
+        style="background: {$activeTheme.tintGradient}; mix-blend-mode: {$activeTheme.tintBlendMode}; opacity: 0.9;"
+      ></div>
+    {/if}
+
     <!-- Vignette gradients blending into deep dark theme edges -->
-    <div class="absolute inset-0 bg-radial-gradient from-transparent via-[var(--theme-bg-base)]/40 to-[var(--theme-bg-base)] transition-colors duration-500"></div>
+    <div class="absolute inset-0 bg-radial-gradient from-transparent via-[var(--theme-bg-base)]/50 to-[var(--theme-bg-base)] transition-colors duration-500"></div>
     <div class="absolute inset-0 bg-gradient-to-t from-[var(--theme-bg-base)] via-transparent to-[var(--theme-bg-base)]/80 transition-colors duration-500"></div>
   </div>
 
   <!-- Central Hero Content -->
   <div class="relative z-10 flex w-full max-w-2xl flex-col items-center text-center -mt-6">
-    <!-- Main Title -->
-    <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold uppercase tracking-[0.22em] text-white drop-shadow-[0_4px_30px_var(--theme-glow)] transition-all duration-500">
+    <!-- Main Title (clean, no colored glow) -->
+    <h1 class="text-3xl sm:text-4xl md:text-5xl font-extrabold uppercase tracking-[0.22em] text-white drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)] transition-all duration-500">
       Rift Companion
     </h1>
 

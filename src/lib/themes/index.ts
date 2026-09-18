@@ -7,7 +7,9 @@ export interface ThemeDefinition {
   region: string;
   description: string;
   swatch: [string, string, string]; // [Primary, Glow/Accent, Deep Surface]
-  bgFilter: string; // Dynamic CSS filter for default rift backdrop
+  bgFilter: string; // Base grayscale/contrast filter
+  tintGradient: string; // Pure theme color wash
+  tintBlendMode: string; // CSS blend mode for color wash (e.g. "color")
   bgBase: string;
   glow: string;
   bgGradients: {
@@ -38,7 +40,9 @@ export const THEMES: ThemeDefinition[] = [
     region: "The Void",
     description: "Deep void obsidian with glowing mystical violet & purple neon.",
     swatch: ["#a855f7", "#c084fc", "#07040d"],
-    bgFilter: "none",
+    bgFilter: "contrast(1.05) brightness(0.95)",
+    tintGradient: "linear-gradient(135deg, rgba(147, 51, 234, 0.75), rgba(88, 28, 135, 0.85))",
+    tintBlendMode: "color",
     bgBase: "#07040d",
     glow: "rgba(168, 85, 247, 0.45)",
     bgGradients: {
@@ -83,7 +87,9 @@ export const THEMES: ThemeDefinition[] = [
     region: "Piltover",
     description: "Arcane crystal cyan & cobalt blue with polished brass tones.",
     swatch: ["#0ac8b9", "#38bdf8", "#040914"],
-    bgFilter: "hue-rotate(155deg) saturate(1.25) brightness(0.95)",
+    bgFilter: "grayscale(100%) contrast(1.22) brightness(0.85)",
+    tintGradient: "linear-gradient(135deg, #0ac8b9 0%, #0284c7 45%, #0369a1 80%, #082f49 100%)",
+    tintBlendMode: "color",
     bgBase: "#040914",
     glow: "rgba(10, 200, 185, 0.45)",
     bgGradients: {
@@ -128,7 +134,9 @@ export const THEMES: ThemeDefinition[] = [
     region: "Noxian Empire",
     description: "Ruthless dark obsidian iron with crimson war flame & ruby glow.",
     swatch: ["#e11d48", "#fb7185", "#0c0406"],
-    bgFilter: "hue-rotate(300deg) saturate(1.45) brightness(0.92)",
+    bgFilter: "grayscale(100%) contrast(1.22) brightness(0.82)",
+    tintGradient: "linear-gradient(135deg, #e11d48 0%, #be123c 45%, #881337 80%, #450a18 100%)",
+    tintBlendMode: "color",
     bgBase: "#0c0406",
     glow: "rgba(225, 29, 72, 0.45)",
     bgGradients: {
@@ -173,7 +181,9 @@ export const THEMES: ThemeDefinition[] = [
     region: "The Frozen North",
     description: "Chilling true ice cyan, arctic auroras & frosted abyssal blue.",
     swatch: ["#38bdf8", "#7dd3fc", "#030914"],
-    bgFilter: "hue-rotate(185deg) saturate(1.2) brightness(1.05)",
+    bgFilter: "grayscale(100%) contrast(1.18) brightness(0.9)",
+    tintGradient: "linear-gradient(135deg, #38bdf8 0%, #0284c7 45%, #0369a1 80%, #0c4a6e 100%)",
+    tintBlendMode: "color",
     bgBase: "#030914",
     glow: "rgba(56, 189, 248, 0.45)",
     bgGradients: {
@@ -218,7 +228,9 @@ export const THEMES: ThemeDefinition[] = [
     region: "The Black Mist",
     description: "Haunting spectral jade green, eerie souls & harrowing mist.",
     swatch: ["#10b981", "#34d399", "#030d09"],
-    bgFilter: "hue-rotate(95deg) saturate(1.3) brightness(0.92)",
+    bgFilter: "grayscale(100%) contrast(1.22) brightness(0.82)",
+    tintGradient: "linear-gradient(135deg, #10b981 0%, #059669 45%, #047857 80%, #064e3b 100%)",
+    tintBlendMode: "color",
     bgBase: "#030d09",
     glow: "rgba(16, 185, 129, 0.45)",
     bgGradients: {
@@ -263,7 +275,9 @@ export const THEMES: ThemeDefinition[] = [
     region: "The Sunken Empire",
     description: "Radiant golden sun disc, ancient dunes & warm amber ascension.",
     swatch: ["#f59e0b", "#fbbf24", "#0d0904"],
-    bgFilter: "hue-rotate(42deg) saturate(1.35) brightness(1.02)",
+    bgFilter: "grayscale(100%) contrast(1.18) brightness(0.88)",
+    tintGradient: "linear-gradient(135deg, #f59e0b 0%, #d97706 45%, #b45309 80%, #78350f 100%)",
+    tintBlendMode: "color",
     bgBase: "#0d0904",
     glow: "rgba(245, 158, 11, 0.45)",
     bgGradients: {
@@ -308,7 +322,9 @@ export const THEMES: ThemeDefinition[] = [
     region: "Ionia",
     description: "Ethereal sakura petal pink, twilight magenta & spiritual petals.",
     swatch: ["#ec4899", "#f472b6", "#0d0510"],
-    bgFilter: "hue-rotate(330deg) saturate(1.3) brightness(0.98)",
+    bgFilter: "grayscale(100%) contrast(1.18) brightness(0.88)",
+    tintGradient: "linear-gradient(135deg, #ec4899 0%, #d946ef 45%, #a21caf 80%, #701a75 100%)",
+    tintBlendMode: "color",
     bgBase: "#0d0510",
     glow: "rgba(236, 72, 153, 0.45)",
     bgGradients: {
@@ -353,7 +369,9 @@ export const THEMES: ThemeDefinition[] = [
     region: "Zaun",
     description: "Radioactive neon lime, chemtech smog & industrial sludge.",
     swatch: ["#84cc16", "#a3e635", "#060d04"],
-    bgFilter: "hue-rotate(80deg) saturate(1.55) brightness(0.92)",
+    bgFilter: "grayscale(100%) contrast(1.25) brightness(0.85)",
+    tintGradient: "linear-gradient(135deg, #84cc16 0%, #22c55e 45%, #15803d 80%, #14532d 100%)",
+    tintBlendMode: "color",
     bgBase: "#060d04",
     glow: "rgba(132, 204, 22, 0.45)",
     bgGradients: {

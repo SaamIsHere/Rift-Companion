@@ -133,7 +133,7 @@
       <!-- Header -->
       <div class="mb-5 flex items-center justify-between border-b border-purple-500/15 pb-3 shrink-0">
         <div class="flex items-center gap-2">
-          <div class="h-2 w-2 rounded-full bg-purple-400 shadow-[0_0_8px_var(--theme-glow)]"></div>
+          <div class="h-2 w-2 rounded-full bg-purple-400"></div>
           <h2 class="text-sm font-bold uppercase tracking-widest text-slate-200">Settings & Customization</h2>
         </div>
         <button
@@ -178,8 +178,8 @@
               <button
                 type="button"
                 on:click={() => selectTheme(t.id)}
-                class="group relative flex flex-col justify-between rounded-xl border p-2.5 text-left transition-all duration-200 {isSelected
-                  ? 'border-purple-400/80 bg-purple-900/40 shadow-[0_0_16px_var(--theme-glow)] ring-1 ring-purple-400'
+                class="group relative flex flex-col justify-between rounded-xl border p-2.5 text-left transition-all duration-150 {isSelected
+                  ? 'border-purple-400 bg-purple-900/40 ring-1 ring-purple-400/80 shadow-sm'
                   : 'border-purple-500/20 bg-[#0c071d]/70 hover:border-purple-400/50 hover:bg-purple-950/40'}"
               >
                 <!-- Top: Color Swatches -->
@@ -205,7 +205,7 @@
                       {t.name}
                     </span>
                     {#if isSelected}
-                      <span class="h-1.5 w-1.5 rounded-full bg-purple-400 shadow-[0_0_6px_var(--theme-glow)]"></span>
+                      <span class="h-1.5 w-1.5 rounded-full bg-purple-400"></span>
                     {/if}
                   </div>
                   <span class="text-[10px] text-purple-300/70 truncate block">
@@ -280,10 +280,16 @@
                   class="h-full w-full object-cover"
                 />
               {:else}
-                <div
-                  class="h-full w-full bg-cover bg-center opacity-85"
-                  style="background-image: url('/landing-bg.jpg'); filter: {$activeTheme.bgFilter};"
-                ></div>
+                <div class="relative h-full w-full overflow-hidden">
+                  <div
+                    class="h-full w-full bg-cover bg-center opacity-85"
+                    style="background-image: url('/landing-bg.jpg'); filter: {$activeTheme.bgFilter};"
+                  ></div>
+                  <div
+                    class="absolute inset-0 pointer-events-none"
+                    style="background: {$activeTheme.tintGradient}; mix-blend-mode: {$activeTheme.tintBlendMode}; opacity: 0.9;"
+                  ></div>
+                </div>
               {/if}
             </div>
 
