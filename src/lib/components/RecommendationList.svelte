@@ -146,7 +146,7 @@
       <button
         type="button"
         on:click={() => (dropdownOpen = !dropdownOpen)}
-        class="inline-flex items-center gap-2 rounded-xl border border-purple-500/30 bg-[#140a2b] px-3 py-1.5 text-xs font-semibold text-purple-200 shadow-sm transition hover:border-purple-400 hover:bg-[#1a0d38] focus:outline-none focus:ring-1 focus:ring-purple-400"
+        class="inline-flex items-center gap-2 rounded-xl border border-purple-500/30 bg-void-950/50 px-3 py-1.5 text-xs font-semibold text-purple-200 shadow-sm transition hover:border-purple-400 hover:bg-void-900/60 focus:outline-none focus:ring-1 focus:ring-purple-400"
       >
         <span>{activeOption.label}</span>
         <svg
@@ -163,7 +163,7 @@
       <!-- Dropdown Menu -->
       {#if dropdownOpen}
         <div
-          class="absolute right-0 top-full z-40 mt-1.5 w-60 rounded-xl border border-purple-500/30 bg-[#120826] p-1.5 shadow-2xl backdrop-blur-xl animate-fade-in"
+          class="absolute right-0 top-full z-40 mt-1.5 w-60 rounded-xl border border-purple-500/30 bg-void-950/95 p-1.5 shadow-2xl backdrop-blur-xl animate-fade-in"
         >
           {#each SCORING_OPTIONS as opt (opt.id)}
             <button
@@ -193,7 +193,7 @@
   {#if inChampSelect}
     {#if activePreviewId}
       <!-- Hovered / Preselected Champion Banner -->
-      <div class="mb-3 flex flex-col rounded-xl border border-purple-500/35 bg-[#120826]/90 p-3 shadow-lg shadow-purple-950/40 animate-fade-in relative overflow-hidden shrink-0">
+      <div class="mb-3 flex flex-col rounded-xl border border-purple-500/35 bg-void-950/50 backdrop-blur-md p-3 shadow-lg shadow-purple-950/40 animate-fade-in relative overflow-hidden shrink-0">
         <div class="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-purple-500 to-transparent"></div>
 
         <div class="flex items-center gap-2 mb-2">
@@ -379,7 +379,7 @@
     <!-- Recommendations List -->
     {#if filtered.length}
       <div class="flex min-h-0 flex-1 flex-col overflow-y-auto py-1 pl-0.5 pr-3.5">
-        <div class="flex flex-col rounded-xl border border-purple-500/20 bg-[#0e061e]/70 overflow-hidden shadow-inner divide-y divide-purple-500/10 shrink-0">
+        <div class="flex flex-col rounded-xl border border-purple-500/20 bg-void-950/35 backdrop-blur-sm overflow-hidden shadow-inner divide-y divide-purple-500/10 shrink-0">
           {#each filtered as rec (rec.champion_id)}
             <RecommendationCard
               {rec}

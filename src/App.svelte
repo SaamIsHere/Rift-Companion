@@ -69,12 +69,12 @@
   {#if $wallpaperScope === "all_tabs" && $activeTab !== "startseite"}
     <div class="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       <div
-        class="absolute inset-0 bg-center bg-no-repeat bg-cover opacity-[0.12] transition-all duration-700"
+        class="absolute inset-0 bg-center bg-no-repeat bg-cover opacity-[0.24] transition-all duration-700"
         style="background-image: url('{effectiveWallpaper}'); filter: {$customWallpaper ? 'none' : $activeTheme.bgFilter};"
       ></div>
       {#if !$customWallpaper}
         <div
-          class="absolute inset-0 transition-all duration-700 pointer-events-none opacity-[0.12]"
+          class="absolute inset-0 transition-all duration-700 pointer-events-none opacity-[0.24]"
           style="background: {$activeTheme.tintGradient}; mix-blend-mode: {$activeTheme.tintBlendMode};"
         ></div>
       {/if}

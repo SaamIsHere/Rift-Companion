@@ -31,11 +31,11 @@
   --theme-gradient-2: rgba(126, 34, 206, 0.10);
   --theme-gradient-3: rgba(168, 85, 247, 0.08);
 
-  --theme-glass-bg: rgba(14, 8, 31, 0.78);
+  --theme-glass-bg: rgba(14, 8, 31, 0.54);
   --theme-glass-border: rgba(168, 85, 247, 0.16);
   --theme-glass-soft-bg: rgba(30, 17, 63, 0.28);
   --theme-glass-soft-border: rgba(168, 85, 247, 0.12);
-  --theme-glass-purple-bg: rgba(20, 12, 43, 0.88);
+  --theme-glass-purple-bg: rgba(20, 12, 43, 0.65);
   --theme-glass-purple-border: rgba(168, 85, 247, 0.35);
 }
 
@@ -65,8 +65,8 @@ body {
   .glass {
     background-color: var(--theme-glass-bg);
     border: 1px solid var(--theme-glass-border);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
     transition: background-color 0.3s ease, border-color 0.3s ease;
   }

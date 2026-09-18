@@ -161,12 +161,12 @@
           type="text"
           bind:value={query}
           placeholder="Search champion…"
-          class="h-full w-full rounded-xl border border-purple-500/20 bg-[#0d071e]/75 pl-10 pr-3 text-xs text-slate-100 placeholder:text-slate-500 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400/40 shadow-inner"
+          class="h-full w-full rounded-xl border border-purple-500/20 bg-void-950/40 backdrop-blur-md pl-10 pr-3 text-xs text-slate-100 placeholder:text-slate-500 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400/40 shadow-inner"
         />
       </div>
 
       <!-- Role Tabs (h-11, Icons only: All, Top, Jungle, Middle, Bottom, Support) -->
-      <div class="flex h-11 items-center gap-1 rounded-xl border border-purple-500/20 bg-[#0c071d]/90 p-1 backdrop-blur-md shadow-md">
+      <div class="flex h-11 items-center gap-1 rounded-xl border border-purple-500/20 bg-void-950/40 p-1 backdrop-blur-md shadow-md">
         {#each ROLES as r (r.label)}
           {@const isActive = selectedRole === r.id}
           <button
@@ -191,9 +191,9 @@
     </div>
 
     <!-- Champions List Table Container -->
-    <div class="flex min-h-0 flex-1 flex-col rounded-2xl border border-purple-500/20 bg-[#0b0619]/80 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden">
+    <div class="glass flex min-h-0 flex-1 flex-col rounded-2xl overflow-hidden">
       <!-- Table Header -->
-      <div class="grid grid-cols-12 gap-2 border-b border-purple-500/15 bg-purple-950/30 px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+      <div class="grid grid-cols-12 gap-2 border-b border-purple-500/15 bg-purple-950/20 backdrop-blur-sm px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
         <div class="col-span-1 text-center">Rank</div>
         <div class="col-span-3">Champion</div>
         <div class="col-span-1 text-center">Role</div>

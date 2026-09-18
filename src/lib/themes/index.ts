@@ -449,7 +449,7 @@ export function applyTheme(theme: ThemeDefinition): void {
   // Glass components
   root.style.setProperty(
     "--theme-glass-bg",
-    `rgba(${theme.voidRgb[850].replace(/ /g, ", ")}, 0.78)`
+    `rgba(${theme.voidRgb[850].replace(/ /g, ", ")}, 0.54)`
   );
   root.style.setProperty(
     "--theme-glass-border",
@@ -465,7 +465,7 @@ export function applyTheme(theme: ThemeDefinition): void {
   );
   root.style.setProperty(
     "--theme-glass-purple-bg",
-    `rgba(${theme.voidRgb[800].replace(/ /g, ", ")}, 0.88)`
+    `rgba(${theme.voidRgb[800].replace(/ /g, ", ")}, 0.65)`
   );
   root.style.setProperty(
     "--theme-glass-purple-border",

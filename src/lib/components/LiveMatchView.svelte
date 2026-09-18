@@ -31,7 +31,7 @@
 <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
   <!-- Top Switcher Bar when player has locked in or game is in progress -->
   {#if localChampId || isInGame}
-    <div class="flex items-center justify-between border-b border-purple-500/15 bg-[#0a0517]/90 px-6 py-2 backdrop-blur-md shrink-0">
+    <div class="flex items-center justify-between border-b border-purple-500/15 bg-void-950/60 px-6 py-2 backdrop-blur-md shrink-0">
       <div class="flex items-center gap-3">
         <span class="text-xs text-slate-400 flex items-center gap-1.5">
           {#if isInGame}
