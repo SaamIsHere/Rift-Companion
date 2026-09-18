@@ -36,9 +36,9 @@
         type="button"
         on:click={() => handleSelect(tier.id)}
         disabled={$rankRefreshing}
-        class="flex items-center justify-between rounded-xl border p-4 text-left transition-all duration-200 {isSelected
-          ? 'border-purple-500 bg-[#150a2b]/90 shadow-md'
-          : 'border-purple-500/15 bg-[#0d071e]/60 hover:border-purple-400/40 hover:bg-purple-950/30'}"
+        class="glass-soft flex items-center justify-between rounded-xl border p-4 text-left transition-all duration-200 {isSelected
+          ? 'border-purple-400 bg-purple-900/40 ring-1 ring-purple-400/50 shadow-md'
+          : 'border-purple-500/15 hover:border-purple-400/40 hover:bg-purple-900/20'}"
       >
         <div>
           <div class="flex items-center gap-2.5">

@@ -85,11 +85,11 @@
 
   <!-- Active View Mode Rendering -->
   {#if viewMode === "dashboard"}
-    <div class="flex min-h-0 flex-1 flex-col overflow-hidden animate-fade-in">
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
       <InGameDashboard />
     </div>
   {:else if viewMode === "overview" && targetChampId}
-    <div class="flex min-h-0 flex-1 flex-col overflow-hidden animate-fade-in">
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
       <ChampionOverview
         championId={targetChampId}
         initialRole={localRole}
@@ -97,7 +97,7 @@
       />
     </div>
   {:else}
-    <main class="grid min-h-0 flex-1 grid-cols-[490px_1fr] gap-5 px-6 pb-6 pt-4 animate-fade-in">
+    <main class="grid min-h-0 flex-1 grid-cols-[490px_1fr] gap-5 px-6 pb-6 pt-4">
       <DraftBoard />
       <RecommendationList
         on:selectOverview={(e) => {

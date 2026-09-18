@@ -592,7 +592,7 @@
 
 {#if overviewChampionId}
   <!-- Champion Build / In-Game Overview Subview -->
-  <div class="flex min-h-0 flex-1 flex-col overflow-hidden animate-fade-in">
+  <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
     <ChampionOverview
       championId={overviewChampionId}
       initialRole={overviewRole}
@@ -600,9 +600,9 @@
     />
   </div>
 {:else}
-  <div class="flex min-h-0 flex-1 flex-col overflow-hidden bg-[#07040d] text-slate-100 select-none">
+  <div class="flex min-h-0 flex-1 flex-col overflow-hidden text-slate-100 select-none">
     <!-- Top Action Bar -->
-    <header class="flex flex-wrap items-center justify-between gap-3 border-b border-purple-500/15 bg-[#090514]/90 px-6 py-2.5 backdrop-blur-md">
+    <header class="flex flex-wrap items-center justify-between gap-3 border-b border-purple-500/15 bg-void-950/60 px-6 py-2.5 backdrop-blur-md">
       <!-- Left: Title, Role Selector & Action Controls -->
       <div class="flex flex-wrap items-center gap-4">
         <div class="flex items-center gap-2">
@@ -625,7 +625,7 @@
         <!-- Role Selector Toggle -->
         <div class="flex items-center gap-1.5">
           <span class="text-[11px] font-bold uppercase tracking-wider text-purple-300/80 mr-1">My Role:</span>
-          <div class="flex items-center rounded-xl border border-purple-500/25 bg-[#120826]/80 p-0.5">
+          <div class="flex items-center rounded-xl border border-purple-500/25 bg-void-950/50 p-0.5">
             {#each ROLE_DEFS as r (r.role)}
               {@const isSelected = userRole === r.role}
               <button
@@ -718,7 +718,7 @@
       <!-- Left Column: 5v5 Simulation Board (Map or Classic) -->
       <section class="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1">
         <!-- Board Top Bar: Team Counts -->
-        <div class="flex items-center justify-between rounded-xl border border-purple-500/20 bg-[#0d071e]/90 px-3.5 py-2 backdrop-blur-sm shadow-md">
+        <div class="flex items-center justify-between rounded-xl border border-purple-500/20 bg-void-950/40 px-3.5 py-2 backdrop-blur-md shadow-md">
           <div class="flex items-center gap-3">
             <div class="flex items-center gap-1.5">
               <span class="h-2.5 w-2.5 rounded-full bg-cyan-400 ring-2 ring-cyan-400/30"></span>
@@ -862,7 +862,7 @@
 
 
         <!-- Bans Section -->
-        <div class="rounded-xl border border-purple-500/15 bg-[#0a0515]/60 p-2.5">
+        <div class="rounded-xl border border-purple-500/15 bg-void-950/40 backdrop-blur-md p-2.5">
           <div class="mb-2 flex items-center justify-between">
             <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
               Banned Champions ({bans.length}/10)
@@ -919,9 +919,9 @@
       </section>
 
       <!-- Right Column: Dual Mode Intelligence Panel -->
-      <section class="flex min-h-0 flex-1 flex-col rounded-2xl border border-purple-500/20 bg-[#0c061a]/90 backdrop-blur-md overflow-hidden shadow-xl">
+      <section class="glass flex min-h-0 flex-1 flex-col rounded-2xl overflow-hidden">
         <!-- Tab Bar: Recommendations vs Match Analysis -->
-        <div class="flex items-center justify-between border-b border-purple-500/15 bg-[#0e071e]/90 px-4 py-2">
+        <div class="flex items-center justify-between border-b border-purple-500/15 bg-purple-950/20 backdrop-blur-sm px-4 py-2">
           <div class="flex items-center gap-1 rounded-xl border border-purple-500/20 bg-purple-950/30 p-1">
             <button
               type="button"
@@ -955,7 +955,7 @@
               <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mode:</span>
               <select
                 bind:value={$scoringMode}
-                class="rounded-lg border border-purple-500/20 bg-[#120826] px-2 py-1 text-[11px] font-semibold text-purple-200 focus:outline-none focus:border-purple-400"
+                class="rounded-lg border border-purple-500/20 bg-void-950/90 px-2 py-1 text-[11px] font-semibold text-purple-200 focus:outline-none focus:border-purple-400"
               >
                 <option value="default">Balanced</option>
                 <option value="counterpick">Counterpick</option>
@@ -975,7 +975,7 @@
                   type="text"
                   bind:value={recSearchQuery}
                   placeholder="Search champion (e.g. Ahri, Sylas, Jinx)..."
-                  class="w-full rounded-xl border border-purple-500/20 bg-[#140a2b]/80 px-3.5 py-2 pl-9 text-xs text-slate-100 placeholder-purple-300/40 focus:border-purple-400 focus:outline-none"
+                  class="w-full rounded-xl border border-purple-500/20 bg-void-950/40 backdrop-blur-md px-3.5 py-2 pl-9 text-xs text-slate-100 placeholder-purple-300/40 focus:border-purple-400 focus:outline-none"
                 />
                 <svg class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-purple-400/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="11" cy="11" r="8"/>
@@ -1019,7 +1019,7 @@
                   <div
                     class="group relative flex items-center justify-between gap-3 rounded-xl border p-2.5 transition-all duration-150 {isCurrentlyLocked
                       ? 'border-purple-400 bg-purple-950/50 shadow-md shadow-purple-500/20'
-                      : 'border-purple-500/15 bg-[#120826]/70 hover:border-purple-400/40 hover:bg-[#180b32]/85'}"
+                      : 'border-purple-500/15 bg-void-950/35 hover:border-purple-400/40 hover:bg-purple-900/30 backdrop-blur-sm'}"
                   >
                     <!-- Left: Rank + Avatar + Name & Roles (Fixed width ensures straight vertical alignment across all rows) -->
                     <div class="flex items-center gap-2.5 w-48 shrink-0 overflow-hidden">
@@ -1120,7 +1120,7 @@
               </div>
             {:else if matchAnalysis}
               <!-- Card 1: Match Win Probability Header -->
-              <div class="rounded-xl border border-purple-500/20 bg-[#120826]/80 p-4 shadow-lg">
+              <div class="rounded-xl border border-purple-500/20 bg-void-950/40 backdrop-blur-md p-4 shadow-lg">
                 <div class="flex items-center justify-between mb-3">
                   <div class="flex items-center gap-2">
                     <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">Simulated Match Win Probability</span>
@@ -1163,14 +1163,14 @@
               </div>
 
               <!-- Card 2: Lane-by-Lane Duel Breakdown -->
-              <div class="rounded-xl border border-purple-500/20 bg-[#120826]/80 p-4">
+              <div class="rounded-xl border border-purple-500/20 bg-void-950/40 backdrop-blur-md p-4">
                 <h3 class="mb-3 text-xs font-bold uppercase tracking-wider text-slate-300">
                   Lane-by-Lane Head-to-Head Duels
                 </h3>
 
                 <div class="space-y-2">
                   {#each matchAnalysis.lane_matchups as lm (lm.role)}
-                    <div class="flex items-center justify-between rounded-xl border border-purple-500/10 bg-[#0c051a]/60 p-2.5 text-xs">
+                    <div class="flex items-center justify-between rounded-xl border border-purple-500/10 bg-void-950/30 p-2.5 text-xs">
                       <!-- Left: Ally Pick -->
                       <div class="flex items-center gap-2 min-w-[140px]">
                         <img src={roleIconUrl(lm.role)} alt={lm.role_label} class="h-4 w-4 opacity-75" />
