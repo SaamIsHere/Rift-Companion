@@ -208,7 +208,7 @@
 
         <div class="flex items-center justify-between gap-3">
           <div class="flex items-center gap-3 min-w-0">
-            <div class="relative h-11 w-11 shrink-0 rounded-xl overflow-hidden ring-1 ring-purple-500/30 bg-[#120924] shadow-sm">
+            <div class="relative h-11 w-11 shrink-0 rounded-xl overflow-hidden ring-1 ring-purple-500/30 bg-void-950/60 shadow-sm">
               {#if displayImage}
                 <img
                   src={squareIconUrl(displayImage, $ddragonVersion)}

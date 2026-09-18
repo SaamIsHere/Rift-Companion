@@ -437,7 +437,7 @@
     <div class="relative mt-8 w-full max-w-xl">
       <form
         on:submit|preventDefault={handleSearchSubmit}
-        class="relative flex items-center rounded-2xl border border-purple-500/35 bg-void-900/85 shadow-xl backdrop-blur-xl transition-all duration-200 focus-within:border-purple-400 focus-within:ring-1 focus-within:ring-purple-400/30 hover:border-purple-400/60"
+        class="relative flex items-center rounded-2xl border border-purple-500/35 bg-void-950/60 shadow-xl backdrop-blur-xl transition-all duration-200 focus-within:border-purple-400 focus-within:ring-1 focus-within:ring-purple-400/30 hover:border-purple-400/60"
       >
         <span class="pointer-events-none absolute left-4 text-purple-300/80">
           <svg

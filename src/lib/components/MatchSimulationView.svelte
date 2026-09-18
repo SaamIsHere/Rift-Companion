@@ -632,7 +632,7 @@
                 type="button"
                 on:click={() => selectUserRole(r.role)}
                 class="flex h-7 w-7 items-center justify-center rounded-lg transition {isSelected
-                  ? 'bg-purple-600 text-white shadow-sm shadow-purple-500/30'
+                  ? 'bg-purple-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'}"
                 title="Simulate as {r.label}"
               >
@@ -780,10 +780,10 @@
                     type="button"
                     on:click={() => openPicker({ type: slot.team, role: slot.role })}
                     class="relative flex h-11 w-11 items-center justify-center rounded-full overflow-hidden transition-all duration-200 hover:scale-110 active:scale-95 focus:outline-none {isUserSlot
-                      ? 'ring-2 ring-purple-400 bg-purple-950/90 shadow-md'
+                      ? 'ring-2 ring-purple-400 bg-purple-950/60 shadow-md'
                       : isAlly
-                      ? 'ring-2 ring-cyan-400/80 bg-[#0c1326]/90 shadow-md hover:ring-cyan-300'
-                      : 'ring-2 ring-rose-500/80 bg-[#260c14]/90 shadow-md hover:ring-rose-400'}"
+                      ? 'ring-2 ring-cyan-400/80 bg-cyan-950/40 shadow-md hover:ring-cyan-300'
+                      : 'ring-2 ring-rose-500/80 bg-rose-950/40 shadow-md hover:ring-rose-400'}"
                     title="{slot.label}: {champInfo ? champInfo.name : 'Click to pick champion'}"
                   >
                     {#if champId && champInfo}
@@ -848,7 +848,7 @@
             <!-- Pairwise Hover Tooltip inside map -->
             {#if hoveredSlot && hoveredPairwise && allies[userRole]}
               {@const targetChamp = $championCatalog.get(hoveredSlot.champId)}
-              <div class="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 z-30 rounded-xl border border-purple-500/30 bg-[#0d061c]/95 px-3 py-1.5 shadow-2xl backdrop-blur-md animate-fade-in flex items-center gap-2">
+              <div class="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 z-30 glass rounded-xl px-3 py-1.5 shadow-2xl animate-fade-in flex items-center gap-2">
                 <span class="text-xs text-purple-300 font-bold">
                   {userChampionName} {hoveredSlot.isAlly ? "with" : "vs"} {targetChamp?.name}:
                 </span>
@@ -921,13 +921,13 @@
       <!-- Right Column: Dual Mode Intelligence Panel -->
       <section class="glass flex min-h-0 flex-1 flex-col rounded-2xl overflow-hidden">
         <!-- Tab Bar: Recommendations vs Match Analysis -->
-        <div class="flex items-center justify-between border-b border-purple-500/15 bg-purple-950/20 backdrop-blur-sm px-4 py-2">
+        <div class="flex items-center justify-between border-b border-purple-500/15 bg-purple-950/20 px-4 py-2">
           <div class="flex items-center gap-1 rounded-xl border border-purple-500/20 bg-purple-950/30 p-1">
             <button
               type="button"
               on:click={() => (activeRightTab = "recommendations")}
               class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition {activeRightTab === 'recommendations'
-                ? 'bg-purple-600 text-white shadow-sm shadow-purple-500/30'
+                ? 'bg-purple-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'}"
             >
               <span>⭐ Pick Recommendations</span>
@@ -937,7 +937,7 @@
               type="button"
               on:click={() => (activeRightTab = "match_analysis")}
               class="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition {activeRightTab === 'match_analysis'
-                ? 'bg-purple-600 text-white shadow-sm shadow-purple-500/30'
+                ? 'bg-purple-600 text-white shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'}"
             >
               <span>📊 5v5 Match Analysis</span>
@@ -1120,7 +1120,7 @@
               </div>
             {:else if matchAnalysis}
               <!-- Card 1: Match Win Probability Header -->
-              <div class="rounded-xl border border-purple-500/20 bg-void-950/40 backdrop-blur-md p-4 shadow-lg">
+              <div class="rounded-xl border border-purple-500/15 bg-void-950/20 p-4 shadow-md">
                 <div class="flex items-center justify-between mb-3">
                   <div class="flex items-center gap-2">
                     <span class="text-xs font-bold text-slate-300 uppercase tracking-wider">Simulated Match Win Probability</span>
@@ -1163,7 +1163,7 @@
               </div>
 
               <!-- Card 2: Lane-by-Lane Duel Breakdown -->
-              <div class="rounded-xl border border-purple-500/20 bg-void-950/40 backdrop-blur-md p-4">
+              <div class="rounded-xl border border-purple-500/15 bg-void-950/20 p-4 shadow-md">
                 <h3 class="mb-3 text-xs font-bold uppercase tracking-wider text-slate-300">
                   Lane-by-Lane Head-to-Head Duels
                 </h3>
@@ -1333,9 +1333,9 @@
         on:click|self={closePicker}
         on:keydown={(e) => e.key === "Escape" && closePicker()}
       >
-        <div class="flex h-[80vh] w-full max-w-3xl flex-col rounded-2xl border border-purple-500/30 bg-[#0d061c] shadow-2xl overflow-hidden">
+        <div class="glass flex h-[80vh] w-full max-w-3xl flex-col rounded-2xl shadow-2xl overflow-hidden">
           <!-- Modal Header -->
-          <div class="flex items-center justify-between border-b border-purple-500/20 bg-[#120826] px-5 py-3.5">
+          <div class="flex items-center justify-between border-b border-purple-500/20 bg-void-950/40 px-5 py-3.5">
             <div>
               <h3 class="text-sm font-black tracking-wide text-white uppercase flex items-center gap-2">
                 <span>Select Champion</span>
@@ -1359,14 +1359,14 @@
           </div>
 
           <!-- Search & Role Filter Tabs -->
-          <div class="flex items-center justify-between gap-3 border-b border-purple-500/15 bg-[#090414] px-5 py-2.5">
+          <div class="flex items-center justify-between gap-3 border-b border-purple-500/15 bg-void-950/30 px-5 py-2.5">
             <div class="relative flex-1 max-w-xs">
               <input
                 bind:this={pickerSearchInput}
                 type="text"
                 bind:value={pickerSearch}
                 placeholder="Search champion..."
-                class="w-full rounded-xl border border-purple-500/25 bg-[#140a2b] px-3.5 py-1.5 pl-8 text-xs text-white placeholder-purple-300/40 focus:border-purple-400 focus:outline-none"
+                class="w-full rounded-xl border border-purple-500/25 bg-void-950/40 px-3.5 py-1.5 pl-8 text-xs text-white placeholder-purple-300/40 focus:border-purple-400 focus:outline-none"
               />
               <svg class="pointer-events-none absolute left-2.5 top-2 h-3.5 w-3.5 text-purple-400/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <circle cx="11" cy="11" r="8"/>
@@ -1375,7 +1375,7 @@
             </div>
 
             <!-- Role Pills -->
-            <div class="flex items-center gap-1 rounded-xl border border-purple-500/20 bg-[#120826] p-0.5">
+            <div class="flex items-center gap-1 rounded-xl border border-purple-500/20 bg-void-950/40 p-0.5">
               <button
                 type="button"
                 on:click={() => setPickerRoleFilter(null)}
@@ -1413,7 +1413,7 @@
                   on:click={() => selectChampionForPicker(champ.id)}
                   class="group flex flex-col items-center gap-1 rounded-xl border p-2 transition-all duration-150 {isAlreadyTaken
                     ? 'opacity-40 grayscale cursor-not-allowed border-transparent bg-black/20'
-                    : 'border-purple-500/15 bg-[#140a2b]/60 hover:scale-105 hover:border-purple-400 hover:bg-[#1f0f42]'}"
+                    : 'border-purple-500/15 bg-void-950/30 hover:scale-105 hover:border-purple-400/60 hover:bg-purple-900/30'}"
                 >
                   <div class="relative h-12 w-12 overflow-hidden rounded-full ring-1 ring-purple-400/40 group-hover:ring-purple-300">
                     <img

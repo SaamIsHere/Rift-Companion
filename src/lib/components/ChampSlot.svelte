@@ -201,7 +201,7 @@
     <div
       class="relative h-9 w-9 rounded-full overflow-hidden pointer-events-none select-none {isHoveredPick
         ? 'ring-2 ring-dashed ring-amber-400/80'
-        : 'ring-1 ring-purple-500/30'} bg-[#120924] shrink-0"
+        : 'ring-1 ring-purple-500/30'} bg-void-950/60 shrink-0"
     >
       <img
         src={squareIconUrl(info.key, $ddragonVersion)}

@@ -60,15 +60,15 @@
   role="dialog"
   aria-modal="true"
   tabindex="-1"
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm select-none"
+  class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm select-none"
   on:click|self={onClose}
   on:keydown|self={(e) => { if (e.key === "Escape") onClose(); }}
 >
   <div
-    class="relative flex h-[80vh] w-full max-w-2xl flex-col rounded-2xl border border-purple-500/20 bg-[#0c071d] shadow-2xl overflow-hidden"
+    class="glass relative flex h-[80vh] w-full max-w-2xl flex-col rounded-2xl shadow-2xl overflow-hidden"
   >
     <!-- Modal Header -->
-    <div class="flex items-center justify-between border-b border-purple-500/20 px-5 py-3.5 bg-[#090417]">
+    <div class="flex items-center justify-between border-b border-purple-500/20 px-5 py-3.5 bg-void-950/40">
       <div>
         <h3 class="text-base font-bold text-white">
           {overview?.name || championName} • All Matchups &amp; Synergies ({ROLE_LABELS[activeRole] || activeRole})

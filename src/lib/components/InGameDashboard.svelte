@@ -206,7 +206,7 @@
     <div class="flex min-h-0 flex-1 flex-col gap-3.5 overflow-y-auto pr-1">
       <!-- TEAM COMPOSITION SUMMARY CARD -->
       {#if analysis}
-        <div class="rounded-xl border border-purple-500/20 bg-[#0a0517]/80 p-3 shadow-sm backdrop-blur-md">
+        <div class="glass rounded-xl p-3 shadow-sm">
           <div class="mb-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400">
             <span>Team Composition Summary</span>
             <span class="text-purple-300/80">Damage • Frontline • CC</span>
@@ -315,8 +315,8 @@
             role="region"
             aria-label="{def.label} Lane Matchup"
             class="relative flex items-center justify-between rounded-xl border p-2.5 transition-all {isMyLane
-              ? 'bg-purple-950/30 border-purple-400/40 shadow-md ring-1 ring-purple-500/30'
-              : 'bg-[#0f0822]/70 border-purple-500/15 hover:border-purple-500/30'}"
+              ? 'bg-purple-950/30 border-purple-400/40 shadow-sm ring-1 ring-purple-500/20'
+              : 'bg-void-950/20 border-purple-500/15 hover:border-purple-500/30'}"
           >
             <!-- ALLY SIDE (LEFT) -->
             <button
@@ -341,7 +341,7 @@
                 <img
                   src={roleIconUrl(def.role)}
                   alt={def.label}
-                  class="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-[#080412] p-0.5 border border-purple-400/40"
+                  class="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-void-950 p-0.5 border border-purple-400/40"
                   title={def.label}
                 />
               </div>
@@ -478,7 +478,7 @@
                 <img
                   src={roleIconUrl(def.role)}
                   alt={def.label}
-                  class="absolute -bottom-1 -left-1 h-4 w-4 rounded-full bg-[#080412] p-0.5 border border-rose-400/40"
+                  class="absolute -bottom-1 -left-1 h-4 w-4 rounded-full bg-void-950 p-0.5 border border-rose-400/40"
                   title={def.label}
                 />
               </button>
@@ -559,7 +559,7 @@
         {@const build = overviewData.build}
 
         <!-- 1. STARTING ITEMS -->
-        <div class="rounded-xl border border-purple-500/20 bg-[#0a0517]/85 p-3 shadow-sm">
+        <div class="glass rounded-xl p-3 shadow-sm">
           <div class="mb-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-purple-200">
             <span>Starting Items</span>
             <div class="flex items-center gap-4 text-[9px] font-bold uppercase text-slate-400">
@@ -600,7 +600,7 @@
         </div>
 
         <!-- 2. CORE ITEM PATH (RUSH SEQUENCE 1st > 2nd > 3rd) -->
-        <div class="rounded-xl border border-purple-500/20 bg-[#0a0517]/85 p-3 shadow-sm">
+        <div class="glass rounded-xl p-3 shadow-sm">
           <div class="mb-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-purple-200">
             <span>Core Item Progression</span>
             <div class="flex items-center gap-4 text-[9px] font-bold uppercase text-slate-400">
@@ -647,7 +647,7 @@
         </div>
 
         <!-- 3. RECOMMENDED BOOTS -->
-        <div class="rounded-xl border border-purple-500/20 bg-[#0a0517]/85 p-3 shadow-sm">
+        <div class="glass rounded-xl p-3 shadow-sm">
           <div class="mb-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-purple-200">
             <span>Boots Options</span>
             <div class="flex items-center gap-4 text-[9px] font-bold uppercase text-slate-400">
@@ -696,7 +696,7 @@
         </div>
 
         <!-- 4. SITUATIONAL & DEFENSIVE OPTIONS (4th, 5th, 6th Items) -->
-        <div class="rounded-xl border border-purple-500/20 bg-[#0a0517]/85 p-3 shadow-sm">
+        <div class="glass rounded-xl p-3 shadow-sm">
           <div class="mb-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-purple-200">
             <span>Situational &amp; Defensive Items</span>
             <div class="flex items-center gap-4 text-[9px] font-bold uppercase text-slate-400">

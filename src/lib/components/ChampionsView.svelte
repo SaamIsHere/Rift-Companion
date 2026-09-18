@@ -193,7 +193,7 @@
     <!-- Champions List Table Container -->
     <div class="glass flex min-h-0 flex-1 flex-col rounded-2xl overflow-hidden">
       <!-- Table Header -->
-      <div class="grid grid-cols-12 gap-2 border-b border-purple-500/15 bg-purple-950/20 backdrop-blur-sm px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+      <div class="grid grid-cols-12 gap-2 border-b border-purple-500/15 bg-purple-950/20 px-5 py-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
         <div class="col-span-1 text-center">Rank</div>
         <div class="col-span-3">Champion</div>
         <div class="col-span-1 text-center">Role</div>
@@ -260,7 +260,7 @@
 
               <!-- Champion Icon + Name -->
               <div class="col-span-3 flex items-center gap-3">
-                <div class="relative h-8 w-8 rounded-lg overflow-hidden border border-purple-500/30 bg-[#120924] shrink-0 group-hover:border-purple-400 shadow-sm transition">
+                <div class="relative h-8 w-8 rounded-lg overflow-hidden border border-purple-500/30 bg-void-950/60 shrink-0 group-hover:border-purple-400 shadow-sm transition">
                   <img
                     src={squareIconUrl(champ.image, $ddragonVersion)}
                     alt={champ.name}
@@ -305,7 +305,7 @@
                 {#if champ.weak_against && champ.weak_against.length}
                   {#each champ.weak_against as counter}
                     <div
-                      class="relative h-6 w-6 rounded-full overflow-hidden border border-purple-500/30 bg-[#120924] shrink-0 hover:border-purple-400 hover:scale-115 transition duration-150 shadow-sm"
+                      class="relative h-6 w-6 rounded-full overflow-hidden border border-purple-500/30 bg-void-950/60 shrink-0 hover:border-purple-400 hover:scale-115 transition duration-150 shadow-sm"
                       title="{counter.name} ({(counter.winrate * 100).toFixed(1)}% WR)"
                     >
                       <img

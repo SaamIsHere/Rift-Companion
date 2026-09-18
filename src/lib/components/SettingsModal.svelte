@@ -180,7 +180,7 @@
                 on:click={() => selectTheme(t.id)}
                 class="group relative flex flex-col justify-between rounded-xl border p-2.5 text-left transition-all duration-150 {isSelected
                   ? 'border-purple-400 bg-purple-900/40 ring-1 ring-purple-400/80 shadow-sm'
-                  : 'border-purple-500/20 bg-[#0c071d]/70 hover:border-purple-400/50 hover:bg-purple-950/40'}"
+                  : 'border-purple-500/20 bg-void-950/40 hover:border-purple-400/50 hover:bg-purple-950/40'}"
               >
                 <!-- Top: Color Swatches -->
                 <div class="mb-2 flex items-center gap-1.5">

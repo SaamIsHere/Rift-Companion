@@ -219,7 +219,7 @@
         <button
           type="button"
           on:click={onBack}
-          class="group flex items-center gap-2 rounded-xl border border-purple-500/20 bg-[#0e081f]/80 px-3.5 py-1.5 text-xs font-semibold text-purple-200 backdrop-blur-md transition hover:border-purple-400/60 hover:bg-purple-900/40 hover:text-white"
+          class="group flex items-center gap-2 rounded-xl border border-purple-500/20 bg-void-950/40 px-3.5 py-1.5 text-xs font-semibold text-purple-200 backdrop-blur-md transition hover:border-purple-400/60 hover:bg-purple-900/40 hover:text-white"
         >
           <svg class="h-4 w-4 transition group-hover:-translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 19l-7-7 7-7" />
@@ -229,7 +229,7 @@
       {/if}
 
       <!-- Role Selector Tabs -->
-      <div class="flex items-center gap-1.5 rounded-xl border border-purple-500/20 bg-[#0a0517]/90 p-1 backdrop-blur-md shadow-md">
+      <div class="flex items-center gap-1.5 rounded-xl border border-purple-500/20 bg-void-950/40 p-1 backdrop-blur-md shadow-md">
         {#each (overview.roles || []) as roleOption, idx (`${roleOption}-${idx}`)}
           <button
             type="button"
@@ -258,7 +258,7 @@
       <div class="lg:col-span-4 flex flex-col gap-3.5">
 
         <!-- CARD: RUNES -->
-        <div class="rounded-xl border border-purple-500/20 bg-[#0c071a]/85 backdrop-blur-xl p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+        <div class="glass rounded-xl p-3.5">
           <div class="mb-3 flex items-center justify-between">
             <div class="flex items-center gap-2">
               <svg class="h-4 w-4 text-purple-400" viewBox="0 0 24 24" fill="currentColor">
@@ -278,8 +278,8 @@
                     on:click={() => activeRunePageIndex = idx}
                     class="flex items-center gap-1.5 rounded-lg px-2 py-1 transition border {activeRunePageIndex === idx
                       ? 'border-purple-400 bg-purple-900/70 ring-1 ring-purple-400 shadow-sm'
-                      : 'border-purple-500/20 bg-purple-950/40 opacity-70 hover:opacity-100 hover:border-purple-400/50'}"
-                    title="{keystone?.name || 'Keystone'} + {page.secondary_style?.name || 'Secondary'} • {formatWinrate(pageWr, idx + 10)} WR • {formatPercent(page.pick_rate, idx + 20)} Pick • {formatGames(page.play)} Games"
+                      : 'border-purple-500/20 bg-purple-950/30 hover:border-purple-400/40'}"
+                    title="Switch to Rune Page {idx + 1}"
                   >
                     <div class="flex items-center gap-1 shrink-0">
                       {#if keystone}
@@ -340,7 +340,7 @@
             </div>
 
             <!-- Rune Display Columns (Primary on Left, Secondary + Shards on Right) -->
-            <div class="grid grid-cols-2 gap-3 rounded-lg border border-purple-500/10 bg-[#080412]/60 p-2.5">
+            <div class="grid grid-cols-2 gap-3 rounded-lg border border-purple-500/10 bg-void-950/20 p-2.5">
               <!-- Left Column: Primary Keystone & Minor Runes -->
               <div class="flex flex-col items-center gap-2.5">
                 {#each activeRunePage.primary_runes as rune, idx (`${rune.id || 'pr'}-${idx}`)}
@@ -403,7 +403,7 @@
         </div>
 
         <!-- CARD: ABILITY MAX ORDER -->
-        <div class="rounded-xl border border-purple-500/20 bg-[#0c071a]/85 backdrop-blur-xl p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+        <div class="glass rounded-xl p-3.5">
           <div class="mb-2.5 flex items-center justify-between">
             <div class="flex items-center gap-2">
               <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">Ability Max Order</h3>
@@ -480,14 +480,14 @@
       <div class="lg:col-span-4 flex flex-col gap-3.5">
 
         <!-- CHAMPION HERO BANNER -->
-        <div class="relative overflow-hidden rounded-xl border border-purple-500/25 bg-[#0c071a]/90 backdrop-blur-xl p-4 shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+        <div class="glass relative overflow-hidden rounded-xl p-4">
           <!-- Background Splash Art Vignette -->
           <div
             class="pointer-events-none absolute inset-0 bg-cover bg-center opacity-35 mix-blend-luminosity"
             style="background-image: url('{splashArtUrl(overview.image)}');"
           ></div>
-          <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#0c071a] via-[#0c071a]/70 to-transparent"></div>
-          <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#0c071a] via-transparent to-[#0c071a]"></div>
+          <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-void-950/60 via-void-950/30 to-transparent"></div>
+          <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-void-950/30 via-transparent to-void-950/30"></div>
 
           <div class="relative z-10">
             <h2 class="text-2xl font-black text-white tracking-wide">
@@ -517,7 +517,7 @@
         </div>
 
         <!-- CARD: SUMMONER SPELLS -->
-        <div class="rounded-xl border border-purple-500/20 bg-[#0c071a]/85 backdrop-blur-xl p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+        <div class="glass rounded-xl p-3.5">
           <div class="mb-2.5 flex items-center justify-between px-2">
             <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">
               Summoner Spells
@@ -562,7 +562,7 @@
         </div>
 
         <!-- CARD: STARTER ITEMS -->
-        <div class="rounded-xl border border-purple-500/20 bg-[#0c071a]/85 backdrop-blur-xl p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+        <div class="glass rounded-xl p-3.5">
           <div class="mb-2.5 flex items-center justify-between px-2">
             <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">
               Starter Items
@@ -607,7 +607,7 @@
         </div>
 
         <!-- CARD: BOOTS -->
-        <div class="rounded-xl border border-purple-500/20 bg-[#0c071a]/85 backdrop-blur-xl p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+        <div class="glass rounded-xl p-3.5">
           <div class="mb-2.5 flex items-center justify-between px-2">
             <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">
               Boots Options
@@ -666,7 +666,7 @@
       <div class="lg:col-span-4 flex flex-col gap-3.5">
 
         <!-- CARD: CORE BUILDS -->
-        <div class="rounded-xl border border-purple-500/20 bg-[#0c071a]/85 backdrop-blur-xl p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+        <div class="glass rounded-xl p-3.5">
           <div class="mb-2.5 flex items-center justify-between px-2">
             <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">Recommended Core Items</h3>
             <div class="flex items-center gap-3 shrink-0 text-[9px] font-bold uppercase text-slate-400">
@@ -715,7 +715,7 @@
         </div>
 
         <!-- CARD: SITUATIONAL ITEMS -->
-        <div class="rounded-xl border border-purple-500/20 bg-[#0c071a]/85 backdrop-blur-xl p-3.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+        <div class="glass rounded-xl p-3.5">
           <div class="mb-2.5 flex items-center justify-between px-2">
             <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">Situational Items</h3>
             <div class="flex items-center gap-3 shrink-0 text-[9px] font-bold uppercase text-slate-400">
@@ -764,7 +764,7 @@
     </div>
 
     <!-- ==================== MATCHUPS & SYNERGIES SECTION ==================== -->
-    <div class="mt-3.5 rounded-xl border border-purple-500/20 bg-[#0c071a]/85 backdrop-blur-xl p-4 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+    <div class="glass mt-3.5 rounded-xl p-4">
       <div class="mb-3 flex items-center justify-between flex-wrap gap-2">
         <div>
           <h3 class="text-sm font-black uppercase tracking-wider text-white">

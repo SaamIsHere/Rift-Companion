@@ -57,7 +57,7 @@
       </div>
     {:else}
       <div
-        class="relative h-9 w-9 rounded-full overflow-hidden ring-1 ring-purple-500/30 group-hover:ring-purple-400/60 transition-all bg-[#120924] shrink-0"
+        class="relative h-9 w-9 rounded-full overflow-hidden ring-1 ring-purple-500/30 group-hover:ring-purple-400/60 transition-all bg-void-950/60 shrink-0"
       >
         <img
           src={squareIconUrl(rec.image, $ddragonVersion)}

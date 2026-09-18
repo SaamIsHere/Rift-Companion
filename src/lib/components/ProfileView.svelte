@@ -270,8 +270,8 @@
 </script>
 
 <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden select-none text-slate-100">
-  <!-- SEARCH BAR & ACCOUNT ACTIONS TOP HEADER (Solid full-width block, flush to top navigation, zero bleed-through) -->
-  <header class="z-30 shrink-0 border-b border-purple-500/20 bg-[#0c071a] px-6 py-3 shadow-md backdrop-blur-xl">
+  <!-- SEARCH BAR & ACCOUNT ACTIONS TOP HEADER -->
+  <header class="z-30 shrink-0 border-b border-purple-500/20 bg-void-950/60 px-6 py-3 shadow-md backdrop-blur-md">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <!-- Search Form -->
       <div class="flex flex-1 items-center gap-2 min-w-[300px] max-w-2xl">
@@ -413,7 +413,7 @@
     {/if}
 
     {#if $viewedProfileLoading && !$viewedProfile}
-      <div class="glass flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-8 text-center shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+      <div class="glass flex min-h-[400px] flex-col items-center justify-center rounded-2xl p-8 text-center">
         <div class="relative flex h-16 w-16 items-center justify-center">
           <div class="absolute h-16 w-16 animate-ping rounded-full bg-purple-600/20"></div>
           <div class="h-10 w-10 animate-spin rounded-full border-2 border-purple-400 border-t-transparent"></div>
@@ -424,7 +424,7 @@
         </p>
       </div>
     {:else if $viewedProfileError && !$viewedProfile}
-      <div class="glass flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-rose-500/30 bg-[#10061c]/90 p-8 text-center shadow-[0_8px_32px_rgba(0,0,0,0.6)]">
+      <div class="glass flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-rose-500/30 p-8 text-center">
         <div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-500/40 bg-rose-950/40 text-2xl text-rose-400 shadow-md">
           ⚠️
         </div>
@@ -460,7 +460,7 @@
         </div>
       </div>
     {:else if $viewedProfile}
-      <div class="relative shrink-0 block glass mb-5 min-h-[150px] overflow-hidden rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-6 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+      <div class="relative shrink-0 block glass mb-5 min-h-[150px] overflow-hidden rounded-2xl p-6">
       <!-- Ambient background decoration -->
       <div class="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-purple-600/10 blur-3xl"></div>
       <div class="pointer-events-none absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-indigo-600/10 blur-3xl"></div>
@@ -476,7 +476,7 @@
               alt="Summoner Icon"
               class="h-20 w-20 rounded-2xl border-2 border-purple-500/40 object-cover shadow-md"
             />
-            <span class="absolute -bottom-2 -right-2 rounded-lg border border-purple-400/50 bg-[#120726] px-2 py-0.5 text-[10px] font-black text-purple-200 shadow-md">
+            <span class="absolute -bottom-2 -right-2 rounded-lg border border-purple-400/50 bg-purple-950/90 px-2 py-0.5 text-[10px] font-black text-purple-200 shadow-md">
               {$viewedProfile.level}
             </span>
           </div>
@@ -597,7 +597,7 @@
       </div>
     </div>
   {:else if $viewedProfileLoading}
-    <div class="glass mb-5 flex h-48 flex-col items-center justify-center rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-6">
+    <div class="glass mb-5 flex h-48 flex-col items-center justify-center rounded-2xl p-6">
       <div class="h-8 w-8 animate-spin rounded-full border-2 border-purple-500 border-t-transparent"></div>
       <p class="mt-3 text-xs font-semibold text-purple-300/80">Loading summoner profile…</p>
     </div>
@@ -618,7 +618,7 @@
     </div>
   {:else}
     <!-- WELCOME & SEARCH HERO LANDING -->
-    <div class="glass my-auto flex flex-col items-center justify-center rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-10 text-center shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+    <div class="glass my-auto flex flex-col items-center justify-center rounded-2xl p-10 text-center">
       <div class="relative mb-4 flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-purple-500/40 bg-purple-950/40 shadow-md">
         <svg class="h-10 w-10 text-purple-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -690,7 +690,7 @@
     <div class="col-span-12 lg:col-span-4 flex flex-col gap-5">
       <!-- CARD: RECENT PERFORMANCE SUMMARY -->
       {#if recentStats}
-        <div class="glass rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-4 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+        <div class="glass rounded-2xl p-4">
           <div class="flex items-center justify-between mb-3">
             <h2 class="text-xs font-bold uppercase tracking-wider text-purple-200">
               Match History Summary
@@ -728,7 +728,7 @@
       {/if}
 
       <!-- CARD: TOP CHAMPIONS -->
-      <div class="glass rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-4 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+      <div class="glass rounded-2xl p-4">
         <div class="flex items-center justify-between mb-3">
           <h2 class="text-xs font-bold uppercase tracking-wider text-purple-200">
             Most Played Champions
@@ -815,7 +815,7 @@
     <!-- RIGHT COLUMN: MATCH HISTORY FEED (col-span-12 lg:col-span-8) -->
     <div class="col-span-12 lg:col-span-8 flex flex-col gap-4">
       <!-- FILTER TABS & MATCH COUNT -->
-      <div class="glass flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 px-4 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+      <div class="glass flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-2.5">
         <div class="flex items-center gap-1.5">
           <button
             type="button"
@@ -862,7 +862,7 @@
 
       <!-- MATCHES FEED LIST -->
       {#if $viewedMatchesLoading && !$viewedMatches.length}
-        <div class="glass flex h-64 flex-col items-center justify-center rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-6">
+        <div class="glass flex h-64 flex-col items-center justify-center rounded-2xl p-6">
           <div class="h-8 w-8 animate-spin rounded-full border-2 border-purple-500 border-t-transparent"></div>
           <p class="mt-3 text-xs font-semibold text-purple-300/80">Loading recent match history…</p>
         </div>
@@ -877,10 +877,10 @@
             <!-- MATCH CARD CONTAINER -->
             <div
               class="glass group relative overflow-hidden rounded-2xl border transition-all duration-200 {isRemake
-                ? 'border-slate-500/25 bg-[#0e0c18]/85 hover:border-slate-500/40'
+                ? 'border-slate-500/25 bg-void-950/30 hover:border-slate-500/40'
                 : isWin
-                  ? 'border-emerald-500/30 bg-[#091515]/85 hover:border-emerald-500/50 shadow-[0_4px_24px_rgba(16,185,129,0.1)]'
-                  : 'border-rose-500/30 bg-[#170912]/85 hover:border-rose-500/50 shadow-[0_4px_24px_rgba(244,63,94,0.1)]'}"
+                  ? 'border-emerald-500/30 bg-emerald-950/20 hover:border-emerald-500/50 hover:bg-emerald-950/30'
+                  : 'border-rose-500/30 bg-rose-950/20 hover:border-rose-500/50 hover:bg-rose-950/30'}"
             >
               <!-- Colored left bar strip -->
               <div
@@ -924,7 +924,7 @@
                       alt={champInfo.name}
                       class="h-11 w-11 rounded-lg border border-purple-500/30 object-cover bg-black"
                     />
-                    <span class="absolute -bottom-1 -right-1 rounded bg-[#0a0518] border border-purple-400/40 px-1 text-[9px] font-black text-purple-200">
+                    <span class="absolute -bottom-1 -right-1 rounded bg-void-950/80 border border-purple-400/40 px-1 text-[9px] font-black text-purple-200">
                       {match.champion_level}
                     </span>
                   </div>
@@ -1062,7 +1062,7 @@
               <!-- EXPANDED SCOREBOARD / 10-PLAYER BREAKDOWN -->
               {#if isExpanded}
                 {#if loadingMatchDetailIds.has(match.id)}
-                  <div class="flex h-20 items-center justify-center gap-2 border-t border-purple-500/20 bg-[#080414]/90 p-4">
+                  <div class="flex h-20 items-center justify-center gap-2 border-t border-purple-500/20 bg-void-950/40 p-4">
                     <div class="h-4 w-4 animate-spin rounded-full border-2 border-purple-400 border-t-transparent"></div>
                     <span class="text-xs font-semibold text-purple-300">Loading full match scoreboard…</span>
                   </div>
@@ -1071,7 +1071,7 @@
                   {@const redParticipants = match.participants.filter((p) => p.team_id === 200 || p.team_id === 2)}
                   {@const blueTeam = blueParticipants.length > 0 || redParticipants.length > 0 ? blueParticipants : match.participants.slice(0, Math.ceil(match.participants.length / 2))}
                   {@const redTeam = blueParticipants.length > 0 || redParticipants.length > 0 ? redParticipants : match.participants.slice(Math.ceil(match.participants.length / 2))}
-                  <div class="border-t border-purple-500/20 bg-[#080414]/90 p-4 transition-all">
+                  <div class="border-t border-purple-500/20 bg-void-950/40 p-4 transition-all">
                   <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <!-- Blue Team (100) -->
                     <div class="flex flex-col gap-1.5">
@@ -1249,7 +1249,7 @@
                   </div>
                 </div>
                 {:else}
-                  <div class="flex h-16 items-center justify-center gap-3 border-t border-purple-500/20 bg-[#080414]/90 p-4 text-xs text-slate-400">
+                  <div class="flex h-16 items-center justify-center gap-3 border-t border-purple-500/20 bg-void-950/40 p-4 text-xs text-slate-400">
                     <span>Detailed scoreboard unavailable for this match.</span>
                     <button
                       type="button"
@@ -1277,7 +1277,7 @@
           {/each}
         </div>
       {:else}
-        <div class="glass flex h-64 flex-col items-center justify-center rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-6 text-center">
+        <div class="glass flex h-64 flex-col items-center justify-center rounded-2xl p-6 text-center">
           <span class="text-3xl">⚔️</span>
           <h3 class="mt-2 text-sm font-bold text-white">No Match History Found</h3>
           <p class="mt-1 text-xs text-slate-400 max-w-sm">
@@ -1288,7 +1288,7 @@
     </div>
   </div>
   {:else}
-    <div class="glass flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-purple-500/20 bg-[#0c071a]/85 p-8 text-center shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+    <div class="glass flex min-h-[400px] flex-col items-center justify-center rounded-2xl p-8 text-center">
       <div class="flex h-16 w-16 items-center justify-center rounded-2xl border border-purple-500/30 bg-purple-950/40 text-3xl shadow-md">
         🔍
       </div>
