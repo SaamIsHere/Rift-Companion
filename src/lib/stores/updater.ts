@@ -40,7 +40,7 @@ export async function checkForAppUpdate(interactive = false): Promise<boolean> {
       updateAvailable.set(false);
       availableUpdate.set(null);
       if (interactive) {
-        updateStatusMessage.set("Rift Companion is up to date (v0.1.0).");
+        updateStatusMessage.set("Rift Companion is up to date (v0.1.1).");
       }
       return false;
     }
