@@ -141,7 +141,7 @@ fn settings_path() -> PathBuf {
 
 pub fn read_settings() -> Option<Settings> {
     let mut s: Settings = serde_json::from_str(&std::fs::read_to_string(settings_path()).ok()?).ok()?;
-    if s.server_url.contains("192.168.1.100") || s.server_url.trim().is_empty() {
+    if s.server_url.contains("192.168.") || s.server_url.trim().is_empty() {
         s.server_url = default_server_url();
         let _ = write_settings(&s);
     }

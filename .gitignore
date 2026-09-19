@@ -28,7 +28,9 @@ Current-*.png
 *.key
 *.key.pub
 
-# Python
+# Python & Local deployment scripts
 __pycache__/
 *.py[cod]
 *Log.txt
+deploy_to_nas.py
+get_tunnel_url.py
