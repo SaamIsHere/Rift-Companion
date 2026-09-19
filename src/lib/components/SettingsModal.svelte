@@ -371,6 +371,20 @@
           </div>
         </section>
 
+        <!-- SECTION 5: INFO & RECHTLICHES -->
+        <section class="border-t border-white/5 pt-3">
+          <div class="mb-1.5 flex items-center justify-between">
+            <h3 class="text-xs uppercase tracking-wide text-purple-300/70">Info & Rechtliches</h3>
+            <span class="text-[10px] text-slate-400">v0.1.0 • MIT Lizenz</span>
+          </div>
+          <div class="glass-soft rounded-lg p-2.5 text-[10px] leading-relaxed text-slate-400">
+            <p class="mb-1 font-medium text-slate-300">Riot Games Disclaimer</p>
+            <p>
+              Rift Companion isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing League of Legends. League of Legends and Riot Games are trademarks or registered trademarks of Riot Games, Inc. League of Legends © Riot Games, Inc.
+            </p>
+          </div>
+        </section>
+
       </div>
     </div>
   </div>

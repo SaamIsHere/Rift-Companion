@@ -190,7 +190,17 @@ npm run tauri:dev      # or: cargo tauri dev
   full ranked pool for your role (validated with `scratchpad/sim.mjs`).
 - **Phase 3 — UI** ✅ scaffolded: live ally/enemy board, searchable ranked
   cards with score bars and "why" badges.
-- **Next:** real stats ingestion → SQLite, champion id→name map from Data
-  Dragon, weight-tuning panel (`set_weights` is already wired), desktop acrylic
-  via the `window-vibrancy` crate.
-```
+
+---
+
+## Legal & Riot Games Disclaimer
+
+Rift Companion isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games or anyone officially involved in producing or managing League of Legends. League of Legends and Riot Games are trademarks or registered trademarks of Riot Games, Inc. League of Legends © Riot Games, Inc.
+
+All League of Legends assets (champion icons, spells, items, splash art) used in this application are property of Riot Games and are served via Riot's Data Dragon CDN in compliance with the [Riot Games Legal Jibber Jabber](https://www.riotgames.com/en/legal) policy for non-commercial fan applications.
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
