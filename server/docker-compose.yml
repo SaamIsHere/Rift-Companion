@@ -19,6 +19,6 @@ services:
     image: cloudflare/cloudflared:latest
     container_name: rift-cloudflared
     restart: unless-stopped
-    command: tunnel --no-autoupdate --url http://rift-server:8085
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
     depends_on:
       - rift-server
