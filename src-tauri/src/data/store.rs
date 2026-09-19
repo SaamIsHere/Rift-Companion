@@ -73,9 +73,12 @@ pub struct Settings {
     /// Behavior: the team-composition bonus weight (mirrors `engine::weights::Weights.comp`).
     #[serde(default = "default_comp_weight")]
     pub comp_weight: f64,
-    /// Data Source: Optional Rift Server URL on local NAS (e.g. "http://192.168.1.100:8080").
-    #[serde(default)]
+    /// Data Source: Optional Rift Server URL on local NAS or Cloudflare (e.g. "https://xxxx.trycloudflare.com").
+    #[serde(default = "default_server_url")]
     pub server_url: String,
+    /// Pre-shared API Key for remote Rift Server authentication.
+    #[serde(default = "default_api_key")]
+    pub api_key: String,
     /// Selected rank tier (Issue #13 & #40).
     #[serde(default)]
     pub rank_tier: Option<RankTier>,
@@ -97,6 +100,14 @@ fn default_comp_weight() -> f64 {
     crate::engine::weights::Weights::default().comp
 }
 
+fn default_server_url() -> String {
+    "https://companion.sam-rift.win".to_string()
+}
+
+fn default_api_key() -> String {
+    crate::opgg::remote::DEFAULT_PRESHARED_API_KEY.to_string()
+}
+
 fn default_theme() -> String {
     "void".to_string()
 }
@@ -111,7 +122,8 @@ impl Default for Settings {
             compact_density: false,
             always_on_top: false,
             comp_weight: default_comp_weight(),
-            server_url: String::new(),
+            server_url: default_server_url(),
+            api_key: default_api_key(),
             rank_tier: None,
             rank_manual: false,
             theme: default_theme(),
@@ -128,7 +140,12 @@ fn settings_path() -> PathBuf {
 }
 
 pub fn read_settings() -> Option<Settings> {
-    serde_json::from_str(&std::fs::read_to_string(settings_path()).ok()?).ok()
+    let mut s: Settings = serde_json::from_str(&std::fs::read_to_string(settings_path()).ok()?).ok()?;
+    if s.server_url.contains("192.168.1.100") || s.server_url.trim().is_empty() {
+        s.server_url = default_server_url();
+        let _ = write_settings(&s);
+    }
+    Some(s)
 }
 
 pub fn write_settings(settings: &Settings) -> std::io::Result<()> {

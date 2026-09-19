@@ -414,6 +414,10 @@
       </div>
 
       <div class="header-meta">
+        <button id="authBtn" onclick="handleAuthButtonClick()" class="badge badge-info" style="cursor: pointer; border-color: rgba(168, 85, 247, 0.4); background: rgba(20, 12, 43, 0.9);">
+          <span id="authIcon">🔒</span>
+          <span id="authText">Anmelden</span>
+        </button>
         <span id="statusBadge" class="badge badge-idle">
           <span class="dot dot-idle"></span>
           <span id="statusText">Bereit</span>
@@ -532,6 +536,24 @@
 
   <div id="toast" class="toast"></div>
 
+  <!-- Auth Modal Overlay -->
+  <div id="authModal" style="display: none; position: fixed; inset: 0; background: rgba(5, 2, 12, 0.88); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 9999; align-items: center; justify-content: center; padding: 20px;">
+    <div style="background: rgba(14, 8, 31, 0.95); border: 1px solid rgba(168, 85, 247, 0.35); box-shadow: 0 0 50px rgba(147, 51, 234, 0.25); border-radius: 20px; max-width: 420px; width: 100%; padding: 28px; text-align: center;">
+      <div style="width: 52px; height: 52px; background: rgba(147, 51, 234, 0.2); border: 1px solid rgba(168, 85, 247, 0.4); border-radius: 14px; margin: 0 auto 16px; display: grid; place-items: center; font-size: 24px;">🔒</div>
+      <h2 style="font-size: 1.25rem; font-weight: 800; color: #f1f5f9; margin-bottom: 6px;">Rift Server Dashboard</h2>
+      <p style="font-size: 0.82rem; color: #94a3b8; margin-bottom: 20px; line-height: 1.4;">Dieses Dashboard ist passwortgeschützt. Bitte gib deinen Admin- oder Zugangs-Schlüssel ein:</p>
+      
+      <form id="authForm" onsubmit="handleAuthSubmit(event)" style="display: flex; flex-direction: column; gap: 12px;">
+        <input id="authKeyInput" type="password" placeholder="Passwort / API-Key…" required style="width: 100%; background: rgba(30, 17, 63, 0.5); border: 1px solid rgba(168, 85, 247, 0.3); border-radius: 10px; padding: 12px 14px; font-size: 0.9rem; color: #f8fafc; outline: none; font-family: monospace;">
+        <div id="authError" style="display: none; font-size: 0.8rem; color: #f43f5e; background: rgba(244, 63, 94, 0.1); border: 1px solid rgba(244, 63, 94, 0.25); padding: 8px; border-radius: 8px;"></div>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" id="authCancelBtn" onclick="hideLoginModal()" style="display: none; flex: 1; background: rgba(30, 17, 63, 0.6); border: 1px solid var(--border-color); color: var(--slate); font-weight: 600; border-radius: 10px; padding: 12px; cursor: pointer;">Schließen</button>
+          <button type="submit" style="flex: 2; background: linear-gradient(135deg, #9333ea, #7e22ce); color: #fff; font-weight: 700; border: none; border-radius: 10px; padding: 12px; cursor: pointer; font-size: 0.9rem; box-shadow: 0 4px 14px rgba(147, 51, 234, 0.4);">Entsperren</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <script>
     let allChampions = [];
     let ddragonVersion = "14.12.1";
@@ -545,6 +567,116 @@
       { id: "bronze_plus", label: "Bronze+" },
       { id: "iron_plus", label: "Iron+" }
     ];
+
+    const AUTH_KEY_STORAGE = "rift_server_auth_key";
+
+    function getAuthKey() {
+      return localStorage.getItem(AUTH_KEY_STORAGE) || "";
+    }
+
+    function setAuthKey(key) {
+      if (key) {
+        localStorage.setItem(AUTH_KEY_STORAGE, key.trim());
+      } else {
+        localStorage.removeItem(AUTH_KEY_STORAGE);
+      }
+      updateAuthUI();
+    }
+
+    function updateAuthUI() {
+      const key = getAuthKey();
+      const authText = document.getElementById("authText");
+      const authIcon = document.getElementById("authIcon");
+      const authBtn = document.getElementById("authBtn");
+      if (authText && authIcon && authBtn) {
+        if (key) {
+          authText.innerText = "Abmelden";
+          authIcon.innerText = "🔓";
+          authBtn.style.color = "#34d399";
+          authBtn.style.borderColor = "rgba(52, 211, 153, 0.4)";
+        } else {
+          authText.innerText = "Anmelden";
+          authIcon.innerText = "🔒";
+          authBtn.style.color = "var(--slate)";
+          authBtn.style.borderColor = "rgba(168, 85, 247, 0.4)";
+        }
+      }
+    }
+
+    function handleAuthButtonClick() {
+      if (getAuthKey()) {
+        if (confirm("Möchtest du dich wirklich abmelden?")) {
+          setAuthKey("");
+          showLoginModal("Erfolgreich abgemeldet.");
+          document.getElementById("championsTableBody").innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--rose); padding: 24px;">Bitte anmelden, um Daten anzuzeigen.</td></tr>`;
+        }
+      } else {
+        showLoginModal();
+      }
+    }
+
+    function showLoginModal(errorMsg = "") {
+      const modal = document.getElementById("authModal");
+      const errDiv = document.getElementById("authError");
+      const cancelBtn = document.getElementById("authCancelBtn");
+      if (errorMsg) {
+        errDiv.innerText = errorMsg;
+        errDiv.style.display = "block";
+      } else {
+        errDiv.style.display = "none";
+      }
+      cancelBtn.style.display = getAuthKey() ? "block" : "none";
+      modal.style.display = "flex";
+      setTimeout(() => document.getElementById("authKeyInput")?.focus(), 100);
+    }
+
+    function hideLoginModal() {
+      document.getElementById("authModal").style.display = "none";
+    }
+
+    async function handleAuthSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById("authKeyInput");
+      const key = (input.value || "").trim();
+      if (!key) return;
+
+      const errDiv = document.getElementById("authError");
+      errDiv.style.display = "none";
+
+      try {
+        const res = await fetch("/api/status", {
+          headers: { "X-Rift-Key": key }
+        });
+        if (res.status === 401) {
+          errDiv.innerText = "Ungültiger Schlüssel! Zugriff verweigert.";
+          errDiv.style.display = "block";
+          return;
+        }
+        setAuthKey(key);
+        input.value = "";
+        hideLoginModal();
+        showToast("Erfolgreich angemeldet!");
+        fetchStatus();
+        loadChampions();
+      } catch (err) {
+        errDiv.innerText = "Verbindungsfehler: " + err.message;
+        errDiv.style.display = "block";
+      }
+    }
+
+    async function authFetch(url, options = {}) {
+      const key = getAuthKey();
+      const headers = new Headers(options.headers || {});
+      if (key) {
+        headers.set("X-Rift-Key", key);
+        headers.set("X-Admin-Key", key);
+      }
+      const res = await fetch(url, { ...options, headers });
+      if (res.status === 401) {
+        showLoginModal("Zugriff verweigert: Bitte Schlüssel eingeben.");
+      }
+      return res;
+    }
 
     function showToast(msg) {
       const t = document.getElementById("toast");
@@ -567,7 +699,8 @@
 
     async function fetchStatus() {
       try {
-        const res = await fetch("/api/status");
+        const res = await authFetch("/api/status");
+        if (!res.ok) return;
         const data = await res.json();
 
         // Uptime
@@ -620,6 +753,9 @@
 
     function renderTiersGrid(tiersData, activeProgress) {
       const grid = document.getElementById("tiersGrid");
+      const key = getAuthKey();
+      const keyParam = key ? `&key=${encodeURIComponent(key)}` : "";
+
       grid.innerHTML = ALL_TIERS.map(t => {
         const meta = tiersData?.[t.id];
         const isCurrentCrawling = activeProgress?.tier === t.id;
@@ -643,7 +779,7 @@
             </div>
             <div class="tier-actions">
               <button onclick="triggerCrawl('${t.id}')">Jetzt crawlen</button>
-              <a href="/api/stats?tier=${t.id}" target="_blank" class="badge badge-info" style="border-radius: 8px;">JSON</a>
+              <a href="/api/stats?tier=${t.id}${keyParam}" target="_blank" class="badge badge-info" style="border-radius: 8px;">JSON</a>
             </div>
           </div>
         `;
@@ -652,13 +788,13 @@
 
     async function triggerCrawl(tier) {
       try {
-        const res = await fetch(`/api/refresh?tier=${tier}`, { method: "POST" });
+        const res = await authFetch(`/api/refresh?tier=${tier}`, { method: "POST" });
         const data = await res.json();
         if (res.ok) {
           showToast(`Crawl für '${tier}' erfolgreich gestartet!`);
           fetchStatus();
         } else {
-          showToast(data.error || "Crawl konnte nicht gestartet werden.");
+          showToast(data.error || "Crawl konnte nicht gestartet werden (Admin-Rechte erforderlich).");
         }
       } catch (e) {
         showToast("Fehler beim Starten des Crawls.");
@@ -672,9 +808,14 @@
 
     async function checkPatch() {
       try {
-        const res = await fetch("/api/check-patch", { method: "POST" });
-        showToast("Patch-Prüfung angestoßen!");
-        fetchStatus();
+        const res = await authFetch("/api/check-patch", { method: "POST" });
+        if (res.ok) {
+          showToast("Patch-Prüfung angestoßen!");
+          fetchStatus();
+        } else {
+          const data = await res.json();
+          showToast(data.error || "Patch-Prüfung verweigert.");
+        }
       } catch (e) {
         showToast("Patch-Prüfung fehlgeschlagen.");
       }
@@ -686,9 +827,9 @@
       tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--slate); padding: 24px;">Lade Daten für ${tier}…</td></tr>`;
 
       try {
-        const res = await fetch(`/api/champions?tier=${tier}`);
+        const res = await authFetch(`/api/champions?tier=${tier}`);
         if (!res.ok) {
-          tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--rose); padding: 24px;">Keine Daten für '${tier}' verfügbar.</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--rose); padding: 24px;">Keine Daten für '${tier}' verfügbar oder nicht autorisiert.</td></tr>`;
           return;
         }
         allChampions = await res.json();
@@ -727,6 +868,9 @@
         return;
       }
 
+      const key = getAuthKey();
+      const keyParam = key ? `&key=${encodeURIComponent(key)}` : "";
+
       tbody.innerHTML = filtered.map(c => {
         const iconUrl = `https://ddragon.leagueoflegends.com/cdn/${ddragonVersion}/img/champion/${c.image}.png`;
         const wrColor = c.winrate >= 0.51 ? '#34d399' : c.winrate <= 0.49 ? '#f43f5e' : '#e2e8f0';
@@ -753,16 +897,27 @@
             </td>
             <td>${c.games ? c.games.toLocaleString('de-DE') : '–'}</td>
             <td><strong>${c.matchup_count}</strong> Matchups</td>
-            <td><strong>${c.synergy_count}</strong> Synergien ${c.has_build ? `<a href="/api/build?champion=${encodeURIComponent(c.key || c.name)}&role=${c.role}&tier=${document.getElementById("explorerTier").value}" target="_blank" class="pill pill-build" title="Build JSON anzeigen" style="margin-left:6px; font-size: 0.65rem;">Build ✓</a>` : ''}</td>
+            <td><strong>${c.synergy_count}</strong> Synergien ${c.has_build ? `<a href="/api/build?champion=${encodeURIComponent(c.key || c.name)}&role=${c.role}&tier=${document.getElementById("explorerTier").value}${keyParam}" target="_blank" class="pill pill-build" title="Build JSON anzeigen" style="margin-left:6px; font-size: 0.65rem;">Build ✓</a>` : ''}</td>
           </tr>
         `;
       }).join("");
     }
 
-    // Polling lifecycle: Polls every 3s
-    fetchStatus();
-    loadChampions();
-    setInterval(fetchStatus, 3000);
+    // Startup & Lifecycle
+    updateAuthUI();
+    if (!getAuthKey()) {
+      showLoginModal();
+    } else {
+      fetchStatus();
+      loadChampions();
+    }
+
+    // Poll status every 3s if logged in
+    setInterval(() => {
+      if (getAuthKey()) {
+        fetchStatus();
+      }
+    }, 3000);
   </script>
 </body>
 </html>

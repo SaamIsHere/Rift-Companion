@@ -12,3 +12,13 @@ services:
       - DATA_DIR=/data
       - CRAWL_CONCURRENCY=6
       - CRON_HOUR=4
+      - RIFT_API_KEY=${RIFT_API_KEY:-}
+      - RIFT_ADMIN_KEY=${RIFT_ADMIN_KEY:-}
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: rift-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://rift-server:8085
+    depends_on:
+      - rift-server

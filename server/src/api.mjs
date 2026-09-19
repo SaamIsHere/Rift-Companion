@@ -31,10 +31,38 @@ function normalizeTier(tier) {
 export function createApiRouter(scheduler, dataDir) {
   const router = express.Router();
 
-  // Health check
+  const apiKey = process.env.RIFT_API_KEY ? String(process.env.RIFT_API_KEY).trim() : null;
+  const adminKey = process.env.RIFT_ADMIN_KEY ? String(process.env.RIFT_ADMIN_KEY).trim() : apiKey;
+
+  // Middleware: verify pre-shared API key for all /api data routes
+  const requireApiKey = (req, res, next) => {
+    if (!apiKey) return next();
+
+    const clientKey = req.headers["x-rift-key"] || req.headers["x-admin-key"] || req.query.key;
+    if (!clientKey || (clientKey !== apiKey && clientKey !== adminKey)) {
+      return res.status(401).json({ error: "Unauthorized: Invalid or missing X-Rift-Key header" });
+    }
+    next();
+  };
+
+  // Middleware: verify admin key for crawler control routes
+  const requireAdminKey = (req, res, next) => {
+    if (!adminKey) return next();
+
+    const clientKey = req.headers["x-admin-key"] || req.headers["x-rift-key"] || req.query.key;
+    if (!clientKey || clientKey !== adminKey) {
+      return res.status(403).json({ error: "Forbidden: Admin access required for crawler operations" });
+    }
+    next();
+  };
+
+  // Health check - always public
   router.get("/health", (req, res) => {
     res.json({ status: "ok", uptime: process.uptime() });
   });
+
+  // Protect all /api endpoints with API key
+  router.use("/api", requireApiKey);
 
   // Overall server and crawler status
   router.get("/api/status", async (req, res) => {
@@ -137,8 +165,8 @@ export function createApiRouter(scheduler, dataDir) {
     }
   });
 
-  // Manually trigger a refresh
-  router.post("/api/refresh", async (req, res) => {
+  // Manually trigger a refresh (Admin only)
+  router.post("/api/refresh", requireAdminKey, async (req, res) => {
     const requestedTier = req.query.tier || req.body?.tier || "emerald_plus";
     const tiers = requestedTier === "all" ? SUPPORTED_TIERS : [normalizeTier(requestedTier)];
 
@@ -219,8 +247,8 @@ export function createApiRouter(scheduler, dataDir) {
     }
   });
 
-  // Manually check Data Dragon for a new patch
-  router.post("/api/check-patch", async (req, res) => {
+  // Manually check Data Dragon for a new patch (Admin only)
+  router.post("/api/check-patch", requireAdminKey, async (req, res) => {
     try {
       await scheduler.check();
       res.json({ message: "Patch check executed", status: scheduler.getStatus() });

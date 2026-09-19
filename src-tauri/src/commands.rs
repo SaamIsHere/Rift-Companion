@@ -226,8 +226,8 @@ pub fn swap_champion_roles(
 }
 
 #[tauri::command]
-pub async fn test_server_connection(server_url: String) -> Result<opgg::remote::ServerStatus, String> {
-    opgg::remote::check_status(&server_url).await.map_err(|e| e.to_string())
+pub async fn test_server_connection(server_url: String, api_key: Option<String>) -> Result<opgg::remote::ServerStatus, String> {
+    opgg::remote::check_status(&server_url, api_key.as_deref()).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -256,14 +256,17 @@ pub fn set_rank_tier(state: State<Shared>, tier: RankTier, app: AppHandle) {
     let patch = store::read_meta().map(|m| m.patch).unwrap_or_default();
     let _ = store::write_meta(&patch, store::now_unix(), tier, true);
 
-    let server_url = state.settings.lock().unwrap().server_url.clone();
+    let (server_url, api_key) = {
+        let s = state.settings.lock().unwrap();
+        (s.server_url.clone(), s.api_key.clone())
+    };
     if !server_url.trim().is_empty() {
         let state_clone = state.inner().clone();
         let app_clone = app.clone();
         tauri::async_runtime::spawn(async move {
             let _ = app_clone.emit("rank://update", tier);
             let _ = app_clone.emit("rank-refresh://status", "refreshing");
-            match opgg::remote::fetch_stats(&server_url, tier).await {
+            match opgg::remote::fetch_stats(&server_url, tier, Some(&api_key)).await {
                 Ok(champions) => {
                     let count = champions.len();
                     let repo = crate::data::repository::Repository::from_champions(champions);
@@ -310,6 +313,7 @@ pub fn set_settings(state: State<Shared>, settings: Settings, app: AppHandle) ->
 
     let old_server_url = state.settings.lock().unwrap().server_url.clone();
     let new_server_url = settings.server_url.clone();
+    let api_key = settings.api_key.clone();
 
     *state.settings.lock().unwrap() = settings.clone();
     let _ = store::write_settings(&settings);
@@ -327,7 +331,7 @@ pub fn set_settings(state: State<Shared>, settings: Settings, app: AppHandle) ->
         let tier = *state.rank_tier.lock().unwrap();
         tauri::async_runtime::spawn(async move {
             let _ = app_clone.emit("rank-refresh://status", "refreshing");
-            match opgg::remote::fetch_stats(&new_server_url, tier).await {
+            match opgg::remote::fetch_stats(&new_server_url, tier, Some(&api_key)).await {
                 Ok(champions) => {
                     let count = champions.len();
                     let repo = crate::data::repository::Repository::from_champions(champions);
@@ -355,14 +359,17 @@ pub fn set_settings(state: State<Shared>, settings: Settings, app: AppHandle) ->
 #[tauri::command]
 pub fn force_refresh_data(state: State<Shared>, app: AppHandle) {
     let tier = *state.rank_tier.lock().unwrap();
-    let server_url = state.settings.lock().unwrap().server_url.clone();
+    let (server_url, api_key) = {
+        let s = state.settings.lock().unwrap();
+        (s.server_url.clone(), s.api_key.clone())
+    };
     if !server_url.trim().is_empty() {
         let state_clone = state.inner().clone();
         let app_clone = app.clone();
         tauri::async_runtime::spawn(async move {
             let _ = app_clone.emit("rank-refresh://status", "refreshing");
-            let _ = opgg::remote::trigger_refresh(&server_url, Some(tier.as_opgg_tier())).await;
-            match opgg::remote::fetch_stats(&server_url, tier).await {
+            let _ = opgg::remote::trigger_refresh(&server_url, Some(tier.as_opgg_tier()), Some(&api_key)).await;
+            match opgg::remote::fetch_stats(&server_url, tier, Some(&api_key)).await {
                 Ok(champions) => {
                     let count = champions.len();
                     if let Ok(json) = serde_json::to_string(&champions) {
@@ -500,10 +507,13 @@ pub async fn get_champion_overview(
 
     // If build is missing from local repo, try fetching it from remote server if configured
     if build.is_none() {
-        let server_url = state.settings.lock().unwrap().server_url.clone();
+        let (server_url, api_key) = {
+            let s = state.settings.lock().unwrap();
+            (s.server_url.clone(), s.api_key.clone())
+        };
         let tier = *state.rank_tier.lock().unwrap();
         if !server_url.trim().is_empty() {
-            if let Ok(b) = opgg::remote::fetch_build(&server_url, &champion.image, selected_role.as_key(), tier).await {
+            if let Ok(b) = opgg::remote::fetch_build(&server_url, &champion.image, selected_role.as_key(), tier, Some(&api_key)).await {
                 build = Some(b);
             }
         }

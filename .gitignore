@@ -20,3 +20,15 @@ server/data/
 
 # Temporary screenshots
 Current-*.png
+
+# Environment and secrets
+.env
+*.env
+*.env.local
+*.key
+*.key.pub
+
+# Python
+__pycache__/
+*.py[cod]
+*Log.txt

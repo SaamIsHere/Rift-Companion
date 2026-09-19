@@ -15,6 +15,8 @@
   import LiveMatchView from "./lib/components/LiveMatchView.svelte";
   import MatchSimulationView from "./lib/components/MatchSimulationView.svelte";
   import SettingsModal from "./lib/components/SettingsModal.svelte";
+  import UpdateModal from "./lib/components/UpdateModal.svelte";
+  import { checkForAppUpdate } from "./lib/stores/updater";
 
   $: effectiveWallpaper = $customWallpaper || "/landing-bg.jpg";
 
@@ -22,6 +24,11 @@
     initTheme();
     initChampions(); // load Data Dragon id→name/icon catalog
     initIpc();
+
+    // Check for application updates on startup (Issue #47)
+    setTimeout(() => {
+      void checkForAppUpdate(false);
+    }, 2500);
 
     // Disable default browser context menu globally to prevent inspect element
     const handleContextMenu = (e: MouseEvent) => {
@@ -105,4 +112,7 @@
 
   <!-- Global Settings Modal -->
   <SettingsModal />
+
+  <!-- Global Update Notification & Installation Modal -->
+  <UpdateModal />
 </div>

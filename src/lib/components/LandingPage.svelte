@@ -15,6 +15,7 @@
   import { inferRegionFromTag } from "../utils/profileNormalizer";
   import { activeTheme, customWallpaper } from "../stores/theme";
   import PatchNotesModal from "./PatchNotesModal.svelte";
+  import { updateAvailable, updateVersion, showUpdateModal } from "../stores/updater";
 
   let searchQuery = "";
   let showDropdown = false;
@@ -611,6 +612,31 @@
 
     <!-- Action buttons row -->
     <div class="mt-9 flex flex-wrap items-center justify-center gap-3">
+      {#if $updateAvailable}
+        <!-- App Update Ready button -->
+        <button
+          type="button"
+          on:click={() => showUpdateModal.set(true)}
+          class="group flex items-center gap-3 rounded-xl border border-emerald-400/50 bg-gradient-to-r from-emerald-900/80 via-teal-900/70 to-emerald-950/85 px-4 py-2 text-left shadow-lg shadow-emerald-950/50 backdrop-blur-lg transition-all duration-200 hover:scale-[1.03] hover:border-emerald-300 hover:from-emerald-800/90 hover:to-teal-900/90 active:scale-[0.98]"
+          title="Install Rift Companion Update"
+        >
+          <div class="flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-400/40 bg-emerald-950/60 text-emerald-300 shadow-inner">
+            <svg class="h-4 w-4 text-emerald-300 transition-transform group-hover:translate-y-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          </div>
+          <div class="flex flex-col">
+            <span class="text-[11px] font-semibold tracking-wide text-emerald-300 flex items-center gap-1">
+              <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+              Update Ready
+            </span>
+            <span class="text-sm font-bold text-white leading-none">v{$updateVersion} • Install</span>
+          </div>
+        </button>
+      {/if}
+
       <!-- Latest Changes Button (in-app Patch Notes Highlights) -->
       <button
         type="button"

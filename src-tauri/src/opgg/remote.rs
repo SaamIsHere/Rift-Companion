@@ -25,12 +25,27 @@ pub struct CrawlProgress {
     pub champion: String,
 }
 
-/// Ping and retrieve status from the Rift Server.
-pub async fn check_status(server_url: &str) -> Result<ServerStatus> {
-    let url = format!("{}/api/status", server_url.trim_end_matches('/'));
+pub const DEFAULT_PRESHARED_API_KEY: &str = "your-friends-secret-api-key-here";
+
+fn client_with_auth(timeout_secs: u64, api_key: Option<&str>) -> Result<reqwest::Client> {
+    let mut headers = reqwest::header::HeaderMap::new();
+    let key = api_key.unwrap_or(DEFAULT_PRESHARED_API_KEY);
+    if !key.trim().is_empty() {
+        if let Ok(val) = reqwest::header::HeaderValue::from_str(key.trim()) {
+            headers.insert("X-Rift-Key", val);
+        }
+    }
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_secs(timeout_secs))
+        .default_headers(headers)
         .build()?;
+    Ok(client)
+}
+
+/// Ping and retrieve status from the Rift Server.
+pub async fn check_status(server_url: &str, api_key: Option<&str>) -> Result<ServerStatus> {
+    let url = format!("{}/api/status", server_url.trim_end_matches('/'));
+    let client = client_with_auth(5, api_key)?;
     let res = client.get(&url).send().await.with_context(|| format!("connecting to {url}"))?;
     if !res.status().is_success() {
         bail!("server returned status: {}", res.status());
@@ -40,11 +55,9 @@ pub async fn check_status(server_url: &str) -> Result<ServerStatus> {
 }
 
 /// Fetch the pre-computed champion dataset for a specific rank tier from the Rift Server.
-pub async fn fetch_stats(server_url: &str, tier: RankTier) -> Result<Vec<Champion>> {
+pub async fn fetch_stats(server_url: &str, tier: RankTier, api_key: Option<&str>) -> Result<Vec<Champion>> {
     let url = format!("{}/api/stats?tier={}", server_url.trim_end_matches('/'), tier.as_opgg_tier());
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(15))
-        .build()?;
+    let client = client_with_auth(15, api_key)?;
     let res = client.get(&url).send().await.with_context(|| format!("fetching stats from {url}"))?;
     if !res.status().is_success() {
         bail!("server returned status {}: {}", res.status(), res.text().await.unwrap_or_default());
@@ -54,12 +67,10 @@ pub async fn fetch_stats(server_url: &str, tier: RankTier) -> Result<Vec<Champio
 }
 
 /// Request the Rift Server to perform a refresh of its dataset.
-pub async fn trigger_refresh(server_url: &str, tier: Option<&str>) -> Result<()> {
+pub async fn trigger_refresh(server_url: &str, tier: Option<&str>, api_key: Option<&str>) -> Result<()> {
     let tier_param = tier.unwrap_or("all");
     let url = format!("{}/api/refresh?tier={tier_param}", server_url.trim_end_matches('/'));
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
-        .build()?;
+    let client = client_with_auth(5, api_key)?;
     let res = client.post(&url).send().await.with_context(|| format!("triggering refresh at {url}"))?;
     if !res.status().is_success() && res.status().as_u16() != 409 {
         bail!("server returned error: {}", res.text().await.unwrap_or_default());
@@ -73,6 +84,7 @@ pub async fn fetch_build(
     champion_slug: &str,
     role: &str,
     tier: RankTier,
+    api_key: Option<&str>,
 ) -> Result<crate::data::models::ChampionBuildStats> {
     let url = format!(
         "{}/api/build?champion={}&role={}&tier={}",
@@ -81,9 +93,7 @@ pub async fn fetch_build(
         role,
         tier.as_opgg_tier()
     );
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(3))
-        .build()?;
+    let client = client_with_auth(3, api_key)?;
     let res = client.get(&url).send().await.with_context(|| format!("fetching build from {url}"))?;
     if !res.status().is_success() {
         bail!("server returned status: {}", res.status());

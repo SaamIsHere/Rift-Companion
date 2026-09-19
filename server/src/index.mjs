@@ -1,6 +1,7 @@
 import compression from "compression";
 import cors from "cors";
 import express from "express";
+import rateLimit from "express-rate-limit";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApiRouter } from "./api.mjs";
@@ -15,9 +16,23 @@ const CRON_HOUR = Number(process.env.CRON_HOUR) || 4;
 
 const app = express();
 
+// Trust reverse proxies / Cloudflare Tunnel for accurate client IP tracking
+app.set("trust proxy", 1);
+
 app.use(cors());
 app.use(compression());
 app.use(express.json());
+
+// Rate limit: 120 requests per minute per IP on /api/
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again in a minute." },
+});
+app.use("/api/", apiLimiter);
+
 app.use(express.static(path.resolve(__dirname, "../public")));
 
 const scheduler = new CrawlerScheduler({
@@ -32,6 +47,8 @@ const server = app.listen(PORT, "0.0.0.0", async () => {
   console.log(`========================================`);
   console.log(`  Rift Server listening on 0.0.0.0:${PORT}`);
   console.log(`  Data directory: ${DATA_DIR}`);
+  console.log(`  API Key Auth: ${process.env.RIFT_API_KEY ? "ENABLED" : "DISABLED"}`);
+  console.log(`  Admin Auth:   ${process.env.RIFT_ADMIN_KEY ? "ENABLED" : "DISABLED"}`);
   console.log(`========================================`);
 
   await scheduler.start();

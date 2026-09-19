@@ -132,6 +132,8 @@ pub fn run() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(shared.clone())
         .invoke_handler(tauri::generate_handler![
             commands::get_connection_status,
@@ -186,15 +188,19 @@ pub fn run() {
             }
             // Data refresher: If remote Rift Server URL is set, load directly from server on startup into memory.
             // Otherwise, fall back to local background refresher (OP.GG -> dataset; daily / on patch change).
-            let server_url = shared.settings.lock().unwrap().server_url.clone();
+            let (server_url, api_key) = {
+                let s = shared.settings.lock().unwrap();
+                (s.server_url.clone(), s.api_key.clone())
+            };
             if !server_url.trim().is_empty() {
                 let handle = app.handle().clone();
                 let shared = shared.clone();
                 let s_url = server_url.clone();
+                let key = api_key.clone();
                 tauri::async_runtime::spawn(async move {
                     let tier = *shared.rank_tier.lock().unwrap();
                     let _ = handle.emit("rank-refresh://status", "refreshing");
-                    match opgg::remote::fetch_stats(&s_url, tier).await {
+                    match opgg::remote::fetch_stats(&s_url, tier, Some(&key)).await {
                         Ok(champions) => {
                             let count = champions.len();
                             if let Ok(json) = serde_json::to_string(&champions) {

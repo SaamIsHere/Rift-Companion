@@ -240,13 +240,17 @@ export async function getPairwiseStat(
 }
 
 /** Test connectivity to the NAS Rift Server and fetch its status. */
-export async function testServerConnection(serverUrl: string): Promise<ServerStatus> {
+export async function testServerConnection(serverUrl: string, apiKey?: string): Promise<ServerStatus> {
+  const key = apiKey || "your-friends-secret-api-key-here";
   if (!isTauri) {
-    const res = await fetch(`${serverUrl.replace(/\/+$/, "")}/api/status`);
+    const res = await fetch(`${serverUrl.replace(/\/+$/, "")}/api/status`, {
+      headers: { "X-Rift-Key": key },
+      signal: AbortSignal.timeout(5000),
+    });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   }
-  return invoke<ServerStatus>("test_server_connection", { serverUrl });
+  return invoke<ServerStatus>("test_server_connection", { serverUrl, apiKey: key });
 }
 
 /** Open an external link in the default browser. */
@@ -322,8 +326,18 @@ async function getBrowserStats(): Promise<any[]> {
 
   browserStatsPromise = (async () => {
     try {
-      const serverUrl = "http://192.168.1.100:8085";
-      const res = await fetch(`${serverUrl}/api/stats?tier=emerald_plus`, {
+      let serverUrl = "";
+      let apiKey = "your-friends-secret-api-key-here";
+      const unsub = settings.subscribe((s) => {
+        serverUrl = s.server_url || "";
+        if (s.api_key) apiKey = s.api_key;
+      });
+      unsub();
+
+      if (!serverUrl) return [];
+
+      const res = await fetch(`${serverUrl.replace(/\/+$/, "")}/api/stats?tier=emerald_plus`, {
+        headers: { "X-Rift-Key": apiKey },
         signal: AbortSignal.timeout(6000),
       });
       if (res.ok) {

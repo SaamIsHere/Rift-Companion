@@ -75,13 +75,16 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                             let patch = crate::data::store::read_meta().map(|m| m.patch).unwrap_or_default();
                             let _ = crate::data::store::write_meta(&patch, crate::data::store::now_unix(), detected, false);
 
-                            let server_url = shared.settings.lock().unwrap().server_url.clone();
+                            let (server_url, api_key) = {
+                                let s = shared.settings.lock().unwrap();
+                                (s.server_url.clone(), s.api_key.clone())
+                            };
                             if !server_url.trim().is_empty() {
                                 let shared_clone = shared.clone();
                                 let app_clone = app.clone();
                                 tauri::async_runtime::spawn(async move {
                                     let _ = app_clone.emit("rank-refresh://status", "refreshing");
-                                    match opgg::remote::fetch_stats(&server_url, detected).await {
+                                    match opgg::remote::fetch_stats(&server_url, detected, Some(&api_key)).await {
                                         Ok(champions) => {
                                             let count = champions.len();
                                             let repo = crate::data::repository::Repository::from_champions(champions);

@@ -4,6 +4,7 @@
   import { squareIconUrl } from "../utils/ddragon";
   import { navigateToChampion } from "../stores/navigation";
   import { openInBrowser, type PatchInfo } from "../ipc/tauri";
+  import { updateAvailable, updateVersion, showUpdateModal } from "../stores/updater";
 
   export let isOpen = false;
   export let currentPatch: PatchInfo;
@@ -185,6 +186,34 @@
 
       <!-- Patch Changes List -->
       <div class="flex-1 min-h-0 overflow-y-auto p-6 space-y-3">
+        {#if $updateAvailable}
+          <div class="flex items-center justify-between rounded-xl border border-emerald-500/40 bg-gradient-to-r from-emerald-950/60 to-purple-950/60 p-3.5 shadow-lg animate-fade-in mb-1">
+            <div class="flex items-center gap-3">
+              <div class="grid h-8 w-8 place-items-center rounded-lg border border-emerald-400/40 bg-emerald-900/40 text-emerald-300">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              </div>
+              <div class="flex flex-col">
+                <span class="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span>Rift Companion v{$updateVersion} is available!</span>
+                  <span class="rounded bg-emerald-500/20 px-1.5 py-0.2 text-[10px] text-emerald-300 border border-emerald-500/40 font-semibold">New Update</span>
+                </span>
+                <span class="text-[11px] text-slate-300">Click below to review release notes and install in one click.</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              on:click={() => showUpdateModal.set(true)}
+              class="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-md transition hover:bg-emerald-500 active:scale-95 shrink-0"
+            >
+              <span>Update Now</span>
+            </button>
+          </div>
+        {/if}
+
         {#if filteredChanges.length === 0}
           <div class="flex h-48 flex-col items-center justify-center text-center text-slate-400">
             <span class="text-3xl">🔍</span>

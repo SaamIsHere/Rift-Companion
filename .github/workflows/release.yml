@@ -1,0 +1,98 @@
+name: Release Rift Companion
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tauri.conf.json
+        id: get_version
+        shell: pwsh
+        run: |
+          $conf = Get-Content -Raw src-tauri/tauri.conf.json | ConvertFrom-Json
+          $version = $conf.version
+          Write-Host "Detected app version: $version"
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Check if release tag already exists
+        id: check_tag
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ steps.get_version.outputs.tag }}"
+          $releaseExists = $false
+          try {
+            $null = gh release view $tag 2>&1
+            if ($LASTEXITCODE -eq 0) {
+              $releaseExists = $true
+            }
+          } catch {
+            $releaseExists = $false
+          }
+
+          $isTagPush = "${{ github.ref_type }}" -eq "tag"
+          $isManual = "${{ github.event_name }}" -eq "workflow_dispatch"
+
+          if ($releaseExists -and -not $isTagPush -and -not $isManual) {
+            Write-Host "Release for $tag already exists on GitHub. Skipping release build."
+            "should_release=false" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host "Proceeding with release build for $tag."
+            "should_release=true" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Setup Node.js
+        if: steps.check_tag.outputs.should_release == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Rust stable (MSVC)
+        if: steps.check_tag.outputs.should_release == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install frontend dependencies
+        if: steps.check_tag.outputs.should_release == 'true'
+        run: npm ci
+
+      - name: Build Tauri NSIS Installer & Updater Package
+        if: steps.check_tag.outputs.should_release == 'true'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ steps.get_version.outputs.tag }}
+          releaseName: 'Rift Companion ${{ steps.get_version.outputs.tag }}'
+          releaseBody: |
+            ## Rift Companion Release ${{ steps.get_version.outputs.tag }}
+
+            ### Download & Installation
+            * **Windows Installer:** Download `Rift-Companion_${{ steps.get_version.outputs.version }}_x64-setup.exe` below and double-click to install.
+            * **In-App Auto-Updater:** If you already have Rift Companion installed, it will automatically notify you and update seamlessly!
+
+            *Rift Companion isn't endorsed by Riot Games and doesn't reflect the views or opinions of Riot Games.*
+          releaseDraft: false
+          prerelease: false

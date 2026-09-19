@@ -114,6 +114,7 @@ export interface Settings {
   always_on_top: boolean;
   comp_weight: number;
   server_url: string;
+  api_key?: string;
   theme?: ThemeId | string;
   custom_wallpaper?: string | null;
   wallpaper_scope?: WallpaperScope;
