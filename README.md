@@ -10,6 +10,9 @@ your assigned role.
 - **Live data:** LCU WebSocket (`/lol-champ-select/v1/session`)
 - **Static data:** Data Dragon (champion icons), separated from dynamic stats
 
+👉 **[Download Latest Windows Installer (.exe)](https://github.com/SaamIsHere/Rift-Companion/releases/latest)**  
+📖 **[Friends Onboarding & FAQ Guide (SmartScreen, Vanguard Safety)](docs/FRIENDS_SETUP.md)**
+
 ---
 
 ## Why this stack
