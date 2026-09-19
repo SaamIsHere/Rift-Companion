@@ -2,7 +2,7 @@ import { writable } from "svelte/store";
 import type { Settings } from "../types";
 
 export const DEFAULT_SERVER_URL = "https://companion.sam-rift.win";
-export const DEFAULT_API_KEY = "your-friends-secret-api-key-here";
+export const DEFAULT_API_KEY = "";
 
 /** Persisted user settings (Issue #15). Mirrors the Rust `Default` until primed. */
 export const settings = writable<Settings>({
@@ -18,3 +18,6 @@ export const settings = writable<Settings>({
 
 /** Whether the settings modal is currently open. */
 export const settingsOpen = writable<boolean>(false);
+
+/** Whether the first-launch activation modal is currently open. */
+export const activationOpen = writable<boolean>(false);

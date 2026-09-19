@@ -483,12 +483,12 @@
               </div>
 
               <div class="flex flex-col gap-1">
-                <label class="text-[10px] font-semibold text-slate-300" for="custom-api-key">API Key (optional)</label>
+                <label class="text-[10px] font-semibold text-slate-300" for="custom-api-key">Access Key / API Key</label>
                 <div class="relative flex items-center">
                   <input
                     id="custom-api-key"
                     type={showApiKey ? "text" : "password"}
-                    placeholder="your-friends-secret-api-key-here"
+                    placeholder="Enter Rift Access Key…"
                     value={$settings.api_key || ""}
                     on:input={onApiKeyInput}
                     on:change={onApiKeyChange}

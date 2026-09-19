@@ -7,7 +7,7 @@ import { rankRefreshing, rankRefreshProgress, rankTier } from "../stores/rank";
 import { recommendations } from "../stores/recommendations";
 import { preselectedChampionId } from "../stores/preselect";
 import { scoringMode } from "../stores/scoring";
-import { settings } from "../stores/settings";
+import { settings, activationOpen } from "../stores/settings";
 import type {
   ChampionBuildStats,
   ChampionOverviewData,
@@ -94,8 +94,11 @@ export async function initIpc(): Promise<void> {
       const mode = await invoke<ScoringMode>("get_scoring_mode");
       if (mode) scoringMode.set(mode);
     } catch (_) {}
-    rankTier.set(await invoke<RankTier>("get_rank_tier"));
-    settings.set(await invoke<Settings>("get_settings"));
+    const s = await invoke<Settings>("get_settings");
+    settings.set(s);
+    if (!s.api_key || s.api_key.trim() === "") {
+      activationOpen.set(true);
+    }
   } catch (err) {
     console.error("Failed to prime state from backend", err);
   }
@@ -241,10 +244,12 @@ export async function getPairwiseStat(
 
 /** Test connectivity to the NAS Rift Server and fetch its status. */
 export async function testServerConnection(serverUrl: string, apiKey?: string): Promise<ServerStatus> {
-  const key = apiKey || "your-friends-secret-api-key-here";
+  const key = (apiKey ?? "").trim();
   if (!isTauri) {
+    const headers: Record<string, string> = {};
+    if (key) headers["X-Rift-Key"] = key;
     const res = await fetch(`${serverUrl.replace(/\/+$/, "")}/api/status`, {
-      headers: { "X-Rift-Key": key },
+      headers,
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -327,7 +332,7 @@ async function getBrowserStats(): Promise<any[]> {
   browserStatsPromise = (async () => {
     try {
       let serverUrl = "";
-      let apiKey = "your-friends-secret-api-key-here";
+      let apiKey = "";
       const unsub = settings.subscribe((s) => {
         serverUrl = s.server_url || "";
         if (s.api_key) apiKey = s.api_key;
@@ -336,8 +341,11 @@ async function getBrowserStats(): Promise<any[]> {
 
       if (!serverUrl) return [];
 
+      const headers: Record<string, string> = {};
+      if (apiKey) headers["X-Rift-Key"] = apiKey;
+
       const res = await fetch(`${serverUrl.replace(/\/+$/, "")}/api/stats?tier=emerald_plus`, {
-        headers: { "X-Rift-Key": apiKey },
+        headers,
         signal: AbortSignal.timeout(6000),
       });
       if (res.ok) {

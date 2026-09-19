@@ -25,7 +25,7 @@ pub struct CrawlProgress {
     pub champion: String,
 }
 
-pub const DEFAULT_PRESHARED_API_KEY: &str = "your-friends-secret-api-key-here";
+pub const DEFAULT_PRESHARED_API_KEY: &str = "";
 
 fn client_with_auth(timeout_secs: u64, api_key: Option<&str>) -> Result<reqwest::Client> {
     let mut headers = reqwest::header::HeaderMap::new();

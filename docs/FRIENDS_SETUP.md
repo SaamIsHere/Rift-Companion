@@ -13,7 +13,10 @@ Willkommen bei **Rift Companion**! Dieses Dokument dient als kurze, verständlic
 2. **Installieren:**
    Führe die `.exe` per Doppelklick aus. Der Installer benötigt **keine Administratorrechte** und richtet die App automatisch auf deinem Computer ein.
 
-3. **Spielen:**
+3. **Einmalig Freischalten:**
+   Beim ersten Start fragt die App nach deinem persönlichen Zugangsschlüssel (*Access Key*). Gib hier einfach das Passwort ein, das du von Sam erhalten hast. Die App merkt sich den Schlüssel dauerhaft!
+
+4. **Spielen:**
    Starte League of Legends und öffne Rift Companion. Sobald du dich in der Champion-Select befindest, synchronisiert sich die App automatisch und liefert dir Live-Statistiken, Builds und Empfehlungen!
 
 ---

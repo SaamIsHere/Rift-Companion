@@ -312,6 +312,7 @@ pub fn set_settings(state: State<Shared>, settings: Settings, app: AppHandle) ->
     }
 
     let old_server_url = state.settings.lock().unwrap().server_url.clone();
+    let old_api_key = state.settings.lock().unwrap().api_key.clone();
     let new_server_url = settings.server_url.clone();
     let api_key = settings.api_key.clone();
 
@@ -324,8 +325,12 @@ pub fn set_settings(state: State<Shared>, settings: Settings, app: AppHandle) ->
         let _ = window.set_always_on_top(settings.always_on_top);
     }
 
-    // If server_url was added/changed, load stats from server into memory immediately
-    if !new_server_url.trim().is_empty() && (new_server_url != old_server_url) {
+    // If server_url or api_key was added/changed, load stats from server into memory immediately
+    let should_refetch = !new_server_url.trim().is_empty()
+        && !api_key.trim().is_empty()
+        && (new_server_url != old_server_url || api_key != old_api_key);
+
+    if should_refetch {
         let state_clone = state.inner().clone();
         let app_clone = app.clone();
         let tier = *state.rank_tier.lock().unwrap();

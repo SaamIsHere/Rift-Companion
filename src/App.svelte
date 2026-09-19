@@ -16,6 +16,7 @@
   import MatchSimulationView from "./lib/components/MatchSimulationView.svelte";
   import SettingsModal from "./lib/components/SettingsModal.svelte";
   import UpdateModal from "./lib/components/UpdateModal.svelte";
+  import ActivationModal from "./lib/components/ActivationModal.svelte";
   import { checkForAppUpdate } from "./lib/stores/updater";
 
   $: effectiveWallpaper = $customWallpaper || "/landing-bg.jpg";
@@ -115,4 +116,7 @@
 
   <!-- Global Update Notification & Installation Modal -->
   <UpdateModal />
+
+  <!-- First-Launch Key Activation Modal -->
+  <ActivationModal />
 </div>
