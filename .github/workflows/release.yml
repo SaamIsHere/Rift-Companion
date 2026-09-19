@@ -21,50 +21,41 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Extract version from tauri.conf.json
-        id: get_version
-        shell: pwsh
-        run: |
-          $conf = Get-Content -Raw src-tauri/tauri.conf.json | ConvertFrom-Json
-          $version = $conf.version
-          Write-Host "Detected app version: $version"
-          "version=$version" >> $env:GITHUB_OUTPUT
-          "tag=v$version" >> $env:GITHUB_OUTPUT
-
-      - name: Check if release tag already exists
-        id: check_tag
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          $tag = "${{ steps.get_version.outputs.tag }}"
-          $releaseExists = $false
-          try {
-            $null = gh release view $tag 2>&1
-            if ($LASTEXITCODE -eq 0) {
-              $releaseExists = $true
-            }
-          } catch {
-            $releaseExists = $false
-          }
-
-          $isTagPush = "${{ github.ref_type }}" -eq "tag"
-          $isManual = "${{ github.event_name }}" -eq "workflow_dispatch"
-
-          if ($releaseExists -and -not $isTagPush -and -not $isManual) {
-            Write-Host "Release for $tag already exists on GitHub. Skipping release build."
-            "should_release=false" >> $env:GITHUB_OUTPUT
-          } else {
-            Write-Host "Proceeding with release build for $tag."
-            "should_release=true" >> $env:GITHUB_OUTPUT
-          }
-
       - name: Setup Node.js
-        if: steps.check_tag.outputs.should_release == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
+
+      - name: Extract version from tauri.conf.json
+        id: get_version
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          echo "Detected app version: $VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if release tag already exists
+        id: check_tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: v${{ steps.get_version.outputs.version }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists on GitHub."
+            if [ "${{ github.ref_type }}" = "tag" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              echo "Manual trigger or tag push detected: proceeding with build."
+              echo "should_release=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Skipping release build because $TAG is already released."
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "Release $TAG does not exist yet. Proceeding with build."
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Install Rust stable (MSVC)
         if: steps.check_tag.outputs.should_release == 'true'
