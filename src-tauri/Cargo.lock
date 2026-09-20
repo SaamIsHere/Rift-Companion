@@ -2785,7 +2785,7 @@ dependencies = [
 
 [[package]]
 name = "rift-companion"
-version = "0.1.1"
+version = "0.1.4"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
