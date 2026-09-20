@@ -26,10 +26,14 @@
     initChampions(); // load Data Dragon id→name/icon catalog
     initIpc();
 
-    // Check for application updates on startup (Issue #47)
-    setTimeout(() => {
+    // Check for application updates on startup and periodically in the background
+    const initialCheckTimer = setTimeout(() => {
       void checkForAppUpdate(false);
     }, 2500);
+
+    const recurringUpdateTimer = setInterval(() => {
+      void checkForAppUpdate(false);
+    }, 30 * 60 * 1000);
 
     // Disable default browser context menu globally to prevent inspect element
     const handleContextMenu = (e: MouseEvent) => {
@@ -38,6 +42,8 @@
     window.addEventListener("contextmenu", handleContextMenu, { capture: true });
 
     return () => {
+      clearTimeout(initialCheckTimer);
+      clearInterval(recurringUpdateTimer);
       window.removeEventListener("contextmenu", handleContextMenu, { capture: true });
     };
   });

@@ -7,6 +7,7 @@
   import { ddragonVersion } from "../stores/champions";
   import { profileIconUrl } from "../utils/ddragon";
   import { settingsOpen } from "../stores/settings";
+  import { updateAvailable, updateVersion, showUpdateModal } from "../stores/updater";
   import WindowControls from "./WindowControls.svelte";
 
   // Center navigation tabs in English
@@ -165,18 +166,37 @@
       {/if}
     </button>
 
+    <!-- Update Badge (subtle indicator when an update was found in the background) -->
+    {#if $updateAvailable}
+      <button
+        type="button"
+        on:click={() => showUpdateModal.set(true)}
+        class="group flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-1 text-[10px] font-bold text-emerald-300 shadow-sm transition hover:bg-emerald-500/25 hover:border-emerald-400 hover:scale-105 active:scale-95 focus:outline-none"
+        title="Update v{$updateVersion} ready - Click to review & install"
+      >
+        <span class="flex h-1.5 w-1.5 relative">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-400"></span>
+        </span>
+        <span>Update v{$updateVersion}</span>
+      </button>
+    {/if}
+
     <!-- Settings Cog (clean icon without box/border, matching mockup) -->
     <button
       type="button"
       on:click={() => settingsOpen.set(true)}
-      class="flex items-center justify-center text-slate-400 hover:text-purple-200 transition p-1 focus:outline-none"
-      title="Settings"
+      class="relative flex items-center justify-center text-slate-400 hover:text-purple-200 transition p-1 focus:outline-none"
+      title={$updateAvailable ? `Settings (Update v${$updateVersion} available)` : "Settings"}
       aria-label="Open settings"
     >
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3" />
         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
       </svg>
+      {#if $updateAvailable}
+        <span class="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-emerald-400 ring-2 ring-void-950"></span>
+      {/if}
     </button>
 
     <!-- Native Window Controls: Minimize, Maximize, Close -->

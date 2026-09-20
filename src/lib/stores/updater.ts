@@ -2,6 +2,8 @@ import { writable, get } from "svelte/store";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
+export const APP_VERSION = "0.1.3";
+
 export const updateAvailable = writable<boolean>(false);
 export const availableUpdate = writable<Update | null>(null);
 export const updateVersion = writable<string>("");
@@ -16,6 +18,7 @@ export const showUpdateModal = writable<boolean>(false);
 /**
  * Check for available application updates on GitHub Releases.
  * @param interactive Whether this was triggered by a user action (e.g. "Check for Updates" button).
+ * When false (background check), it sets updateAvailable but avoids popping up the modal.
  */
 export async function checkForAppUpdate(interactive = false): Promise<boolean> {
   if (get(isChecking) || get(isUpdating)) return false;
@@ -33,14 +36,16 @@ export async function checkForAppUpdate(interactive = false): Promise<boolean> {
       availableUpdate.set(update);
       updateVersion.set(update.version);
       updateNotes.set(update.body || "A new update for Rift Companion is available with the latest features and improvements.");
-      showUpdateModal.set(true);
+      if (interactive) {
+        showUpdateModal.set(true);
+      }
       updateStatusMessage.set(`Version v${update.version} is available!`);
       return true;
     } else {
       updateAvailable.set(false);
       availableUpdate.set(null);
       if (interactive) {
-        updateStatusMessage.set("Rift Companion is up to date (v0.1.2).");
+        updateStatusMessage.set(`Rift Companion is up to date (v${APP_VERSION}).`);
       }
       return false;
     }

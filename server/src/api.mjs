@@ -83,6 +83,20 @@ export function createApiRouter(scheduler, dataDir) {
     }
   });
 
+  // Fetch patch notes highlights for the current patch
+  router.get("/api/patch-notes", async (req, res) => {
+    try {
+      const notesFile = path.join(dataDir, "patch-notes.json");
+      if (fs.existsSync(notesFile)) {
+        const raw = await fsp.readFile(notesFile, "utf-8");
+        return res.json(JSON.parse(raw));
+      }
+      res.status(404).json({ error: "No custom patch notes stored for this patch" });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Fetch champion stats for a specific tier
   router.get("/api/stats", async (req, res) => {
     const tier = normalizeTier(req.query.tier);

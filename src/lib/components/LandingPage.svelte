@@ -16,6 +16,8 @@
   import { activeTheme, customWallpaper } from "../stores/theme";
   import PatchNotesModal from "./PatchNotesModal.svelte";
   import { updateAvailable, updateVersion, showUpdateModal } from "../stores/updater";
+  import { loadLivePatchNotes } from "../stores/patchNotes";
+  import { settings } from "../stores/settings";
 
   let searchQuery = "";
   let showDropdown = false;
@@ -90,6 +92,7 @@
     } catch (e) {
       console.warn("Failed to load live patch info", e);
     }
+    void loadLivePatchNotes($settings.server_url, $settings.api_key);
   });
 
   // Matching champions for live suggestions (top 3)

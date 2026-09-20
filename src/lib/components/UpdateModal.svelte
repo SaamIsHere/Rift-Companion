@@ -8,7 +8,19 @@
     updateStatusMessage,
     updateError,
     installAppUpdate,
+    APP_VERSION,
   } from "../stores/updater";
+  import { openInBrowser } from "../ipc/tauri";
+  import { marked } from "marked";
+
+  $: parsedNotes = (() => {
+    if (!$updateNotes) return "";
+    try {
+      return marked.parse($updateNotes, { breaks: true, gfm: true }) as string;
+    } catch {
+      return $updateNotes;
+    }
+  })();
 
   function close() {
     if (!$isUpdating) {
@@ -19,6 +31,14 @@
   function onKeydown(e: KeyboardEvent) {
     if (e.key === "Escape" && !$isUpdating) {
       close();
+    }
+  }
+
+  function handleNotesClick(e: MouseEvent) {
+    const target = (e.target as HTMLElement)?.closest("a");
+    if (target && target.href) {
+      e.preventDefault();
+      openInBrowser(target.href);
     }
   }
 </script>
@@ -33,7 +53,7 @@
     role="presentation"
   >
     <div
-      class="glass relative w-[480px] max-w-[94vw] flex flex-col rounded-2xl p-6 shadow-2xl overflow-hidden border border-purple-500/30 bg-void-950/90"
+      class="glass relative w-[520px] max-w-[94vw] flex flex-col rounded-2xl p-6 shadow-2xl overflow-hidden border border-purple-500/30 bg-void-950/95"
       on:click|stopPropagation
       on:keydown|stopPropagation
       role="dialog"
@@ -72,7 +92,7 @@
       <div class="mb-4 flex items-center justify-between rounded-xl border border-purple-500/20 bg-purple-950/30 p-3">
         <div class="flex items-center gap-2">
           <span class="rounded bg-purple-900/60 px-2 py-0.5 text-xs font-semibold text-purple-300 border border-purple-500/30">
-            Current: v0.1.2
+            Current: v{APP_VERSION}
           </span>
           <svg class="h-4 w-4 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="5" y1="12" x2="19" y2="12" />
@@ -91,8 +111,16 @@
       <!-- Release Notes Box -->
       <div class="mb-5 flex flex-col gap-1.5">
         <span class="text-[11px] font-bold uppercase tracking-wide text-slate-300">Release Notes &amp; Highlights:</span>
-        <div class="glass-soft max-h-40 overflow-y-auto rounded-xl p-3 text-xs leading-relaxed text-slate-300 whitespace-pre-wrap font-sans border border-purple-500/15">
-          {$updateNotes}
+        <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+        <div
+          class="glass-soft markdown-body max-h-52 overflow-y-auto rounded-xl p-3 text-xs leading-relaxed text-slate-200 font-sans border border-purple-500/15"
+          on:click={handleNotesClick}
+        >
+          {#if parsedNotes}
+            {@html parsedNotes}
+          {:else}
+            <span class="text-slate-400 italic">No release notes provided for this version.</span>
+          {/if}
         </div>
       </div>
 
@@ -162,3 +190,67 @@
     </div>
   </div>
 {/if}
+
+<style>
+  :global(.markdown-body h1),
+  :global(.markdown-body h2),
+  :global(.markdown-body h3),
+  :global(.markdown-body h4) {
+    font-weight: 700;
+    color: #f8fafc;
+    margin-top: 0.6rem;
+    margin-bottom: 0.25rem;
+  }
+  :global(.markdown-body h1:first-child),
+  :global(.markdown-body h2:first-child),
+  :global(.markdown-body h3:first-child) {
+    margin-top: 0;
+  }
+  :global(.markdown-body h1) { font-size: 0.95rem; }
+  :global(.markdown-body h2) { font-size: 0.88rem; }
+  :global(.markdown-body h3) { font-size: 0.82rem; }
+  :global(.markdown-body ul) {
+    list-style-type: disc;
+    padding-left: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+  :global(.markdown-body ol) {
+    list-style-type: decimal;
+    padding-left: 1.25rem;
+    margin-bottom: 0.5rem;
+  }
+  :global(.markdown-body li) {
+    margin-bottom: 0.25rem;
+    color: #cbd5e1;
+  }
+  :global(.markdown-body p) {
+    margin-bottom: 0.4rem;
+  }
+  :global(.markdown-body strong) {
+    font-weight: 700;
+    color: #ffffff;
+  }
+  :global(.markdown-body a) {
+    color: #c084fc;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  :global(.markdown-body a:hover) {
+    color: #e9d5ff;
+  }
+  :global(.markdown-body code) {
+    background-color: rgba(88, 28, 135, 0.4);
+    padding: 0.1rem 0.35rem;
+    border-radius: 0.25rem;
+    font-family: monospace;
+    font-size: 0.88em;
+    color: #e9d5ff;
+  }
+  :global(.markdown-body blockquote) {
+    border-left: 3px solid rgba(168, 85, 247, 0.6);
+    padding-left: 0.6rem;
+    color: #94a3b8;
+    font-style: italic;
+    margin: 0.5rem 0;
+  }
+</style>

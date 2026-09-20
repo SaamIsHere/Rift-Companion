@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { LATEST_PATCH_DATA, type PatchChangeItem } from "../data/patchNotes";
+  import { patchNotesData } from "../stores/patchNotes";
+  import type { PatchChangeItem } from "../data/patchNotes";
   import { ddragonVersion, championCatalog } from "../stores/champions";
   import { squareIconUrl } from "../utils/ddragon";
   import { navigateToChampion } from "../stores/navigation";
@@ -14,9 +15,9 @@
   let activeFilter: FilterType = "all";
   let searchQuery = "";
 
-  $: patchDisplay = currentPatch?.display || LATEST_PATCH_DATA.patchVersion;
+  $: patchDisplay = currentPatch?.display || $patchNotesData.patchVersion;
 
-  $: filteredChanges = LATEST_PATCH_DATA.changes.filter((item) => {
+  $: filteredChanges = $patchNotesData.changes.filter((item) => {
     if (activeFilter !== "all" && item.type !== activeFilter) {
       return false;
     }
@@ -30,12 +31,12 @@
     );
   });
 
-  const countByType = {
-    all: LATEST_PATCH_DATA.changes.length,
-    buff: LATEST_PATCH_DATA.changes.filter((c) => c.type === "buff").length,
-    nerf: LATEST_PATCH_DATA.changes.filter((c) => c.type === "nerf").length,
-    adjustment: LATEST_PATCH_DATA.changes.filter((c) => c.type === "adjustment").length,
-    app: LATEST_PATCH_DATA.changes.filter((c) => c.type === "app").length,
+  $: countByType = {
+    all: $patchNotesData.changes.length,
+    buff: $patchNotesData.changes.filter((c) => c.type === "buff").length,
+    nerf: $patchNotesData.changes.filter((c) => c.type === "nerf").length,
+    adjustment: $patchNotesData.changes.filter((c) => c.type === "adjustment").length,
+    app: $patchNotesData.changes.filter((c) => c.type === "app").length,
   };
 
   function handleInspectChampion(champId: number, role?: any) {

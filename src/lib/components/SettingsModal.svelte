@@ -16,6 +16,7 @@
   import type { ThemeId, WallpaperScope } from "../types";
   import {
     checkForAppUpdate,
+    APP_VERSION,
     isChecking as isCheckingUpdate,
     updateStatusMessage,
     updateError as updateCheckError,
@@ -534,7 +535,7 @@
         <section class="border-t border-white/5 pt-3 flex flex-col gap-3">
           <div class="flex items-center justify-between">
             <h3 class="text-xs uppercase tracking-wide text-purple-300/70">About &amp; Legal</h3>
-            <span class="text-[10px] text-slate-400">v0.1.2 • MIT License</span>
+            <span class="text-[10px] text-slate-400">v{APP_VERSION} • MIT License</span>
           </div>
 
           <!-- App Updates Card -->
@@ -549,7 +550,7 @@
               </div>
               <div class="flex flex-col">
                 <span class="text-xs font-semibold text-slate-200">
-                  {$updateAvailable ? `Update v${$updateVersion} Available!` : "Rift Companion v0.1.2"}
+                  {$updateAvailable ? `Update v${$updateVersion} Available!` : `Rift Companion v${APP_VERSION}`}
                 </span>
                 <span class="text-[10px] text-slate-400">
                   {$updateStatusMessage || ($updateAvailable ? "New version ready to install" : "Automatic update checking enabled")}
