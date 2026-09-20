@@ -72,7 +72,7 @@
       <div class="mb-4 flex items-center justify-between rounded-xl border border-purple-500/20 bg-purple-950/30 p-3">
         <div class="flex items-center gap-2">
           <span class="rounded bg-purple-900/60 px-2 py-0.5 text-xs font-semibold text-purple-300 border border-purple-500/30">
-            Current: v0.1.1
+            Current: v0.1.2
           </span>
           <svg class="h-4 w-4 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="5" y1="12" x2="19" y2="12" />

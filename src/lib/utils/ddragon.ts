@@ -364,10 +364,10 @@ const ROLE_POSITION_MAP: Record<string, string> = {
   utility: "utility",
 };
 
-/** Official League position / lane icon URL from CommunityDragon */
+/** Official League position / lane icon URL (bundled locally for instant offline loading) */
 export function roleIconUrl(role: string): string {
   const norm = (role || "").toLowerCase().trim();
   const pos = ROLE_POSITION_MAP[norm] || "fill";
-  return `https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-clash/global/default/assets/images/position-selector/positions/icon-position-${pos}.png`;
+  return `/roles/icon-position-${pos}.png`;
 }
 

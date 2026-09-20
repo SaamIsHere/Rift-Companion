@@ -30,7 +30,7 @@
   async function handleActivate() {
     const key = enteredKey.trim();
     if (!key) {
-      errorMessage = "Bitte gib deinen Zugriffsschlüssel ein.";
+      errorMessage = "Please enter your access key.";
       return;
     }
 
@@ -43,7 +43,7 @@
     try {
       const status = await testServerConnection(targetUrl, key);
       const tierCount = status.tiers ? Object.keys(status.tiers).length : 0;
-      successMessage = `Erfolgreich freigeschaltet! Patch: ${status.patch ?? "Aktiv"} • ${tierCount} Ränge synchronisiert.`;
+      successMessage = `Successfully activated! Patch: ${status.patch ?? "Active"} • ${tierCount} tiers synchronized.`;
 
       // Save key in persistent user settings
       settings.update((s) => ({ ...s, api_key: key }));
@@ -60,9 +60,9 @@
       testing = false;
       const raw = String(err?.message || err);
       if (raw.includes("401") || raw.toLowerCase().includes("unauthorized")) {
-        errorMessage = "Ungültiger Zugriffsschlüssel. Bitte überprüfe das Passwort und versuche es erneut.";
+        errorMessage = "Invalid access key. Please verify your key and try again.";
       } else {
-        errorMessage = `Verbindungsfehler zum Server: ${raw}`;
+        errorMessage = `Server connection error: ${raw}`;
       }
     }
   }
@@ -83,7 +83,7 @@
       on:keydown|stopPropagation
       role="dialog"
       aria-modal="true"
-      aria-label="Rift Companion Aktivierung"
+      aria-label="Rift Companion Activation"
       tabindex="-1"
     >
       <!-- Background Glow Accent -->
@@ -100,15 +100,15 @@
             </svg>
           </div>
           <div>
-            <h2 class="text-sm font-bold uppercase tracking-wider text-white">Rift Companion Aktivierung</h2>
-            <p class="text-[11px] text-purple-300/80">Zugangsschlüssel für Live-Metadaten erforderlich</p>
+            <h2 class="text-sm font-bold uppercase tracking-wider text-white">Rift Companion Activation</h2>
+            <p class="text-[11px] text-purple-300/80">Access key required for live metadata</p>
           </div>
         </div>
 
         {#if !testing}
           <button
             class="grid h-7 w-7 place-items-center rounded-lg text-slate-400 transition hover:bg-white/10 hover:text-slate-100 focus:outline-none"
-            aria-label="Schließen"
+            aria-label="Close"
             on:click={close}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -119,19 +119,19 @@
       <!-- Body / Form -->
       <div class="relative flex flex-col gap-4 text-xs">
         <p class="text-slate-300 leading-relaxed">
-          Willkommen! Um Live-Statistiken, Build-Pfade und Synergien vom privaten Rift-Server abzurufen, gib bitte deinen persönlichen Zugangsschlüssel ein. Der Schlüssel wird dauerhaft lokal auf deinem PC gespeichert.
+          Welcome! To fetch live statistics, build paths, and synergies from the private Rift server, please enter your personal access key. Your key is stored securely and locally on your device.
         </p>
 
         <div class="flex flex-col gap-1.5">
           <label class="text-[11px] font-semibold text-slate-200" for="activation-input">
-            Zugriffsschlüssel (Access Key)
+            Access Key
           </label>
           <div class="relative flex items-center">
             <input
               id="activation-input"
               bind:this={inputElement}
               type={showKey ? "text" : "password"}
-              placeholder="Passwort eingeben…"
+              placeholder="Enter access key…"
               bind:value={enteredKey}
               on:keydown={(e) => e.key === "Enter" && !testing && handleActivate()}
               disabled={testing || !!successMessage}
@@ -144,7 +144,7 @@
               class="absolute right-3 text-slate-400 hover:text-slate-200 focus:outline-none text-xs font-medium transition"
               tabindex="-1"
             >
-              {showKey ? "Verbergen" : "Anzeigen"}
+              {showKey ? "Hide" : "Show"}
             </button>
           </div>
         </div>
@@ -165,7 +165,7 @@
         {/if}
 
         <div class="rounded-lg border border-purple-500/15 bg-purple-950/20 px-3 py-2 text-[10px] text-slate-400 flex items-center justify-between">
-          <span>Server-Ziel:</span>
+          <span>Target Server:</span>
           <span class="font-mono text-purple-300 truncate max-w-[260px]" title={$settings.server_url || DEFAULT_SERVER_URL}>
             {$settings.server_url || DEFAULT_SERVER_URL}
           </span>
@@ -180,7 +180,7 @@
           disabled={testing || !!successMessage}
           class="rounded-xl px-3 py-2 text-xs font-medium text-slate-400 transition hover:bg-white/5 hover:text-slate-200 disabled:opacity-50"
         >
-          Später / Offline nutzen
+          Later / Use Offline
         </button>
 
         <button
@@ -194,11 +194,11 @@
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
             </svg>
-            <span>Wird überprüft…</span>
+            <span>Verifying…</span>
           {:else if successMessage}
-            <span>Freigeschaltet ✓</span>
+            <span>Activated ✓</span>
           {:else}
-            <span>Freischalten &amp; Verbinden</span>
+            <span>Activate &amp; Connect</span>
           {/if}
         </button>
       </div>
