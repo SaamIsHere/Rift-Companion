@@ -707,6 +707,9 @@ pub fn get_champions_by_role(
 /// Open an external URL in the user's default web browser.
 #[tauri::command]
 pub fn open_in_browser(url: String) -> Result<(), String> {
+    if !url.starts_with("https://") && !url.starts_with("http://") {
+        return Err("Only http and https URLs are supported".to_string());
+    }
     #[cfg(target_os = "windows")]
     {
         std::process::Command::new("rundll32")

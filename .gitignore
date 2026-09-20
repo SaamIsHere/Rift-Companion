@@ -6,6 +6,7 @@ dist
 # Rust / Tauri
 src-tauri/target
 src-tauri/gen
+src-tauri/.cargo/
 *.exe
 *.dll
 
@@ -14,9 +15,11 @@ opgg-stats.json
 *.stats.json
 server/data/
 
-# Claude Code local settings
-.claude/settings.local.json
-.claude/scheduled_tasks.lock
+# IDE & AI Assistant local configs
+.claude/
+.gemini/
+.idea/
+.vscode/
 
 # Temporary screenshots
 Current-*.png

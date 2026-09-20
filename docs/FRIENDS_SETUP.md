@@ -14,7 +14,7 @@ Willkommen bei **Rift Companion**! Dieses Dokument dient als kurze, verständlic
    Führe die `.exe` per Doppelklick aus. Der Installer benötigt **keine Administratorrechte** und richtet die App automatisch auf deinem Computer ein.
 
 3. **Einmalig Freischalten:**
-   Beim ersten Start fragt die App nach deinem persönlichen Zugangsschlüssel (*Access Key*). Gib hier einfach das Passwort ein, das du von Sam erhalten hast. Die App merkt sich den Schlüssel dauerhaft!
+   Beim ersten Start fragt die App nach deinem persönlichen Zugangsschlüssel (*Access Key*). Gib hier einfach das erhaltene Passwort bzw. deinen Zugangsschlüssel ein. Die App merkt sich den Schlüssel dauerhaft!
 
 4. **Spielen:**
    Starte League of Legends und öffne Rift Companion. Sobald du dich in der Champion-Select befindest, synchronisiert sich die App automatisch und liefert dir Live-Statistiken, Builds und Empfehlungen!
@@ -65,28 +65,3 @@ Du musst die App nicht manuell neu herunterladen, wenn neue Patches oder Feature
 * Beim Start prüft die App automatisch im Hintergrund nach neuen Updates.
 * Ist ein Update verfügbar, erscheint direkt ein Hinweisfenster mit den Änderungen und einem **"Update & Restart Now"**-Button.
 * Ein Klick aktualisiert die App vollautomatisch und startet sie neu.
-
----
-
-## 📋 Discord Copy & Paste Vorlage
-
-Kopiere diese Nachricht einfach in deinen Discord-Channel für deine Freunde:
-
-```markdown
-Hey Leute! 🚀
-
-Hier ist der Download für **Rift Companion** (unseren LoL Champ-Select Advisor & Build-Guide):
-👉 **Download:** https://github.com/SaamIsHere/Rift-Companion/releases/latest
-
-**Features:**
-- ⚡ Live Champion-Select Advisor: Dynamische Winrates & Synergien für deine Rolle
-- 📊 Alle Ränge (Emerald+, Diamond, Master etc.) & Patches vorkonfiguriert
-- 🎨 8 Runeterra Region-Themes & eigene Wallpaper
-- 🔄 Auto-Updater: Aktualisiert sich bei Updates automatisch mit einem Klick
-
-*Hinweis zu Windows Defender:*
-Beim ersten Start auf **"Weitere Informationen"** -> **"Trotzdem ausführen"** klicken (liegt daran, dass Microsoft für neue Open-Source Apps ein 400€ Zertifikat verlangt). 
-Das Tool liest wie Porofessor/Blitz nur die offizielle Riot LCU-Schnittstelle aus – 100% sicher und Vanguard-compliant.
-
-Viel Spaß beim Ausprobieren! Feedback gerne hier rein.
-```
