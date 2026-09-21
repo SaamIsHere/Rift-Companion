@@ -1,6 +1,6 @@
 [package]
 name = "rift-companion"
-version = "0.1.5"
+version = "0.1.6"
 description = "League of Legends champion-select companion"
 edition = "2021"
 rust-version = "1.77"
@@ -13,7 +13,7 @@ crate-type = ["rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 serde = { version = "1", features = ["derive"] }

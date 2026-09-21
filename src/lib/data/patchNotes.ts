@@ -246,6 +246,20 @@ export const LATEST_PATCH_DATA: PatchNotesData = {
 
     // Rift Companion Updates
     {
+      id: "app-update-016",
+      type: "app",
+      category: "app",
+      title: "Rift Companion v0.1.6 Updates",
+      summary: "Close button behavior settings (Close App, Minimize, System Tray) and background system tray integration.",
+      details: [
+        "Added configurable Close Button (X) behavior under Settings -> Behavior",
+        "Choose between 'Close App' (quit), 'Minimize' (to taskbar), and 'System Tray' (minimize to background)",
+        "System tray icon with right-click menu ('Show Window', 'Quit') and instant restore on left/double-click",
+        "Window close requested event handling for Alt+F4 and Windows taskbar close commands",
+        "Fixed persistent red hover highlight on the X button after restoring the window from system tray",
+      ],
+    },
+    {
       id: "app-update-015",
       type: "app",
       category: "app",

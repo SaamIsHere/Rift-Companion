@@ -70,6 +70,9 @@ pub struct Settings {
     /// Behavior: keep the window pinned above other windows (e.g. the League client).
     #[serde(default)]
     pub always_on_top: bool,
+    /// Behavior: action when clicking the window close button (X): "close", "minimize", or "tray".
+    #[serde(default = "default_close_behavior")]
+    pub close_behavior: String,
     /// Behavior: the team-composition bonus weight (mirrors `engine::weights::Weights.comp`).
     #[serde(default = "default_comp_weight")]
     pub comp_weight: f64,
@@ -94,6 +97,10 @@ pub struct Settings {
     /// Wallpaper display scope: "landing_only" or "all_tabs"
     #[serde(default = "default_wallpaper_scope")]
     pub wallpaper_scope: String,
+}
+
+fn default_close_behavior() -> String {
+    "tray".to_string()
 }
 
 fn default_comp_weight() -> f64 {
@@ -121,6 +128,7 @@ impl Default for Settings {
         Settings {
             compact_density: false,
             always_on_top: false,
+            close_behavior: default_close_behavior(),
             comp_weight: default_comp_weight(),
             server_url: default_server_url(),
             api_key: default_api_key(),

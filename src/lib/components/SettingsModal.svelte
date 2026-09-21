@@ -13,7 +13,7 @@
     clearCustomWallpaper,
   } from "../stores/theme";
   import { THEMES } from "../themes";
-  import type { ThemeId, WallpaperScope } from "../types";
+  import type { CloseBehavior, ThemeId, WallpaperScope } from "../types";
   import {
     checkForAppUpdate,
     APP_VERSION,
@@ -48,6 +48,11 @@
 
   function push() {
     void setSettings($settings);
+  }
+
+  function setCloseBehavior(val: CloseBehavior) {
+    settings.update((s) => ({ ...s, close_behavior: val }));
+    push();
   }
 
   function onAlwaysOnTopChange(e: Event) {
@@ -352,11 +357,65 @@
         </section>
 
         <!-- SECTION 3: BEHAVIOR -->
-        <section>
-          <h3 class="mb-2 text-xs uppercase tracking-wide text-purple-300/70">Behavior</h3>
-          <div class="flex flex-col gap-1">
-            <label class="flex items-center justify-between gap-3 py-1 cursor-pointer">
-              <span class="text-slate-300">Always on Top</span>
+        <section class="rounded-xl border border-purple-500/15 bg-purple-950/20 p-3.5">
+          <div class="mb-3 flex items-center justify-between">
+            <div class="flex flex-col">
+              <h3 class="text-xs font-bold uppercase tracking-wide text-purple-300">Behavior</h3>
+              <span class="text-[11px] text-slate-400">Window controls and system integration</span>
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-3">
+            <!-- Close Button Behavior (3-part segmented button) -->
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div class="flex flex-col min-w-0 pr-2">
+                <span class="text-xs font-semibold text-slate-200 whitespace-nowrap">Close Button (X)</span>
+                <span class="text-[11px] text-slate-400 whitespace-nowrap">Choose action when clicking</span>
+              </div>
+
+              <!-- 3-Segmented Button -->
+              <div class="inline-flex shrink-0 rounded-lg border border-purple-500/25 bg-void-950/80 p-0.5 shadow-inner">
+                <button
+                  type="button"
+                  on:click={() => setCloseBehavior("close")}
+                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.close_behavior ?? 'tray') === 'close'
+                    ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
+                  title="Close and completely quit Rift Companion"
+                >
+                  Close App
+                </button>
+
+                <button
+                  type="button"
+                  on:click={() => setCloseBehavior("minimize")}
+                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.close_behavior ?? 'tray') === 'minimize'
+                    ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
+                  title="Minimize window to taskbar"
+                >
+                  Minimize
+                </button>
+
+                <button
+                  type="button"
+                  on:click={() => setCloseBehavior("tray")}
+                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.close_behavior ?? 'tray') === 'tray'
+                    ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
+                  title="Minimize to system tray (keeps running in background next to clock)"
+                >
+                  System Tray
+                </button>
+              </div>
+            </div>
+
+            <!-- Always on Top Toggle -->
+            <label class="flex items-center justify-between gap-3 border-t border-purple-500/15 pt-2.5 cursor-pointer">
+              <div class="flex flex-col">
+                <span class="text-xs font-semibold text-slate-200">Always on Top</span>
+                <span class="text-[11px] text-slate-400">Keep the window pinned above other windows</span>
+              </div>
               <input
                 type="checkbox"
                 checked={$settings.always_on_top}

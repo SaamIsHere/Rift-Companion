@@ -1,12 +1,15 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { settings } from "../stores/settings";
 
   const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
   const appWindow = isTauri ? getCurrentWindow() : null;
 
   let maximized = false;
+  let isCloseHovered = false;
   let unlisten: (() => void) | undefined;
+  let unlistenFocus: (() => void) | undefined;
 
   onMount(async () => {
     if (!appWindow) return;
@@ -15,14 +18,35 @@
       unlisten = await appWindow.onResized(async () => {
         maximized = await appWindow.isMaximized();
       });
+      unlistenFocus = await appWindow.onFocusChanged(({ payload: focused }) => {
+        if (!focused) {
+          isCloseHovered = false;
+        }
+      });
     } catch {
       /* best-effort state sync; ignore if unavailable */
     }
   });
-  onDestroy(() => unlisten?.());
+  onDestroy(() => {
+    unlisten?.();
+    unlistenFocus?.();
+  });
 
   const minimize = () => appWindow?.minimize();
-  const close = () => appWindow?.close();
+
+  async function close(e?: MouseEvent) {
+    isCloseHovered = false;
+    (e?.currentTarget as HTMLElement)?.blur();
+    if (!appWindow) return;
+    const behavior = $settings.close_behavior || "tray";
+    if (behavior === "minimize") {
+      await appWindow.minimize();
+    } else if (behavior === "tray") {
+      await appWindow.hide();
+    } else {
+      await appWindow.close();
+    }
+  }
 
   async function toggleMaximize() {
     if (!appWindow) return;
@@ -33,6 +57,11 @@
   const btn =
     "grid h-6 w-6 place-items-center rounded text-slate-400 transition hover:bg-white/10 hover:text-slate-100";
 </script>
+
+<svelte:window
+  on:blur={() => (isCloseHovered = false)}
+  on:focus={() => (isCloseHovered = false)}
+/>
 
 <div class="flex items-center gap-1">
   <!-- Minimize -->
@@ -50,7 +79,16 @@
   </button>
 
   <!-- Close -->
-  <button class="grid h-6 w-6 place-items-center rounded text-slate-400 transition hover:bg-red-500/80 hover:text-white" title="Close" aria-label="Close window" on:click={close}>
+  <button
+    class="grid h-6 w-6 place-items-center rounded transition {isCloseHovered
+      ? 'bg-red-500/80 text-white'
+      : 'text-slate-400'}"
+    title="Close"
+    aria-label="Close window"
+    on:mouseenter={() => (isCloseHovered = true)}
+    on:mouseleave={() => (isCloseHovered = false)}
+    on:click={close}
+  >
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
   </button>
 </div>

@@ -14,8 +14,11 @@ pub mod lcu;
 pub mod opgg;
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager};
 
 use data::models::{RankTier, Role};
@@ -172,11 +175,95 @@ pub fn run() {
             commands::get_custom_wallpaper,
         ])
         .setup(move |app| {
-            // Apply the persisted always-on-top preference to the freshly created window and ensure it is shown.
+            let is_quitting = Arc::new(AtomicBool::new(false));
+
+            // Set up System Tray icon and context menu (Show Window, Quit)
+            if let Some(icon) = app.default_window_icon().cloned() {
+                let show_i = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
+                let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+                let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
+
+                let is_quitting_tray = is_quitting.clone();
+                let _tray = TrayIconBuilder::new()
+                    .icon(icon)
+                    .tooltip("Rift Companion")
+                    .menu(&menu)
+                    .show_menu_on_left_click(false)
+                    .on_menu_event(move |app, event| {
+                        match event.id.as_ref() {
+                            "quit" => {
+                                is_quitting_tray.store(true, Ordering::SeqCst);
+                                app.exit(0);
+                            }
+                            "show" => {
+                                if let Some(window) = app.get_webview_window("main") {
+                                    let _ = window.show();
+                                    let _ = window.unminimize();
+                                    let _ = window.set_focus();
+                                }
+                            }
+                            _ => {}
+                        }
+                    })
+                    .on_tray_icon_event(|tray, event| {
+                        match event {
+                            TrayIconEvent::Click {
+                                button: MouseButton::Left,
+                                button_state: MouseButtonState::Up,
+                                ..
+                            }
+                            | TrayIconEvent::DoubleClick {
+                                button: MouseButton::Left,
+                                ..
+                            } => {
+                                let app = tray.app_handle();
+                                if let Some(window) = app.get_webview_window("main") {
+                                    let _ = window.show();
+                                    let _ = window.unminimize();
+                                    let _ = window.set_focus();
+                                }
+                            }
+                            _ => {}
+                        }
+                    })
+                    .build(app)?;
+            }
+
+            // Apply the persisted always-on-top preference and attach close-behavior event handler
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_always_on_top(always_on_top);
                 let _ = window.show();
                 let _ = window.set_focus();
+
+                let is_quitting_win = is_quitting.clone();
+                let shared_win = shared.clone();
+                let win_clone = window.clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        if is_quitting_win.load(Ordering::SeqCst) {
+                            return;
+                        }
+                        let behavior = {
+                            let s = shared_win.settings.lock().unwrap();
+                            s.close_behavior.clone()
+                        };
+                        match behavior.as_str() {
+                            "minimize" => {
+                                api.prevent_close();
+                                let _ = win_clone.minimize();
+                            }
+                            "tray" => {
+                                api.prevent_close();
+                                let _ = win_clone.hide();
+                            }
+                            _ => {
+                                api.prevent_close();
+                                is_quitting_win.store(true, Ordering::SeqCst);
+                                win_clone.app_handle().exit(0);
+                            }
+                        }
+                    }
+                });
             }
             // Long-running LCU watcher on Tauri's async (tokio) runtime.
             {

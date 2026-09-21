@@ -108,10 +108,13 @@ export type ThemeId =
 
 export type WallpaperScope = "landing_only" | "all_tabs";
 
+export type CloseBehavior = "close" | "minimize" | "tray";
+
 // User-adjustable app settings (Issue #15), persisted to settings.json.
 export interface Settings {
   compact_density: boolean;
   always_on_top: boolean;
+  close_behavior?: CloseBehavior;
   comp_weight: number;
   server_url: string;
   api_key?: string;

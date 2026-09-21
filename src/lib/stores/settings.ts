@@ -8,6 +8,7 @@ function getInitialSettings(): Settings {
   const s: Settings = {
     compact_density: false,
     always_on_top: false,
+    close_behavior: "tray",
     comp_weight: 0.15,
     server_url: DEFAULT_SERVER_URL,
     api_key: DEFAULT_API_KEY,
