@@ -77,6 +77,7 @@ export function createApiRouter(scheduler, dataDir) {
         crawl_progress: crawlerStatus.progress,
         tiers: meta?.tiers || {},
         supported_tiers: SUPPORTED_TIERS,
+        schedule: scheduler.getSchedule(),
       });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -266,6 +267,30 @@ export function createApiRouter(scheduler, dataDir) {
     try {
       await scheduler.check();
       res.json({ message: "Patch check executed", status: scheduler.getStatus() });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Get auto-crawl schedule configuration
+  router.get("/api/schedule", (req, res) => {
+    res.json(scheduler.getSchedule());
+  });
+
+  // Update auto-crawl schedule configuration (Admin only)
+  router.post("/api/schedule", requireAdminKey, async (req, res) => {
+    try {
+      const schedule = await scheduler.updateSchedule(req.body || {});
+      res.json({ message: "Schedule updated successfully", schedule });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  router.put("/api/schedule", requireAdminKey, async (req, res) => {
+    try {
+      const schedule = await scheduler.updateSchedule(req.body || {});
+      res.json({ message: "Schedule updated successfully", schedule });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

@@ -5,8 +5,8 @@ WORKDIR /app
 # Copy dependency definitions
 COPY package*.json ./
 
-# Install production dependencies
-RUN npm ci --only=production || npm install --only=production
+# Install production dependencies & tzdata for local timezone scheduling
+RUN apk add --no-cache tzdata && (npm ci --only=production || npm install --only=production)
 
 # Copy application source and web dashboard
 COPY src/ ./src/
@@ -16,7 +16,8 @@ COPY public/ ./public/
 ENV PORT=8085
 ENV DATA_DIR=/data
 ENV CRAWL_CONCURRENCY=6
-ENV CRON_HOUR=4
+ENV CRON_HOUR=6
+ENV TZ=Europe/Berlin
 
 # Volume for persistent stats on NAS
 VOLUME ["/data"]

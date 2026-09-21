@@ -11,7 +11,8 @@ services:
       - PORT=8085
       - DATA_DIR=/data
       - CRAWL_CONCURRENCY=6
-      - CRON_HOUR=4
+      - CRON_HOUR=6
+      - TZ=${TZ:-Europe/Berlin}
       - RIFT_API_KEY=${RIFT_API_KEY:-}
       - RIFT_ADMIN_KEY=${RIFT_ADMIN_KEY:-}
 

@@ -32,6 +32,73 @@ function parseDivision(div: any): string {
   return s;
 }
 
+export function normalizeChampionPerformanceList(rawList: any[]): ChampionPerformance[] {
+  if (!Array.isArray(rawList)) return [];
+  const result: ChampionPerformance[] = [];
+  for (const c of rawList) {
+    const id = c.id || c.champion_id || 0;
+    if (id === 0) continue;
+    const name = c.champion_name || c.name || `Champion ${id}`;
+    const play = c.play ?? (c.games ?? ((c.win || 0) + (c.lose || 0) || 1));
+    const win = c.win ?? (c.wins ?? 0);
+    const lose = c.lose ?? (c.losses ?? Math.max(0, play - win));
+
+    let kills = 0;
+    let deaths = 0;
+    let assists = 0;
+    let kda = 0;
+
+    if (c.kda && typeof c.kda === "object") {
+      kills = c.kda.avg_kill ?? (c.kda.kill && play > 0 ? c.kda.kill / play : 0);
+      deaths = c.kda.avg_death ?? (c.kda.death && play > 0 ? c.kda.death / play : 0);
+      assists = c.kda.avg_assist ?? (c.kda.assist && play > 0 ? c.kda.assist / play : 0);
+      kda = c.kda.kda ?? (deaths > 0 ? (kills + assists) / deaths : kills + assists);
+    } else {
+      const rawKills = c.kills ?? (c.kill || c.basic?.kill || 0);
+      const rawDeaths = c.deaths ?? (c.death || c.basic?.death || 0);
+      const rawAssists = c.assists ?? (c.assist || c.basic?.assist || 0);
+      kills = play > 0 && rawKills > play * 3 ? rawKills / play : rawKills;
+      deaths = play > 0 && rawDeaths > play * 3 ? rawDeaths / play : rawDeaths;
+      assists = play > 0 && rawAssists > play * 3 ? rawAssists / play : rawAssists;
+      kda = c.kda ?? (deaths > 0 ? (kills + assists) / deaths : kills + assists);
+    }
+
+    const winRate =
+      typeof c.win_rate === "number"
+        ? c.win_rate > 1
+          ? c.win_rate / 100
+          : c.win_rate
+        : play > 0
+        ? win / play
+        : 0;
+
+    const cs = c.cs ? (c.cs > 500 && play > 1 ? Math.round(c.cs / play) : c.cs) : (c.minion_kill ? Math.round(c.minion_kill / play) : undefined);
+    const cs_per_min =
+      c.cs_per_min ??
+      (c.minion_kill && c.game_length_second
+        ? Math.round((c.minion_kill / (c.game_length_second / 60)) * 10) / 10
+        : undefined);
+
+    result.push({
+      id,
+      name,
+      games: play,
+      wins: win,
+      losses: lose,
+      win_rate: winRate,
+      kills: Math.round(kills * 10) / 10,
+      deaths: Math.round(deaths * 10) / 10,
+      assists: Math.round(assists * 10) / 10,
+      kda: Math.round(kda * 100) / 100,
+      cs,
+      cs_per_min,
+      mastery_level: c.mastery_level,
+      mastery_points: c.mastery_points,
+    });
+  }
+  return result;
+}
+
 export function normalizeProfile(
   raw: any,
   defaultRegion = "EUW",
@@ -47,10 +114,13 @@ export function normalizeProfile(
       solo_rank: null,
       flex_rank: null,
       top_champions: [],
+      top_champions_solo: [],
+      top_champions_flex: [],
       source: "cache",
       updated_at: Date.now(),
     };
   }
+
 
   // 1. LCU Source
   if (raw.source === "lcu") {
@@ -264,6 +334,13 @@ export function normalizeProfile(
       }
     }
 
+    const soloQueueChamps = normalizeChampionPerformanceList(
+      raw.top_champions_solo || raw.profile?.top_champions_solo || raw.data?.top_champions_solo || raw.opgg?.top_champions_solo
+    );
+    const flexQueueChamps = normalizeChampionPerformanceList(
+      raw.top_champions_flex || raw.profile?.top_champions_flex || raw.data?.top_champions_flex || raw.opgg?.top_champions_flex
+    );
+
     return {
       game_name: gn,
       tag_line: tl,
@@ -274,9 +351,12 @@ export function normalizeProfile(
       solo_rank: soloRank,
       flex_rank: flexRank,
       top_champions: topChamps,
+      top_champions_solo: soloQueueChamps.length > 0 ? soloQueueChamps : undefined,
+      top_champions_flex: flexQueueChamps.length > 0 ? flexQueueChamps : undefined,
       source: "lcu",
       updated_at: Date.now(),
     };
+
   }
 
   // 2. OP.GG MCP Source
@@ -361,6 +441,13 @@ export function normalizeProfile(
     });
   }
 
+  const soloQueueChamps = normalizeChampionPerformanceList(
+    raw.top_champions_solo || raw.profile?.top_champions_solo || raw.data?.top_champions_solo || raw.opgg?.top_champions_solo
+  );
+  const flexQueueChamps = normalizeChampionPerformanceList(
+    raw.top_champions_flex || raw.profile?.top_champions_flex || raw.data?.top_champions_flex || raw.opgg?.top_champions_flex
+  );
+
   return {
     game_name: gn,
     tag_line: tl,
@@ -371,9 +458,12 @@ export function normalizeProfile(
     solo_rank: soloRank,
     flex_rank: flexRank,
     top_champions: topChamps,
+    top_champions_solo: soloQueueChamps.length > 0 ? soloQueueChamps : undefined,
+    top_champions_flex: flexQueueChamps.length > 0 ? flexQueueChamps : undefined,
     source: "opgg",
     updated_at: Date.now(),
   };
+
 }
 
 export function normalizeMatches(raw: any, targetNameOrPuuid?: string): PlayerMatch[] {

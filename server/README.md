@@ -40,7 +40,8 @@ In der `docker-compose.yml` oder im NAS-Container-Manager anpassbar:
 - `PORT`: Standard `8085`
 - `DATA_DIR`: Standard `/data`
 - `CRAWL_CONCURRENCY`: Anzahl gleichzeitiger Requests an OP.GG (Standard `6`)
-- `CRON_HOUR`: Stunde für den täglichen automatischen Refresh (Standard `4` für 04:00 Uhr)
+- `CRON_HOUR`: Standard-Stunde für den täglichen automatischen Refresh aller Ränge (Standard `6` für 06:00 Uhr; kann auch direkt live im Web-Dashboard geändert oder deaktiviert werden)
+- `TZ`: Zeitzone für zeitgesteuerte Abläufe (Standard `Europe/Berlin`)
 
 ---
 

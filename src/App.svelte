@@ -6,7 +6,7 @@
   import { collapsed } from "./lib/stores/ui";
   import { activeTab } from "./lib/stores/navigation";
   import { viewedProfile, loadPlayerProfile } from "./lib/stores/profile";
-  import { initTheme, activeTheme, customWallpaper, wallpaperScope } from "./lib/stores/theme";
+  import { initTheme, activeTheme, customWallpaper, hasCustomWallpaper, wallpaperScope } from "./lib/stores/theme";
   import TopNavBar from "./lib/components/TopNavBar.svelte";
   import LandingPage from "./lib/components/LandingPage.svelte";
   import ProfileView from "./lib/components/ProfileView.svelte";
@@ -19,7 +19,8 @@
   import ActivationModal from "./lib/components/ActivationModal.svelte";
   import { checkForAppUpdate } from "./lib/stores/updater";
 
-  $: effectiveWallpaper = $customWallpaper || "/landing-bg.jpg";
+  $: hasCustom = $hasCustomWallpaper || Boolean($customWallpaper);
+  $: effectiveWallpaper = $customWallpaper || (hasCustom ? "" : "/landing-bg.jpg");
 
   onMount(() => {
     initTheme();
@@ -84,9 +85,9 @@
     <div class="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       <div
         class="absolute inset-0 bg-center bg-no-repeat bg-cover opacity-[0.24] transition-all duration-700"
-        style="background-image: url('{effectiveWallpaper}'); filter: {$customWallpaper ? 'none' : $activeTheme.bgFilter};"
+        style="background-image: {effectiveWallpaper ? `url('${effectiveWallpaper}')` : 'none'}; filter: {hasCustom ? 'none' : $activeTheme.bgFilter};"
       ></div>
-      {#if !$customWallpaper}
+      {#if !hasCustom}
         <div
           class="absolute inset-0 transition-all duration-700 pointer-events-none opacity-[0.24]"
           style="background: {$activeTheme.tintGradient}; mix-blend-mode: {$activeTheme.tintBlendMode};"

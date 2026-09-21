@@ -37,3 +37,4 @@ __pycache__/
 *Log.txt
 deploy_to_nas.py
 get_tunnel_url.py
+scripts/dev.js

@@ -80,6 +80,13 @@ jobs:
           releaseBody: |
             ## Rift Companion Release ${{ steps.get_version.outputs.tag }}
 
+            ### Highlights
+            * **Ranked Queue Filters:** Filter Most Played Champions by All, Solo/Duo, and Flex directly on summoner profiles.
+            * **Full Season Champion Stats:** Overall season champion performance for both Ranked Solo/Duo and Ranked Flex queues.
+            * **Show All Champions:** Expand beyond the top 7 champions to view all played champions with one click.
+            * **Profile Resolution:** Hardened Riot ID and tagline parsing for local and searched accounts.
+            * **Cleaner UI:** Removed redundant status badge banner from champion card header.
+
             ### Download & Installation
             * **Windows Installer:** Download `Rift-Companion_${{ steps.get_version.outputs.version }}_x64-setup.exe` below and double-click to install.
             * **In-App Auto-Updater:** If you already have Rift Companion installed, it will automatically notify you and update seamlessly!

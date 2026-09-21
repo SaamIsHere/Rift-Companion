@@ -70,19 +70,26 @@ export const isExplicitSearch = writable<boolean>(false);
 /** Auto-refresh time-to-live: 3 hours in milliseconds */
 export const AUTO_REFRESH_TTL_MS = 3 * 60 * 60 * 1000;
 
-const CACHE_PREFIX = "rift_profile_v3_cache_";
+const CACHE_PREFIX = "rift_profile_v5_cache_";
 
-// Automatically purge corrupted or outdated cache entries from earlier buggy versions
+// Automatically purge corrupted or outdated cache entries from earlier versions
 try {
   if (typeof localStorage !== "undefined") {
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
-      if (k && (k.startsWith("rift_profile_cache_") || k.startsWith("rift_profile_v2_cache_"))) {
+      if (
+        k &&
+        (k.startsWith("rift_profile_cache_") ||
+          k.startsWith("rift_profile_v2_cache_") ||
+          k.startsWith("rift_profile_v3_cache_") ||
+          k.startsWith("rift_profile_v4_cache_"))
+      ) {
         localStorage.removeItem(k);
       }
     }
   }
 } catch {}
+
 
 function saveRecentSearch(item: RecentSearchItem) {
   recentSearches.update((list) => {
@@ -191,8 +198,15 @@ export async function loadPlayerProfile(
 
   const cacheAge = cachedData ? Date.now() - (cachedData.cached_at || 0) : Infinity;
 
-  // If cache is fresh (< 3 hours) and not a force refresh, DO NOT trigger network reload!
-  if (cachedData && cacheAge < AUTO_REFRESH_TTL_MS && !forceRefresh) {
+  const isCacheMissingQueueStats =
+    cachedData?.profile &&
+    (!cachedData.profile.top_champions_solo ||
+      cachedData.profile.top_champions_solo.length === 0 ||
+      !cachedData.profile.top_champions_flex ||
+      cachedData.profile.top_champions_flex.length === 0);
+
+  // If cache is fresh (< 3 hours), not a force refresh, AND has queue stats, DO NOT trigger network reload!
+  if (cachedData && cacheAge < AUTO_REFRESH_TTL_MS && !forceRefresh && !isCacheMissingQueueStats) {
     viewedProfileLoading.set(false);
     viewedMatchesLoading.set(false);
     viewedProfileError.set(null);

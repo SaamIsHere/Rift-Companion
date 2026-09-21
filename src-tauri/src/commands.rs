@@ -839,15 +839,52 @@ pub async fn get_player_profile(
             if let Ok(Some(summoner)) = crate::lcu::client::get_current_summoner(&lock).await {
                 let ranked = crate::lcu::client::get_all_ranked_stats(&lock).await.unwrap_or(None);
                 let mastery = crate::lcu::client::get_local_champion_mastery(&lock).await.unwrap_or(None);
-                let opgg_stats = if let Ok(client) = opgg::client::McpClient::new() {
-                    let gn = summoner.game_name.clone();
-                    let tl = if !summoner.tag_line.is_empty() {
-                        summoner.tag_line.clone()
-                    } else {
-                        "EUW".to_string()
+                let (opgg_stats, top_champions_solo, top_champions_flex) = if let Ok(client) = opgg::client::McpClient::new() {
+                    let (gn, tl) = {
+                        let name_cand = game_name.as_deref().filter(|s| !s.is_empty())
+                            .or(if !summoner.game_name.is_empty() { Some(summoner.game_name.as_str()) } else { None });
+                        let tag_cand = tag_line.as_deref().filter(|s| !s.is_empty())
+                            .or(if !summoner.tag_line.is_empty() { Some(summoner.tag_line.as_str()) } else { None });
+
+                        match (name_cand, tag_cand) {
+                            (Some(n), Some(t)) => (n.to_string(), t.to_string()),
+                            (Some(n), None) => {
+                                if let Some((_, st)) = summoner.display_name.split_once('#') {
+                                    (n.to_string(), st.to_string())
+                                } else {
+                                    (n.to_string(), "EUW".to_string())
+                                }
+                            }
+                            (None, Some(t)) => {
+                                if let Some((sn, _)) = summoner.display_name.split_once('#') {
+                                    (sn.to_string(), t.to_string())
+                                } else {
+                                    (summoner.display_name.clone(), t.to_string())
+                                }
+                            }
+                            (None, None) => {
+                                if let Some((sn, st)) = summoner.display_name.split_once('#') {
+                                    (sn.to_string(), st.to_string())
+                                } else {
+                                    (summoner.display_name.clone(), "EUW".to_string())
+                                }
+                            }
+                        }
                     };
-                    let reg = region.clone().unwrap_or_else(|| "EUW".to_string());
-                    match opgg::summoner::fetch_profile(&client, &gn, &tl, &reg).await {
+
+                    let mut reg = region.clone().unwrap_or_else(|| "EUW".to_string());
+                    if let Some(inferred) = normalize_region_from_tag(&tl) {
+                        if region.is_none() || region.as_deref() == Some("EUW") {
+                            reg = inferred.to_string();
+                        }
+                    }
+
+                    tracing::info!("is_local_lookup resolved summoner: {}#{} (region: {})", gn, tl, reg);
+                    let profile_fut = opgg::summoner::fetch_profile(&client, &gn, &tl, &reg);
+                    let solo_fut = opgg::summoner::fetch_queue_champions(client.http(), &gn, &tl, &reg, "SOLORANKED");
+                    let flex_fut = opgg::summoner::fetch_queue_champions(client.http(), &gn, &tl, &reg, "FLEXRANKED");
+                    let (p_res, s_res, f_res) = tokio::join!(profile_fut, solo_fut, flex_fut);
+                    let p_val = match p_res {
                         Ok(mut d) => {
                             if let Some(inner) = d.get_mut("data") {
                                 Some(inner.take())
@@ -856,9 +893,34 @@ pub async fn get_player_profile(
                             }
                         }
                         Err(_) => None,
+                    };
+
+                    let mut top_champions_solo = s_res.unwrap_or_default();
+                    let mut top_champions_flex = f_res.unwrap_or_default();
+
+                    if top_champions_solo.is_empty() {
+                        if let Ok(retry) = opgg::summoner::fetch_queue_champions(client.http(), &gn, &tl, &reg, "SOLORANKED").await {
+                            if !retry.is_empty() {
+                                top_champions_solo = retry;
+                            }
+                        }
                     }
+                    if top_champions_flex.is_empty() {
+                        if let Ok(retry) = opgg::summoner::fetch_queue_champions(client.http(), &gn, &tl, &reg, "FLEXRANKED").await {
+                            if !retry.is_empty() {
+                                top_champions_flex = retry;
+                            }
+                        }
+                    }
+
+                    tracing::info!(
+                        "is_local_lookup queue champions: solo={}, flex={}",
+                        top_champions_solo.len(),
+                        top_champions_flex.len()
+                    );
+                    (p_val, top_champions_solo, top_champions_flex)
                 } else {
-                    None
+                    (None, Vec::new(), Vec::new())
                 };
 
                 return Ok(serde_json::json!({
@@ -866,8 +928,11 @@ pub async fn get_player_profile(
                     "summoner": summoner,
                     "ranked": ranked,
                     "mastery": mastery,
-                    "opgg": opgg_stats
+                    "opgg": opgg_stats,
+                    "top_champions_solo": top_champions_solo,
+                    "top_champions_flex": top_champions_flex,
                 }));
+
             }
         }
     }
@@ -996,12 +1061,43 @@ pub async fn get_player_profile(
         }
     };
 
+    let (solo_res, flex_res) = tokio::join!(
+        opgg::summoner::fetch_queue_champions(client.http(), &final_name, &final_tag, &final_reg, "SOLORANKED"),
+        opgg::summoner::fetch_queue_champions(client.http(), &final_name, &final_tag, &final_reg, "FLEXRANKED"),
+    );
+    let mut top_champions_solo = solo_res.unwrap_or_default();
+    let mut top_champions_flex = flex_res.unwrap_or_default();
+
+    if top_champions_solo.is_empty() {
+        if let Ok(retry) = opgg::summoner::fetch_queue_champions(client.http(), &final_name, &final_tag, &final_reg, "SOLORANKED").await {
+            if !retry.is_empty() {
+                top_champions_solo = retry;
+            }
+        }
+    }
+    if top_champions_flex.is_empty() {
+        if let Ok(retry) = opgg::summoner::fetch_queue_champions(client.http(), &final_name, &final_tag, &final_reg, "FLEXRANKED").await {
+            if !retry.is_empty() {
+                top_champions_flex = retry;
+            }
+        }
+    }
+
+    tracing::info!(
+        "remote lookup queue champions: solo={}, flex={}",
+        top_champions_solo.len(),
+        top_champions_flex.len()
+    );
+
     Ok(serde_json::json!({
         "source": "opgg",
         "region": final_reg,
-        "data": data
+        "data": data,
+        "top_champions_solo": top_champions_solo,
+        "top_champions_flex": top_champions_flex,
     }))
 }
+
 
 /// Fetch a player's recent matches with items, spells, runes, KDA, CS, and stats.
 /// If `game_name` is None or matches local player, checks LCU first if connected.

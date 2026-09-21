@@ -19,6 +19,10 @@ impl McpClient {
         Ok(Self { http: reqwest::Client::builder().build()?, session: std::sync::Mutex::new(None) })
     }
 
+    pub fn http(&self) -> &reqwest::Client {
+        &self.http
+    }
+
     async fn post(&self, body: Value, notification: bool) -> Result<Option<Value>> {
         let mut req = self
             .http

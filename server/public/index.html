@@ -214,6 +214,87 @@
       transform: translateY(-1px);
     }
 
+    /* Daily Auto-Crawl Card */
+    .card-schedule {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-radius: 18px;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .card-schedule:hover {
+      border-color: rgba(168, 85, 247, 0.35);
+      box-shadow: 0 10px 36px rgba(0, 0, 0, 0.5), 0 0 20px rgba(168, 85, 247, 0.08);
+    }
+    .schedule-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .schedule-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .schedule-icon {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, rgba(147, 51, 234, 0.25) 0%, rgba(126, 34, 206, 0.35) 100%);
+      border: 1px solid rgba(168, 85, 247, 0.35);
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      font-size: 1.35rem;
+      box-shadow: 0 0 16px var(--purple-glow);
+      flex-shrink: 0;
+    }
+    .schedule-meta {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .schedule-meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .meta-label {
+      font-size: 0.72rem;
+      color: var(--slate);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      font-weight: 600;
+    }
+    .meta-val {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #f1f5f9;
+    }
+    .schedule-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(168, 85, 247, 0.12);
+    }
+    .schedule-control-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
     /* Tiers Grid */
     .section-title {
       font-size: 0.9rem;
@@ -468,6 +549,74 @@
       <div class="action-group">
         <button onclick="checkPatch()">🔄 Patch prüfen</button>
         <button onclick="fetchStatus()">Aktualisieren</button>
+      </div>
+    </div>
+
+    <!-- Daily Auto-Crawl Schedule Card -->
+    <div class="card-schedule">
+      <div class="schedule-header">
+        <div class="schedule-title-wrap">
+          <div class="schedule-icon">⏰</div>
+          <div>
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <span style="font-weight: 700; font-size: 1.05rem; color: #fff;">Automatischer Daily-Crawl</span>
+              <span id="scheduleBadge" class="badge badge-idle">Aktiv (06:00 Uhr)</span>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--slate); margin-top: 3px;">
+              Crawlt täglich automatisch alle Rangstufen (Diamond+ bis Iron+), um OP.GG-Statistiken aktuell zu halten.
+            </p>
+          </div>
+        </div>
+
+        <div class="schedule-meta">
+          <div class="schedule-meta-item">
+            <span class="meta-label">Nächster Sync</span>
+            <span id="scheduleNextRun" class="meta-val">Berechne…</span>
+          </div>
+          <div class="schedule-meta-item">
+            <span class="meta-label">Letzter Sync</span>
+            <span id="scheduleLastRun" class="meta-val">Noch kein Sync</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="schedule-controls">
+        <div class="schedule-control-group">
+          <label for="scheduleHourSelect" style="font-size: 0.85rem; font-weight: 600; color: #c084fc; display: flex; align-items: center; gap: 6px;">
+            <span>Zeitplan:</span>
+          </label>
+          <select id="scheduleHourSelect" onchange="handleScheduleChange()">
+            <option value="disabled">❌ Deaktiviert (kein Auto-Crawl)</option>
+            <option value="0">00:00 Uhr (Mitternacht)</option>
+            <option value="1">01:00 Uhr</option>
+            <option value="2">02:00 Uhr</option>
+            <option value="3">03:00 Uhr</option>
+            <option value="4">04:00 Uhr</option>
+            <option value="5">05:00 Uhr</option>
+            <option value="6" selected>06:00 Uhr (Morgens – Standard)</option>
+            <option value="7">07:00 Uhr</option>
+            <option value="8">08:00 Uhr</option>
+            <option value="9">09:00 Uhr</option>
+            <option value="10">10:00 Uhr</option>
+            <option value="11">11:00 Uhr</option>
+            <option value="12">12:00 Uhr (Mittag)</option>
+            <option value="13">13:00 Uhr</option>
+            <option value="14">14:00 Uhr</option>
+            <option value="15">15:00 Uhr</option>
+            <option value="16">16:00 Uhr</option>
+            <option value="17">17:00 Uhr</option>
+            <option value="18">18:00 Uhr</option>
+            <option value="19">19:00 Uhr</option>
+            <option value="20">20:00 Uhr</option>
+            <option value="21">21:00 Uhr</option>
+            <option value="22">22:00 Uhr</option>
+            <option value="23">23:00 Uhr</option>
+          </select>
+          <button id="btnSaveSchedule" onclick="saveSchedule()" class="primary" style="padding: 8px 18px;">
+            💾 Speichern
+          </button>
+        </div>
+        <span id="scheduleStatusHint" style="font-size: 0.8rem; color: var(--slate);">Täglich um 06:00 Uhr</span>
       </div>
     </div>
 
@@ -746,9 +895,144 @@
         }
 
         renderTiersGrid(data.tiers, data.crawl_progress);
+
+        if (data.schedule) {
+          updateScheduleUI(data.schedule);
+        }
       } catch (err) {
         console.error("Status check failed", err);
       }
+    }
+
+    let currentSchedule = null;
+
+    function updateScheduleUI(schedule) {
+      if (!schedule) return;
+      currentSchedule = schedule;
+
+      const hourSelect = document.getElementById("scheduleHourSelect");
+      const badge = document.getElementById("scheduleBadge");
+      const nextEl = document.getElementById("scheduleNextRun");
+      const lastEl = document.getElementById("scheduleLastRun");
+      const hintEl = document.getElementById("scheduleStatusHint");
+
+      // Update dropdown selection only if user is not currently focusing it
+      if (hourSelect && document.activeElement !== hourSelect) {
+        if (!schedule.enabled) {
+          hourSelect.value = "disabled";
+        } else {
+          hourSelect.value = String(schedule.hour);
+        }
+      }
+
+      const hourStr = String(schedule.hour).padStart(2, "0") + ":00 Uhr";
+
+      if (schedule.enabled) {
+        if (badge) {
+          badge.className = "badge badge-idle";
+          badge.style.color = "";
+          badge.style.borderColor = "";
+          badge.innerText = `Aktiv (${hourStr})`;
+        }
+        if (hintEl) {
+          hintEl.innerText = `Täglich automatisch um ${hourStr}`;
+          hintEl.style.color = "var(--slate)";
+        }
+
+        if (nextEl && schedule.nextRun) {
+          const nextDate = new Date(schedule.nextRun);
+          const now = new Date();
+          const isToday = nextDate.toDateString() === now.toDateString();
+          const tomorrow = new Date(now);
+          tomorrow.setDate(now.getDate() + 1);
+          const isTomorrow = nextDate.toDateString() === tomorrow.toDateString();
+          const timeFormatted = `${String(nextDate.getHours()).padStart(2, "0")}:${String(nextDate.getMinutes()).padStart(2, "0")} Uhr`;
+
+          if (isToday) {
+            nextEl.innerText = `Heute um ${timeFormatted}`;
+          } else if (isTomorrow) {
+            nextEl.innerText = `Morgen um ${timeFormatted}`;
+          } else {
+            nextEl.innerText = `${nextDate.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} um ${timeFormatted}`;
+          }
+        }
+      } else {
+        if (badge) {
+          badge.className = "badge badge-info";
+          badge.style.color = "#f43f5e";
+          badge.style.borderColor = "rgba(244, 63, 94, 0.4)";
+          badge.innerText = "Deaktiviert";
+        }
+        if (hintEl) {
+          hintEl.innerText = "Auto-Crawl ist aktuell abgeschaltet";
+          hintEl.style.color = "#f43f5e";
+        }
+        if (nextEl) {
+          nextEl.innerText = "Deaktiviert";
+        }
+      }
+
+      if (lastEl) {
+        if (!schedule.lastRunTime) {
+          lastEl.innerText = "Noch kein Sync";
+        } else {
+          const statusText = schedule.lastRunStatus === "success"
+            ? " ✓"
+            : (schedule.lastRunStatus === "running" ? " (Läuft…)" : "");
+          lastEl.innerText = formatTime(schedule.lastRunTime) + statusText;
+        }
+      }
+    }
+
+    async function saveSchedule() {
+      const hourSelect = document.getElementById("scheduleHourSelect");
+      const btn = document.getElementById("btnSaveSchedule");
+      if (!hourSelect) return;
+
+      const val = hourSelect.value;
+      const isDisabling = val === "disabled";
+      const payload = isDisabling
+        ? { enabled: false }
+        : { enabled: true, hour: parseInt(val, 10), minute: 0 };
+
+      try {
+        if (btn) {
+          btn.disabled = true;
+          btn.innerText = "Speichern…";
+        }
+
+        const res = await authFetch("/api/schedule", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          const msg = isDisabling
+            ? "Auto-Crawl erfolgreich deaktiviert!"
+            : `Zeitplan gespeichert: Täglich um ${String(payload.hour).padStart(2, "0")}:00 Uhr`;
+          showToast(msg);
+          if (data.schedule) {
+            updateScheduleUI(data.schedule);
+          } else {
+            fetchStatus();
+          }
+        } else {
+          showToast(data.error || "Fehler beim Speichern des Zeitplans.");
+        }
+      } catch (err) {
+        showToast("Verbindungsfehler beim Speichern des Zeitplans.");
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = "💾 Speichern";
+        }
+      }
+    }
+
+    function handleScheduleChange() {
+      saveSchedule();
     }
 
     function renderTiersGrid(tiersData, activeProgress) {

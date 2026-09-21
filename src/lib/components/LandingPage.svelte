@@ -13,7 +13,7 @@
   import { squareIconUrl, tierMedalUrl, profileIconUrl } from "../utils/ddragon";
   import { openInBrowser, getLatestPatchInfo, type PatchInfo } from "../ipc/tauri";
   import { inferRegionFromTag } from "../utils/profileNormalizer";
-  import { activeTheme, customWallpaper } from "../stores/theme";
+  import { activeTheme, customWallpaper, hasCustomWallpaper } from "../stores/theme";
   import PatchNotesModal from "./PatchNotesModal.svelte";
   import { updateAvailable, updateVersion, showUpdateModal } from "../stores/updater";
   import { loadLivePatchNotes } from "../stores/patchNotes";
@@ -24,8 +24,9 @@
   let showPatchNotesModal = false;
   let selectedSuggestionIndex = -1;
 
-  $: effectiveBg = $customWallpaper || "/landing-bg.jpg";
-  $: bgFilter = $customWallpaper ? "none" : $activeTheme.bgFilter;
+  $: hasCustom = $hasCustomWallpaper || Boolean($customWallpaper);
+  $: effectiveBg = $customWallpaper || (hasCustom ? "" : "/landing-bg.jpg");
+  $: bgFilter = hasCustom ? "none" : $activeTheme.bgFilter;
 
   interface LandingHistoryItem {
     id: string;
@@ -416,11 +417,11 @@
     <!-- Base Map -->
     <div
       class="absolute inset-0 bg-center bg-no-repeat bg-cover opacity-90 transition-all duration-700"
-      style="background-image: url('{effectiveBg}'); filter: {bgFilter};"
+      style="background-image: {effectiveBg ? `url('${effectiveBg}')` : 'none'}; filter: {bgFilter};"
     ></div>
 
     <!-- Theme Color Wash / Duotone Tint (only when using theme preset) -->
-    {#if !$customWallpaper}
+    {#if !hasCustom}
       <div
         class="absolute inset-0 transition-all duration-700 pointer-events-none"
         style="background: {$activeTheme.tintGradient}; mix-blend-mode: {$activeTheme.tintBlendMode}; opacity: 0.9;"

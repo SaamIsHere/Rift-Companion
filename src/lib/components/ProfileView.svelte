@@ -32,7 +32,7 @@
     loadRunesReforged,
   } from "../utils/ddragon";
   import { inferRegionFromTag } from "../utils/profileNormalizer";
-  import type { PlayerMatch } from "../types";
+  import type { PlayerMatch, ChampionPerformance } from "../types";
 
   const REGIONS = [
     { code: "EUW", label: "Europe West (EUW)" },
@@ -49,6 +49,8 @@
   let searchQuery = "";
   let selectedRegion = "EUW";
   let activeQueueFilter: "all" | "solo" | "flex" | "other" = "all";
+  let championQueueFilter: "all" | "solo" | "flex" = "all";
+  let showAllChampions = false;
   let expandedMatchIds = new Set<string>();
   let loadingMatchDetailIds = new Set<string>();
   let runesMap: Map<number, any> | null = null;
@@ -217,6 +219,160 @@
     if (activeQueueFilter === "other") return !label.includes("solo") && !label.includes("flex");
     return true;
   });
+
+  function selectChampQueueFilter(filter: "all" | "solo" | "flex") {
+    championQueueFilter = filter;
+    showAllChampions = false;
+  }
+
+  function isSoloMatch(m: PlayerMatch): boolean {
+    const label = (m.queue_label || "").toLowerCase();
+    const type = (m.game_type || "").toLowerCase();
+    return label.includes("solo") || type.includes("solo");
+  }
+
+  function isFlexMatch(m: PlayerMatch): boolean {
+    const label = (m.queue_label || "").toLowerCase();
+    const type = (m.game_type || "").toLowerCase();
+    return label.includes("flex") || type.includes("flex");
+  }
+
+  function computeChampionsFromMatches(matchesList: PlayerMatch[]): ChampionPerformance[] {
+    if (!matchesList.length) return [];
+
+    const statsMap = new Map<number, {
+      id: number;
+      name: string;
+      games: number;
+      wins: number;
+      losses: number;
+      kills: number;
+      deaths: number;
+      assists: number;
+      cs: number;
+      duration: number;
+    }>();
+
+    const masteryMap = new Map<number, { level?: number; points?: number }>();
+    if ($viewedProfile?.top_champions) {
+      for (const c of $viewedProfile.top_champions) {
+        if (c.mastery_level || c.mastery_points) {
+          masteryMap.set(c.id, { level: c.mastery_level, points: c.mastery_points });
+        }
+      }
+    }
+
+    for (const m of matchesList) {
+      if (!m.champion_id) continue;
+      let entry = statsMap.get(m.champion_id);
+      if (!entry) {
+        const cInfo = getChampInfo(m.champion_id);
+        entry = {
+          id: m.champion_id,
+          name: m.champion_name || cInfo.name || `Champion ${m.champion_id}`,
+          games: 0,
+          wins: 0,
+          losses: 0,
+          kills: 0,
+          deaths: 0,
+          assists: 0,
+          cs: 0,
+          duration: 0,
+        };
+        statsMap.set(m.champion_id, entry);
+      }
+      entry.games++;
+      if (m.win) entry.wins++;
+      else entry.losses++;
+      entry.kills += m.kills;
+      entry.deaths += m.deaths;
+      entry.assists += m.assists;
+      entry.cs += m.cs;
+      entry.duration += m.game_duration;
+    }
+
+    return Array.from(statsMap.values())
+      .sort((a, b) => b.games - a.games || b.wins - a.wins)
+      .map((entry) => {
+        const kda =
+          entry.deaths > 0
+            ? (entry.kills + entry.assists) / entry.deaths
+            : entry.kills + entry.assists;
+        const mastery = masteryMap.get(entry.id);
+        return {
+          id: entry.id,
+          name: entry.name,
+          games: entry.games,
+          wins: entry.wins,
+          losses: entry.losses,
+          win_rate: entry.games > 0 ? entry.wins / entry.games : 0,
+          kills: entry.games > 0 ? Math.round((entry.kills / entry.games) * 10) / 10 : entry.kills,
+          deaths: entry.games > 0 ? Math.round((entry.deaths / entry.games) * 10) / 10 : entry.deaths,
+          assists: entry.games > 0 ? Math.round((entry.assists / entry.games) * 10) / 10 : entry.assists,
+          kda: Math.round(kda * 100) / 100,
+          cs: Math.round(entry.cs / entry.games),
+          cs_per_min:
+            entry.duration > 0
+              ? Math.round((entry.cs / (entry.duration / 60)) * 10) / 10
+              : 0,
+          mastery_level: mastery?.level,
+          mastery_points: mastery?.points,
+        };
+      });
+  }
+
+  $: soloMatches = $viewedMatches.filter(isSoloMatch);
+  $: flexMatches = $viewedMatches.filter(isFlexMatch);
+
+  $: displayedChampions = (() => {
+    if (championQueueFilter === "all") {
+      if ($viewedProfile?.top_champions && $viewedProfile.top_champions.length > 0) {
+        return $viewedProfile.top_champions;
+      }
+      return computeChampionsFromMatches($viewedMatches);
+    }
+
+    if (championQueueFilter === "solo") {
+      if ($viewedProfile?.top_champions_solo && $viewedProfile.top_champions_solo.length > 0) {
+        return $viewedProfile.top_champions_solo;
+      }
+      const fromSoloMatches = computeChampionsFromMatches(soloMatches);
+      if (fromSoloMatches.length > 0) {
+        return fromSoloMatches;
+      }
+      if (
+        $viewedProfile?.solo_rank &&
+        (!$viewedProfile.flex_rank || ($viewedProfile.flex_rank.wins + $viewedProfile.flex_rank.losses === 0)) &&
+        $viewedProfile.top_champions &&
+        $viewedProfile.top_champions.length > 0
+      ) {
+        return $viewedProfile.top_champions;
+      }
+      return [];
+    }
+
+    if (championQueueFilter === "flex") {
+      if ($viewedProfile?.top_champions_flex && $viewedProfile.top_champions_flex.length > 0) {
+        return $viewedProfile.top_champions_flex;
+      }
+      const fromFlexMatches = computeChampionsFromMatches(flexMatches);
+      if (fromFlexMatches.length > 0) {
+        return fromFlexMatches;
+      }
+      if (
+        $viewedProfile?.flex_rank &&
+        (!$viewedProfile.solo_rank || ($viewedProfile.solo_rank.wins + $viewedProfile.solo_rank.losses === 0)) &&
+        $viewedProfile.top_champions &&
+        $viewedProfile.top_champions.length > 0
+      ) {
+        return $viewedProfile.top_champions;
+      }
+      return [];
+    }
+
+
+    return [];
+  })();
 
   // Recent 20 summary metrics
   $: recentStats = (() => {
@@ -729,18 +885,44 @@
 
       <!-- CARD: TOP CHAMPIONS -->
       <div class="glass rounded-2xl p-4">
-        <div class="flex items-center justify-between mb-3">
-          <h2 class="text-xs font-bold uppercase tracking-wider text-purple-200">
-            Most Played Champions
-          </h2>
-          <span class="rounded-md border border-purple-500/30 bg-purple-950/40 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-purple-300/80">
-            Season Stats
-          </span>
+        <h2 class="text-xs font-bold uppercase tracking-wider text-purple-200 mb-3">
+          Most Played Champions
+        </h2>
+
+        <!-- QUEUE FILTER BUTTONS (All, Solo/Duo, Flex) -->
+        <div class="mb-3.5 flex items-center rounded-xl border border-purple-500/20 bg-purple-950/40 p-1">
+          <button
+            type="button"
+            on:click={() => selectChampQueueFilter("all")}
+            class="flex-1 rounded-lg py-1.5 text-center text-xs font-bold transition {championQueueFilter === 'all'
+              ? 'bg-purple-600 text-white shadow-sm'
+              : 'text-purple-300/70 hover:bg-purple-900/40 hover:text-white'}"
+          >
+            All
+          </button>
+          <button
+            type="button"
+            on:click={() => selectChampQueueFilter("solo")}
+            class="flex-1 rounded-lg py-1.5 text-center text-xs font-bold transition {championQueueFilter === 'solo'
+              ? 'bg-purple-600 text-white shadow-sm'
+              : 'text-purple-300/70 hover:bg-purple-900/40 hover:text-white'}"
+          >
+            Solo/Duo
+          </button>
+          <button
+            type="button"
+            on:click={() => selectChampQueueFilter("flex")}
+            class="flex-1 rounded-lg py-1.5 text-center text-xs font-bold transition {championQueueFilter === 'flex'
+              ? 'bg-purple-600 text-white shadow-sm'
+              : 'text-purple-300/70 hover:bg-purple-900/40 hover:text-white'}"
+          >
+            Flex
+          </button>
         </div>
 
-        {#if $viewedProfile?.top_champions && $viewedProfile.top_champions.length > 0}
+        {#if displayedChampions && displayedChampions.length > 0}
           <div class="flex flex-col gap-2">
-            {#each $viewedProfile.top_champions.slice(0, 7) as champ, cIdx (`champ-${champ.id}-${cIdx}`)}
+            {#each (showAllChampions ? displayedChampions : displayedChampions.slice(0, 7)) as champ, cIdx (`champ-${championQueueFilter}-${champ.id}-${cIdx}`)}
               {@const champInfo = getChampInfo(champ.id)}
               <div class="flex items-center justify-between rounded-xl border border-purple-500/15 bg-purple-950/25 p-2.5 transition hover:bg-purple-900/30">
                 <!-- Champion Icon & Name -->
@@ -798,15 +980,44 @@
                 </div>
               </div>
             {/each}
+
+            {#if displayedChampions.length > 7}
+              <button
+                type="button"
+                on:click={() => (showAllChampions = !showAllChampions)}
+                class="mt-1 w-full rounded-lg border border-purple-500/20 bg-purple-950/40 py-1.5 text-center text-xs font-semibold text-purple-300 hover:bg-purple-900/40 hover:text-white transition"
+              >
+                {showAllChampions ? "Show less" : `Show all (${displayedChampions.length} champions)`}
+              </button>
+            {/if}
           </div>
-        {:else if $viewedProfileLoading}
+        {:else if $viewedProfileLoading || $viewedMatchesLoading}
           <div class="flex h-36 flex-col items-center justify-center gap-2">
             <div class="h-5 w-5 animate-spin rounded-full border-2 border-purple-500 border-t-transparent"></div>
             <p class="text-[11px] text-purple-300/70">Loading champions…</p>
           </div>
         {:else}
-          <div class="rounded-xl border border-purple-500/15 bg-purple-950/20 p-4 text-center">
-            <p class="text-xs text-slate-400">No recent champion statistics recorded</p>
+          <div class="rounded-xl border border-purple-500/15 bg-purple-950/20 p-5 text-center">
+            <div class="text-xl mb-1 text-purple-300/50">🛡️</div>
+            <p class="text-xs font-semibold text-slate-300">
+              {#if championQueueFilter === "solo"}
+                No Ranked Solo/Duo games found
+              {:else if championQueueFilter === "flex"}
+                No Ranked Flex games found
+              {:else}
+                No champion statistics recorded
+              {/if}
+            </p>
+            <p class="mt-1 text-[10px] text-purple-300/60">
+              {#if championQueueFilter === "solo"}
+                No games recorded for Ranked Solo/Duo this season.
+              {:else if championQueueFilter === "flex"}
+                No games recorded for Ranked Flex this season.
+              {:else}
+                No matches or champion data available for this profile.
+              {/if}
+            </p>
+
           </div>
         {/if}
       </div>

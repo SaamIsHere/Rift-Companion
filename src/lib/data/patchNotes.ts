@@ -246,6 +246,20 @@ export const LATEST_PATCH_DATA: PatchNotesData = {
 
     // Rift Companion Updates
     {
+      id: "app-update-015",
+      type: "app",
+      category: "app",
+      title: "Rift Companion v0.1.5 Updates",
+      summary: "Ranked queue champion filters (All, Solo/Duo, Flex), full season stats, and profile optimizations.",
+      details: [
+        "Added Queue Filter tabs (All, Solo/Duo, Flex) under Most Played Champions on summoner profiles",
+        "Overall season champion performance now displays accurately for both Ranked Solo/Duo and Ranked Flex",
+        "Added 'Show all' toggle to expand beyond the top 7 champions and view the entire season champion roster",
+        "Improved Riot ID and tagline resolution for locally connected accounts",
+        "Streamlined champion card header by removing redundant status badge",
+      ],
+    },
+    {
       id: "app-update-014",
       type: "app",
       category: "app",

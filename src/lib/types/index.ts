@@ -356,9 +356,12 @@ export interface FullPlayerProfile {
   solo_rank?: RankedQueueInfo | null;
   flex_rank?: RankedQueueInfo | null;
   top_champions: ChampionPerformance[];
+  top_champions_solo?: ChampionPerformance[];
+  top_champions_flex?: ChampionPerformance[];
   source: "lcu" | "opgg" | "cache";
   updated_at: number;
 }
+
 
 // Issue #11: Match Simulation Models
 export interface SimulatedLaneMatchup {

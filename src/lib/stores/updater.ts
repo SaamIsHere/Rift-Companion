@@ -2,7 +2,7 @@ import { writable, get } from "svelte/store";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
-export const APP_VERSION = "0.1.4";
+export const APP_VERSION = "0.1.5";
 
 export const updateAvailable = writable<boolean>(false);
 export const availableUpdate = writable<Update | null>(null);
@@ -35,7 +35,10 @@ export async function checkForAppUpdate(interactive = false): Promise<boolean> {
       updateAvailable.set(true);
       availableUpdate.set(update);
       updateVersion.set(update.version);
-      updateNotes.set(update.body || "A new update for Rift Companion is available with the latest features and improvements.");
+      updateNotes.set(
+        update.body ||
+          "### What's New in v0.1.5\n* **Ranked Queue Filters:** Filter Most Played Champions by All, Solo/Duo, and Flex.\n* **Full Season Champion Stats:** Overall season champion performance for both Ranked Solo/Duo and Ranked Flex queues.\n* **Show All Champions:** Expandable list to view all played champions beyond the top 7.\n* **Profile Resolution:** Hardened Riot ID and tagline parsing for local and searched accounts.\n* **Cleaner UI:** Streamlined champion card header without redundant badge banners."
+      );
       if (interactive) {
         showUpdateModal.set(true);
       }
