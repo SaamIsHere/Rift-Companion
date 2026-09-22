@@ -246,6 +246,21 @@ export const LATEST_PATCH_DATA: PatchNotesData = {
 
     // Rift Companion Updates
     {
+      id: "app-update-017",
+      type: "app",
+      category: "app",
+      title: "Rift Companion v0.1.7 Updates",
+      summary: "Rune, Item & Summoner Spell Importer, Single-Instance Protection, Support Item Tracking, Match Simulator Scoring Modes, Autostart Settings, and Windows 10 Border Polish.",
+      details: [
+        "Rune, Spell & Item Importer: One-click or automated import of rune pages, summoner spells (with D/F Flash key preference), and custom item sets directly into the League of Legends client during champ select",
+        "Single-Instance Lock: Prevents multiple app instances from running simultaneously; opening the app again smoothly brings the existing window to focus",
+        "Support Item Tracking: Displays the 2 most popular upgraded support items (Celestial Opposition, Bloodsong, Dream Maker, Zaz'Zak's Realmspike, Solstice Sleigh) with pick and win rates",
+        "Match Simulator Fixes: Added scoring focus modes (Balanced, Counterpick, Team Player) with real-time recalculation, dropdown click-outside fix, and intelligent match history caching",
+        "Autostart Options: Configurable startup behavior under Settings -> Behavior (None, System Boot, or League Launch mode)",
+        "Windows 10 Window Border Fix: Adaptive window outline when restored/unmaximized to prevent visual edge bleeding on Windows 10 borderless windows",
+      ],
+    },
+    {
       id: "app-update-016",
       type: "app",
       category: "app",

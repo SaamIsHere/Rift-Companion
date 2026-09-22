@@ -191,6 +191,73 @@ export async function loadRunesReforged(version = "16.18.1"): Promise<Map<number
   return runesPromise;
 }
 
+export interface RuneTreeSlotRune {
+  id: number;
+  key: string;
+  icon: string;
+  name: string;
+  shortDesc?: string;
+}
+
+export interface RuneTreeSlot {
+  runes: RuneTreeSlotRune[];
+}
+
+export interface RuneTreeStyle {
+  id: number;
+  key: string;
+  icon: string;
+  name: string;
+  slots: RuneTreeSlot[];
+}
+
+let fullRuneStylesCache: RuneTreeStyle[] | null = null;
+let fullRuneStylesPromise: Promise<RuneTreeStyle[]> | null = null;
+
+export async function loadFullRuneStyles(version = "16.18.1"): Promise<RuneTreeStyle[]> {
+  if (fullRuneStylesCache) return fullRuneStylesCache;
+  if (fullRuneStylesPromise) return fullRuneStylesPromise;
+
+  fullRuneStylesPromise = (async () => {
+    try {
+      const res = await fetch(`https://ddragon.leagueoflegends.com/cdn/${version}/data/en_US/runesReforged.json`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const styles: RuneTreeStyle[] = await res.json();
+      fullRuneStylesCache = styles;
+      return styles;
+    } catch (e) {
+      console.warn("Failed to load full rune styles", e);
+      fullRuneStylesPromise = null;
+      return [];
+    }
+  })();
+
+  return fullRuneStylesPromise;
+}
+
+export const STAT_SHARD_ROWS = [
+  // Slot 1 (Offense): Adaptive Force, Attack Speed, Ability Haste
+  [
+    { id: 5008, name: "Adaptive Force" },
+    { id: 5005, name: "Attack Speed" },
+    { id: 5007, name: "Ability Haste" },
+  ],
+  // Slot 2 (Flex): Adaptive Force, Movement Speed, Scaling Health
+  [
+    { id: 5008, name: "Adaptive Force" },
+    { id: 5010, name: "Move Speed" },
+    { id: 5001, name: "Scaling Health" },
+  ],
+  // Slot 3 (Defense): Flat Health, Tenacity & Slow Resist, Scaling Health
+  [
+    { id: 5011, name: "Health" },
+    { id: 5013, name: "Tenacity and Slow Resist" },
+    { id: 5001, name: "Scaling Health" },
+  ],
+];
+
 /** Get image URL for a rune ID using cached or fallback metadata. */
 export function getRuneIconUrl(runeId?: number | null, runesMap?: Map<number, RuneMeta> | null): string {
   if (!runeId) {

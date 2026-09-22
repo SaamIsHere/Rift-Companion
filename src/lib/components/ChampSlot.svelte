@@ -121,7 +121,7 @@
   tabindex={editable ? 0 : -1}
   on:mouseenter={() => { if (!isAnyDragging) hovering = true; }}
   on:mouseleave={() => { hovering = false; }}
-  class="group relative flex items-center gap-2.5 rounded-xl px-3 py-2 border transition-[background-color,border-color,box-shadow,opacity] duration-100 select-none {isDragging
+  class="group relative flex items-center gap-2 rounded-xl px-3 py-2 border transition-[background-color,border-color,box-shadow,opacity] duration-100 select-none {isDragging
     ? 'opacity-40 border-dashed border-rose-400/60 bg-void-950/30'
     : isDragOver
       ? (accent === 'rose'
@@ -135,7 +135,7 @@
           ? (accent === 'rose'
               ? 'border-dashed border-rose-400/60 bg-rose-950/20 hover:bg-rose-900/30 hover:border-rose-300 cursor-pointer shadow-sm'
               : 'border-dashed border-purple-400/60 bg-purple-950/20 hover:bg-purple-900/30 hover:border-purple-300 cursor-pointer shadow-sm')
-          : isHoveredPick
+          : (isHoveredPick && !isLocalSlot)
             ? 'border-dashed border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/15 shadow-sm'
             : 'border-purple-500/15 bg-void-950/15 hover:bg-purple-900/20'} {isLocalSlot
     ? 'ring-1 ring-inset ring-purple-400/60 bg-purple-950/20 shadow-sm'
@@ -187,7 +187,7 @@
   {/if}
 
   <!-- Role Icon (Icon only with tooltip, ensuring avatar vertical alignment) -->
-  <div class="flex w-6 items-center justify-center shrink-0 pointer-events-none select-none" title={roleLabel}>
+  <div class="flex w-5 items-center justify-center shrink-0 pointer-events-none select-none" title={roleLabel}>
     <img
       src={roleIconUrl(role)}
       alt={roleLabel}
@@ -199,15 +199,15 @@
   <!-- Champion Avatar -->
   {#if pick && info && !imgError}
     <div
-      class="relative h-9 w-9 rounded-full overflow-hidden pointer-events-none select-none {isHoveredPick
-        ? 'ring-2 ring-dashed ring-amber-400/80'
+      class="relative h-9 w-9 rounded-full overflow-hidden pointer-events-none select-none {isHoveredPick && !isLocalSlot
+        ? 'ring-2 ring-amber-400/80'
         : 'ring-1 ring-purple-500/30'} bg-void-950/60 shrink-0"
     >
       <img
         src={squareIconUrl(info.key, $ddragonVersion)}
         alt={name}
         draggable="false"
-        class="h-full w-full object-cover scale-[1.18] pointer-events-none select-none {isHoveredPick ? 'opacity-85' : ''}"
+        class="h-full w-full object-cover scale-[1.18] pointer-events-none select-none {isHoveredPick && !isLocalSlot ? 'opacity-85' : ''}"
         on:error={() => (imgError = true)}
       />
     </div>
@@ -215,7 +215,7 @@
     <div
       class="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-[10px] font-bold pointer-events-none select-none {accent === 'rose'
         ? 'text-rose-300'
-        : 'text-purple-300'} {isHoveredPick ? 'ring-2 ring-dashed ring-amber-400/80' : 'ring-1 ring-purple-500/20'} shrink-0"
+        : 'text-purple-300'} {isHoveredPick && !isLocalSlot ? 'ring-2 ring-amber-400/80' : 'ring-1 ring-purple-500/20'} shrink-0"
     >
       {pick.champion_id}
     </div>
@@ -230,20 +230,20 @@
   <!-- Champion Name & Subtitle -->
   <div class="min-w-0 flex-1 flex flex-col justify-center pointer-events-none select-none">
     {#if pick}
-      <div class="flex items-center gap-1.5 flex-wrap">
-        <span class="truncate text-sm font-medium {isHoveredPick ? 'text-slate-200' : 'text-white'}">{name}</span>
+      <div class="flex items-center gap-1.5 min-w-0">
+        <span class="truncate text-sm font-medium {isHoveredPick && !isLocalSlot ? 'text-slate-200' : 'text-white'}">{name}</span>
         {#if pick.is_local}
-          <span class="rounded bg-purple-500/25 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-purple-300 ring-1 ring-purple-400/40">
+          <span class="rounded bg-purple-500/25 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-purple-300 ring-1 ring-purple-400/40 shrink-0">
             You
           </span>
         {/if}
         {#if isSelected}
-          <span class="inline-flex items-center gap-1 rounded bg-purple-500/30 border border-purple-400/60 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-purple-200 animate-pulse">
+          <span class="inline-flex items-center gap-1 rounded bg-purple-500/30 border border-purple-400/60 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-purple-200 animate-pulse shrink-0">
             Selected
           </span>
         {/if}
-        {#if isHoveredPick}
-          <span class="inline-flex items-center gap-1 rounded bg-amber-500/15 border border-amber-500/35 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-amber-300">
+        {#if isHoveredPick && !pick.is_local}
+          <span class="inline-flex items-center gap-1 rounded bg-amber-500/15 border border-amber-500/35 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-amber-300 shrink-0">
             <span class="h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping"></span>
             Hovering
           </span>

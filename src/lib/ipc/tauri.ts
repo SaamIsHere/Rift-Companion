@@ -131,6 +131,88 @@ export async function hoverChampion(championId: number): Promise<boolean> {
 }
 
 /**
+ * Import a rune page into the League of Legends client.
+ */
+export async function importRunePage(
+  name: string,
+  primaryStyleId: number,
+  subStyleId: number,
+  selectedPerkIds: number[],
+): Promise<boolean> {
+  if (!isTauri) {
+    console.log("[Mock] importRunePage", { name, primaryStyleId, subStyleId, selectedPerkIds });
+    return true;
+  }
+  try {
+    return await invoke<boolean>("import_rune_page", {
+      name,
+      primaryStyleId,
+      subStyleId,
+      selectedPerkIds,
+    });
+  } catch (err) {
+    console.error("Failed to import rune page via IPC", err);
+    throw err;
+  }
+}
+
+/**
+ * Set active summoner spells in champ select.
+ */
+export async function importSummonerSpells(
+  spell1Id: number,
+  spell2Id: number,
+): Promise<boolean> {
+  if (!isTauri) {
+    console.log("[Mock] importSummonerSpells", { spell1Id, spell2Id });
+    return true;
+  }
+  try {
+    return await invoke<boolean>("import_summoner_spells", {
+      spell1Id,
+      spell2Id,
+    });
+  } catch (err) {
+    console.error("Failed to import summoner spells via IPC", err);
+    throw err;
+  }
+}
+
+/**
+ * Create or update an in-game Item Set for a champion in the League of Legends client.
+ */
+export async function importItemSet(
+  championId: number,
+  champName: string,
+  starterItems: number[],
+  coreItems: number[],
+  situationalItems: number[],
+): Promise<boolean> {
+  if (!isTauri) {
+    console.log("[Mock] importItemSet", {
+      championId,
+      champName,
+      starterItems,
+      coreItems,
+      situationalItems,
+    });
+    return true;
+  }
+  try {
+    return await invoke<boolean>("import_item_set", {
+      championId,
+      champName,
+      starterItems,
+      coreItems,
+      situationalItems,
+    });
+  } catch (err) {
+    console.error("Failed to import item set via IPC", err);
+    throw err;
+  }
+}
+
+/**
  * Compute full scoring and matchup recommendation for a specific champion on-demand.
  */
 export async function getChampionRecommendation(
@@ -308,13 +390,13 @@ export async function getLatestPatchInfo(ddragonVersion?: string): Promise<Patch
  */
 export async function getChampionBuild(
   championId: number,
-  role: Role,
+  role?: Role | null,
 ): Promise<ChampionBuildStats | null> {
   if (!isTauri) return null;
   try {
     return await invoke<ChampionBuildStats | null>("get_champion_build", {
       championId,
-      role,
+      role: role ?? null,
     });
   } catch (err) {
     console.error("Failed to get champion build via IPC", err);
@@ -581,10 +663,13 @@ export async function getChampionsByRole(
 /**
  * Compute pick recommendations for a simulated or mock draft (Issue #11).
  */
-export async function simulateDraft(draftState: DraftState): Promise<Recommendation[]> {
+export async function simulateDraft(
+  draftState: DraftState,
+  mode?: ScoringMode,
+): Promise<Recommendation[]> {
   if (!isTauri) return [];
   try {
-    return await invoke<Recommendation[]>("simulate_draft", { draft: draftState });
+    return await invoke<Recommendation[]>("simulate_draft", { draft: draftState, mode });
   } catch (err) {
     console.error("Failed to simulate draft", err);
     return [];
@@ -597,12 +682,14 @@ export async function simulateDraft(draftState: DraftState): Promise<Recommendat
 export async function simulateChampionRecommendation(
   draftState: DraftState,
   championId: number,
+  mode?: ScoringMode,
 ): Promise<Recommendation | null> {
   if (!isTauri) return null;
   try {
     return await invoke<Recommendation | null>("simulate_champion_recommendation", {
       draft: draftState,
       championId,
+      mode,
     });
   } catch (err) {
     console.error("Failed to simulate champion recommendation", err);

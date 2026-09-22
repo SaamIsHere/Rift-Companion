@@ -29,20 +29,16 @@
 </script>
 
 <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-  <!-- Top Switcher Bar when player has locked in or game is in progress -->
-  {#if localChampId || isInGame}
+  <!-- Top Switcher Bar only when game is in progress (GameStart / Loading Screen / InProgress) -->
+  {#if isInGame}
     <div class="flex items-center justify-between border-b border-purple-500/15 bg-void-950/60 px-6 py-2 backdrop-blur-md shrink-0">
       <div class="flex items-center gap-3">
         <span class="text-xs text-slate-400 flex items-center gap-1.5">
-          {#if isInGame}
-            <span class="flex h-2 w-2 relative">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <strong class="text-emerald-400 font-bold uppercase tracking-wider text-[11px]">In-Game:</strong>
-          {:else}
-            <span>Locked:</span>
-          {/if}
+          <span class="flex h-2 w-2 relative">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <strong class="text-emerald-400 font-bold uppercase tracking-wider text-[11px]">In-Game:</strong>
           <strong class="text-purple-300 ml-0.5">{localChampName || (localChampId ? `ID ${localChampId}` : "Your Champion")}</strong>
           {#if localRole}
             <span class="text-purple-400/80 uppercase text-[10px]">({localRole})</span>
@@ -50,7 +46,7 @@
         </span>
       </div>
 
-      <!-- Mode Toggle Buttons -->
+      <!-- Mode Toggle Buttons: Only In-Game Dashboard and Full Overview in-game -->
       <div class="flex items-center gap-1 rounded-xl border border-purple-500/20 bg-purple-950/40 p-1">
         <button
           type="button"
@@ -60,15 +56,6 @@
             : 'text-slate-400 hover:text-white'}"
         >
           🎮 In-Game Dashboard
-        </button>
-        <button
-          type="button"
-          on:click={() => { viewMode = "draft"; previewChampionId = null; userExplicitMode = true; }}
-          class="rounded-lg px-3 py-1 text-xs font-bold transition {viewMode === 'draft'
-            ? 'bg-purple-600 text-white shadow-sm'
-            : 'text-slate-400 hover:text-white'}"
-        >
-          Draft Board &amp; Picks
         </button>
         <button
           type="button"
@@ -97,7 +84,7 @@
       />
     </div>
   {:else}
-    <main class="grid min-h-0 flex-1 grid-cols-[490px_1fr] gap-5 px-6 pb-6 pt-4">
+    <main class="grid min-h-0 flex-1 grid-cols-[390px_1fr] gap-5 px-6 pb-6 pt-4">
       <DraftBoard />
       <RecommendationList
         on:selectOverview={(e) => {

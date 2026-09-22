@@ -73,6 +73,9 @@ pub struct Settings {
     /// Behavior: action when clicking the window close button (X): "close", "minimize", or "tray".
     #[serde(default = "default_close_behavior")]
     pub close_behavior: String,
+    /// Behavior: app startup mode: "none", "system_boot", or "league_launch".
+    #[serde(default = "default_startup_behavior")]
+    pub startup_behavior: String,
     /// Behavior: the team-composition bonus weight (mirrors `engine::weights::Weights.comp`).
     #[serde(default = "default_comp_weight")]
     pub comp_weight: f64,
@@ -103,6 +106,10 @@ fn default_close_behavior() -> String {
     "tray".to_string()
 }
 
+fn default_startup_behavior() -> String {
+    "none".to_string()
+}
+
 fn default_comp_weight() -> f64 {
     crate::engine::weights::Weights::default().comp
 }
@@ -129,6 +136,7 @@ impl Default for Settings {
             compact_density: false,
             always_on_top: false,
             close_behavior: default_close_behavior(),
+            startup_behavior: default_startup_behavior(),
             comp_weight: default_comp_weight(),
             server_url: default_server_url(),
             api_key: default_api_key(),

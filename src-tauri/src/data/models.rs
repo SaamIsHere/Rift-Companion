@@ -148,6 +148,8 @@ pub struct ChampionBuildStats {
     #[serde(default)]
     pub starter_items: Vec<StarterItemStats>,
     #[serde(default)]
+    pub support_items: Vec<StarterItemStats>,
+    #[serde(default)]
     pub boots: Vec<BootsStats>,
     #[serde(default)]
     pub core_items: Vec<CoreItemStats>,

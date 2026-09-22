@@ -178,6 +178,9 @@
 
   // Active build helpers with robust string / array normalization
   $: build = overview?.build;
+  $: isSupport = activeRole === "support" || overview?.selected_role === "support";
+  $: supportItems = isSupport && build?.support_items && build.support_items.length > 0 ? build.support_items : null;
+  $: displayedStarterItems = (isSupport && supportItems) ? supportItems : (build?.starter_items || []);
   $: activeRunePage = build?.runes?.[activeRunePageIndex] || build?.runes?.[0];
   $: skillOrder = build?.skill_order;
   $: skillPriority = Array.isArray(skillOrder?.priority)
@@ -561,11 +564,11 @@
           {/if}
         </div>
 
-        <!-- CARD: STARTER ITEMS -->
+        <!-- CARD: STARTER ITEMS / SUPPORT ITEMS -->
         <div class="glass rounded-xl p-3.5">
           <div class="mb-2.5 flex items-center justify-between px-2">
             <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">
-              Starter Items
+              {isSupport ? "Support Items" : "Starter Items"}
             </h3>
             <div class="flex items-center gap-3 shrink-0 text-[9px] font-bold uppercase text-slate-400">
               <span class="w-20 text-right">Pick Rate</span>
@@ -573,15 +576,15 @@
             </div>
           </div>
 
-          {#if build?.starter_items && build.starter_items.length}
+          {#if displayedStarterItems && displayedStarterItems.length}
             <div class="flex flex-col gap-2">
-              {#each build.starter_items.slice(0, 2) as starter, stIdx (`st-${stIdx}`)}
+              {#each displayedStarterItems.slice(0, 2) as starter, stIdx (`st-${stIdx}`)}
                 <div class="flex items-center justify-between rounded-lg border border-purple-500/15 bg-purple-950/20 p-2 transition hover:bg-purple-900/25">
                   <div class="flex items-center gap-1.5">
                     {#each starter.ids as itId, i}
                       <img
                         src={itemIconUrl(itId, $ddragonVersion)}
-                        alt="Starter Item"
+                        alt={isSupport ? "Support Item" : "Starter Item"}
                         class="h-7 w-7 rounded-md border border-purple-500/30 object-cover bg-black shrink-0"
                         title={starter.names?.[i] || ""}
                       />
@@ -602,7 +605,7 @@
               {/each}
             </div>
           {:else}
-            <p class="text-xs text-slate-400">No starter item data available</p>
+            <p class="text-xs text-slate-400">No {isSupport ? "support" : "starter"} item data available</p>
           {/if}
         </div>
 

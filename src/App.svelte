@@ -3,7 +3,7 @@
   import { get } from "svelte/store";
   import { initIpc } from "./lib/ipc/tauri";
   import { initChampions } from "./lib/stores/champions";
-  import { collapsed } from "./lib/stores/ui";
+  import { collapsed, isMaximized } from "./lib/stores/ui";
   import { activeTab } from "./lib/stores/navigation";
   import { viewedProfile, loadPlayerProfile } from "./lib/stores/profile";
   import { initTheme, activeTheme, customWallpaper, hasCustomWallpaper, wallpaperScope } from "./lib/stores/theme";
@@ -79,7 +79,9 @@
 
 <svelte:window on:keydown={handleGlobalKeydown} on:contextmenu|preventDefault />
 
-<div class="relative flex h-screen w-screen flex-col overflow-hidden text-slate-100 bg-[var(--theme-bg-base)] transition-colors duration-500">
+<div
+  class="relative flex h-screen w-screen flex-col overflow-hidden text-slate-100 bg-[var(--theme-bg-base)] transition-colors duration-500 border {$isMaximized ? 'border-transparent' : 'border-white/10'}"
+>
   <!-- Optional subtle background for all tabs when enabled in settings -->
   {#if $wallpaperScope === "all_tabs" && $activeTab !== "startseite"}
     <div class="pointer-events-none fixed inset-0 z-0 overflow-hidden">

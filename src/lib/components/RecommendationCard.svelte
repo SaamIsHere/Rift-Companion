@@ -8,6 +8,8 @@
   export let rec: Recommendation;
   export let rank: number;
   export let compact = false;
+  export let isFirst = false;
+  export let isLast = false;
 
   const dispatch = createEventDispatcher<{
     moreInfo: number;
@@ -41,7 +43,7 @@
   tabindex="0"
   on:click={togglePreselect}
   on:keydown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), togglePreselect())}
-  class="group relative flex items-center justify-between gap-3 px-3.5 {compact ? 'py-2' : 'py-2.5'} transition-colors duration-150 cursor-pointer select-none {isPreselected
+  class="group relative flex items-center justify-between gap-3 px-3.5 {compact ? 'py-2' : 'py-2.5'} transition-colors duration-150 cursor-pointer select-none {isFirst ? 'rounded-t-xl' : ''} {isLast ? 'rounded-b-xl' : ''} {isPreselected
     ? 'bg-purple-900/40 ring-1 ring-inset ring-purple-400/60'
     : 'hover:bg-purple-900/20 active:bg-purple-900/30'}"
 >

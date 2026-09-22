@@ -450,3 +450,277 @@ pub async fn hover_champion_in_lcu(lock: &Lockfile, champion_id: u32) -> Result<
 
     Ok(resp.status().is_success())
 }
+
+/// Sets a rune page in the League of Legends client via LCU perks API.
+pub async fn set_rune_page_in_lcu(
+    lock: &Lockfile,
+    name: &str,
+    primary_style_id: u32,
+    sub_style_id: u32,
+    selected_perk_ids: &[u32],
+) -> Result<bool> {
+    let client = http_client()?;
+    let pages_url = format!("https://127.0.0.1:{}/lol-perks/v1/pages", lock.port);
+
+    let body = serde_json::json!({
+        "name": name,
+        "primaryStyleId": primary_style_id,
+        "subStyleId": sub_style_id,
+        "selectedPerkIds": selected_perk_ids,
+        "current": true
+    });
+
+    // 1. Fetch current pages to find an existing editable page to overwrite
+    let get_res = client
+        .get(&pages_url)
+        .header("Authorization", auth_header(lock))
+        .send()
+        .await;
+
+    if let Ok(resp) = get_res {
+        if resp.status().is_success() {
+            if let Ok(pages) = resp.json::<Vec<serde_json::Value>>().await {
+                let target_page = pages.iter().find(|p| {
+                    p.get("isEditable").and_then(|v| v.as_bool()).unwrap_or(false)
+                        && p.get("name").and_then(|v| v.as_str()).map(|n| n.starts_with("Rift")).unwrap_or(false)
+                }).or_else(|| {
+                    pages.iter().find(|p| {
+                        p.get("isEditable").and_then(|v| v.as_bool()).unwrap_or(false)
+                            && p.get("current").and_then(|v| v.as_bool()).unwrap_or(false)
+                    })
+                }).or_else(|| {
+                    pages.iter().find(|p| {
+                        p.get("isEditable").and_then(|v| v.as_bool()).unwrap_or(false)
+                    })
+                });
+
+                if let Some(p) = target_page {
+                    if let Some(id) = p.get("id").and_then(|v| v.as_i64()) {
+                        let put_url = format!("https://127.0.0.1:{}/lol-perks/v1/pages/{}", lock.port, id);
+                        let put_res = client
+                            .put(&put_url)
+                            .header("Authorization", auth_header(lock))
+                            .json(&body)
+                            .send()
+                            .await;
+
+                        if let Ok(put_resp) = put_res {
+                            if put_resp.status().is_success() {
+                                return Ok(true);
+                            }
+                        }
+
+                        // If PUT wasn't accepted, try deleting and recreating
+                        let _ = client
+                            .delete(&put_url)
+                            .header("Authorization", auth_header(lock))
+                            .send()
+                            .await;
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Fallback: POST a new page
+    let post_resp = client
+        .post(&pages_url)
+        .header("Authorization", auth_header(lock))
+        .json(&body)
+        .send()
+        .await?;
+
+    Ok(post_resp.status().is_success())
+}
+
+/// Sets summoner spells in champ select via `/lol-champ-select/v1/session/my-selection`.
+pub async fn set_summoner_spells_in_lcu(
+    lock: &Lockfile,
+    spell1_id: u64,
+    spell2_id: u64,
+) -> Result<bool> {
+    let client = http_client()?;
+    let url = format!(
+        "https://127.0.0.1:{}/lol-champ-select/v1/session/my-selection",
+        lock.port
+    );
+    let body = serde_json::json!({
+        "spell1Id": spell1_id,
+        "spell2Id": spell2_id
+    });
+    let resp = client
+        .patch(url)
+        .header("Authorization", auth_header(lock))
+        .json(&body)
+        .send()
+        .await?;
+
+    Ok(resp.status().is_success())
+}
+
+async fn save_item_sets_to_url(
+    client: &reqwest::Client,
+    lock: &Lockfile,
+    target_id: u64,
+    account_id: u64,
+    champion_id: u32,
+    set_title: &str,
+    new_set: &serde_json::Value,
+) -> Result<bool> {
+    let sets_url = format!("https://127.0.0.1:{}/lol-item-sets/v1/item-sets/{}/sets", lock.port, target_id);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+
+    let get_res = client
+        .get(&sets_url)
+        .header("Authorization", auth_header(lock))
+        .send()
+        .await;
+
+    let mut item_sets: Vec<serde_json::Value> = Vec::new();
+    let mut root_account_id = account_id;
+
+    if let Ok(resp) = get_res {
+        if resp.status().is_success() {
+            if let Ok(mut current_data) = resp.json::<serde_json::Value>().await {
+                if let Some(acc) = current_data.get("accountId").and_then(|v| v.as_u64()) {
+                    root_account_id = acc;
+                }
+                if let Some(existing_sets) = current_data.get_mut("itemSets").and_then(|v| v.as_array_mut()) {
+                    existing_sets.retain(|s| {
+                        let title = s.get("title").and_then(|v| v.as_str()).unwrap_or("");
+                        let champs = s.get("associatedChampions").and_then(|v| v.as_array());
+                        let has_champ = champs.map(|c| c.iter().any(|cid| cid.as_u64() == Some(champion_id as u64))).unwrap_or(false);
+                        !(title == set_title || (title.starts_with("Rift:") && has_champ))
+                    });
+                    item_sets = std::mem::take(existing_sets);
+                }
+            }
+        }
+    }
+
+    item_sets.push(new_set.clone());
+
+    let payload = serde_json::json!({
+        "accountId": root_account_id,
+        "itemSets": item_sets,
+        "timestamp": now
+    });
+
+    let put_resp = client
+        .put(&sets_url)
+        .header("Authorization", auth_header(lock))
+        .json(&payload)
+        .send()
+        .await;
+
+    if let Ok(resp) = put_resp {
+        if resp.status().is_success() {
+            return Ok(true);
+        }
+    }
+
+    let post_resp = client
+        .post(&sets_url)
+        .header("Authorization", auth_header(lock))
+        .json(&payload)
+        .send()
+        .await?;
+
+    Ok(post_resp.status().is_success())
+}
+
+/// Creates or updates a champion's item set via `/lol-item-sets/v1/item-sets/{summonerId}/sets`.
+pub async fn set_item_set_in_lcu(
+    lock: &Lockfile,
+    champion_id: u32,
+    champ_name: &str,
+    starter_items: Vec<u64>,
+    core_items: Vec<u64>,
+    situational_items: Vec<u64>,
+) -> Result<bool> {
+    let client = http_client()?;
+
+    let current_summoner_url = format!("https://127.0.0.1:{}/lol-summoner/v1/current-summoner", lock.port);
+    let summoner_resp = client
+        .get(&current_summoner_url)
+        .header("Authorization", auth_header(lock))
+        .send()
+        .await?;
+
+    if !summoner_resp.status().is_success() {
+        return Ok(false);
+    }
+
+    let summoner_json: serde_json::Value = summoner_resp.json().await?;
+    let summoner_id = summoner_json.get("summonerId").and_then(|v| v.as_u64()).unwrap_or(0);
+    let account_id = summoner_json.get("accountId").and_then(|v| v.as_u64()).unwrap_or(summoner_id);
+
+    if summoner_id == 0 && account_id == 0 {
+        return Ok(false);
+    }
+
+    let mut blocks = Vec::new();
+
+    if !starter_items.is_empty() {
+        let items: Vec<serde_json::Value> = starter_items
+            .iter()
+            .map(|id| serde_json::json!({ "id": id.to_string(), "count": 1 }))
+            .collect();
+        blocks.push(serde_json::json!({
+            "type": "Starting Items",
+            "items": items
+        }));
+    }
+
+    if !core_items.is_empty() {
+        let items: Vec<serde_json::Value> = core_items
+            .iter()
+            .map(|id| serde_json::json!({ "id": id.to_string(), "count": 1 }))
+            .collect();
+        blocks.push(serde_json::json!({
+            "type": "Core Build",
+            "items": items
+        }));
+    }
+
+    if !situational_items.is_empty() {
+        let items: Vec<serde_json::Value> = situational_items
+            .iter()
+            .map(|id| serde_json::json!({ "id": id.to_string(), "count": 1 }))
+            .collect();
+        blocks.push(serde_json::json!({
+            "type": "Situational Items",
+            "items": items
+        }));
+    }
+
+    let set_title = format!("Rift: {}", champ_name);
+    let new_set = serde_json::json!({
+        "title": set_title,
+        "type": "custom",
+        "associatedChampions": [champion_id],
+        "associatedMaps": [11, 12],
+        "map": "any",
+        "mode": "any",
+        "priority": true,
+        "sortrank": 1,
+        "blocks": blocks
+    });
+
+    if summoner_id > 0 {
+        if let Ok(true) = save_item_sets_to_url(client, lock, summoner_id, account_id, champion_id, &set_title, &new_set).await {
+            return Ok(true);
+        }
+    }
+
+    if account_id > 0 && account_id != summoner_id {
+        if let Ok(true) = save_item_sets_to_url(client, lock, account_id, account_id, champion_id, &set_title, &new_set).await {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
+}

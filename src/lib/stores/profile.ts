@@ -133,6 +133,31 @@ export function clearAllRecentSearches() {
   } catch {}
 }
 
+export const MATCH_REFRESH_COOLDOWN_MS = 10 * 60 * 1000;
+
+export function getLastRefreshTime(gn?: string, tl?: string, region = "EUW"): number | null {
+  const inMemory = get(lastSyncedAt);
+  const viewed = get(viewedProfile);
+  if (viewed && (!gn || viewed.game_name.toLowerCase() === gn.toLowerCase())) {
+    if (inMemory) return inMemory;
+    if (viewed.updated_at) return viewed.updated_at;
+  }
+  if (inMemory) return inMemory;
+
+  if (gn && typeof localStorage !== "undefined") {
+    try {
+      const cacheKey = `${CACHE_PREFIX}${region.toLowerCase()}_${gn.toLowerCase()}_${(tl || region).toLowerCase()}`;
+      const saved = localStorage.getItem(cacheKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.cached_at) return parsed.cached_at;
+        if (parsed?.profile?.updated_at) return parsed.profile.updated_at;
+      }
+    } catch {}
+  }
+  return viewed?.updated_at || null;
+}
+
 export async function loadPlayerProfile(
   gameName?: string,
   tagLine?: string,
@@ -200,13 +225,13 @@ export async function loadPlayerProfile(
 
   const isCacheMissingQueueStats =
     cachedData?.profile &&
-    (!cachedData.profile.top_champions_solo ||
-      cachedData.profile.top_champions_solo.length === 0 ||
-      !cachedData.profile.top_champions_flex ||
-      cachedData.profile.top_champions_flex.length === 0);
+    (!cachedData.profile.top_champions_solo || cachedData.profile.top_champions_solo.length === 0) &&
+    (!cachedData.profile.top_champions_flex || cachedData.profile.top_champions_flex.length === 0) &&
+    (Boolean(cachedData.profile.solo_rank) || Boolean(cachedData.profile.flex_rank));
 
-  // If cache is fresh (< 3 hours), not a force refresh, AND has queue stats, DO NOT trigger network reload!
-  if (cachedData && cacheAge < AUTO_REFRESH_TTL_MS && !forceRefresh && !isCacheMissingQueueStats) {
+  // If cache was updated within 10 minutes or is fresh (< 3 hours) and not a force refresh, DO NOT trigger network reload!
+  const isRecentRefresh = cacheAge < MATCH_REFRESH_COOLDOWN_MS;
+  if (cachedData && !forceRefresh && (isRecentRefresh || (cacheAge < AUTO_REFRESH_TTL_MS && !isCacheMissingQueueStats))) {
     viewedProfileLoading.set(false);
     viewedMatchesLoading.set(false);
     viewedProfileError.set(null);

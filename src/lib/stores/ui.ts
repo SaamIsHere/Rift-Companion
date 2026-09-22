@@ -6,3 +6,8 @@ import { writable } from "svelte/store";
  * consumed by App.svelte.
  */
 export const collapsed = writable<boolean>(false);
+
+/**
+ * Window maximized state. When maximized, outer window border can be hidden.
+ */
+export const isMaximized = writable<boolean>(false);

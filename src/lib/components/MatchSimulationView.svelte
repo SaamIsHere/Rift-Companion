@@ -2,13 +2,13 @@
   import { onMount, tick } from "svelte";
   import { get } from "svelte/store";
   import { invoke } from "@tauri-apps/api/core";
-  import type { Role, DraftState, Recommendation, SimulatedMatchAnalysis, Summoner, DetailedParticipant } from "../types";
+  import type { Role, DraftState, Recommendation, ScoringMode, SimulatedMatchAnalysis, Summoner, DetailedParticipant } from "../types";
   import { championCatalog, ddragonVersion } from "../stores/champions";
   import { draft as liveDraft } from "../stores/draft";
   import { scoringMode } from "../stores/scoring";
-  import { profile, viewedProfile, viewedMatches, loadPlayerProfile, loadMatchDetail } from "../stores/profile";
+  import { profile, viewedProfile, viewedMatches, lastSyncedAt, loadPlayerProfile, loadMatchDetail, MATCH_REFRESH_COOLDOWN_MS, getLastRefreshTime } from "../stores/profile";
   import { squareIconUrl, roleIconUrl, summonersRiftMapUrl } from "../utils/ddragon";
-  import { simulateDraft, simulateMatchAnalysis, getPairwiseStat, getChampionsByRole } from "../ipc/tauri";
+  import { simulateDraft, simulateMatchAnalysis, getPairwiseStat, getChampionsByRole, setScoringMode } from "../ipc/tauri";
   import ChampionOverview from "./ChampionOverview.svelte";
 
   const ROLE_DEFS: { role: Role; label: string; order: number }[] = [
@@ -123,6 +123,47 @@
   $: userHasPicked = allies[userRole] !== null;
   $: userChampionName = allies[userRole] ? $championCatalog.get(allies[userRole]!)?.name : null;
 
+  // Scoring focus modes matching Live Match
+  const SCORING_OPTIONS: { id: ScoringMode; label: string; subtitle: string }[] = [
+    {
+      id: "default",
+      label: "Balanced",
+      subtitle: "(Balanced rating)",
+    },
+    {
+      id: "counterpick",
+      label: "Counterpick",
+      subtitle: "(Direct matchup strength)",
+    },
+    {
+      id: "teamplayer",
+      label: "Team Player",
+      subtitle: "(Team combo & playstyle)",
+    },
+  ];
+
+  let scoringDropdownOpen = false;
+  $: activeScoringOption = SCORING_OPTIONS.find((o) => o.id === $scoringMode) || SCORING_OPTIONS[0];
+
+  async function handleScoringModeChange(newMode: ScoringMode) {
+    scoringDropdownOpen = false;
+    if ($scoringMode === newMode) return;
+    try {
+      await setScoringMode(newMode);
+    } catch (err) {
+      console.error("Failed to set scoring mode:", err);
+      scoringMode.set(newMode);
+    }
+    triggerEngineRecompute();
+  }
+
+  function handleDropdownClickOutside(e: MouseEvent) {
+    const target = e.target as HTMLElement | null;
+    if (scoringDropdownOpen && !target?.closest(".sim-scoring-dropdown-container")) {
+      scoringDropdownOpen = false;
+    }
+  }
+
   // Compute recommendations and analysis on state changes
   let draftUpdateDebounce: ReturnType<typeof setTimeout> | null = null;
   function triggerEngineRecompute() {
@@ -132,7 +173,7 @@
       isAnalysisLoading = true;
       try {
         const [recs, analysis] = await Promise.all([
-          simulateDraft(currentDraftState),
+          simulateDraft(currentDraftState, $scoringMode),
           simulateMatchAnalysis(currentDraftState),
         ]);
         recommendations = recs;
@@ -146,7 +187,7 @@
     }, 50);
   }
 
-  $: if (currentDraftState) {
+  $: if (currentDraftState && $scoringMode) {
     triggerEngineRecompute();
   }
 
@@ -390,8 +431,30 @@
       const tl = activeSummoner.tag_line || activeSummoner.display_name?.split("#")[1];
       const region = viewed?.region || "EUW";
 
-      // 2. Perform background profile refresh (forceRefresh = true)
-      await loadPlayerProfile(gn, tl, region, true);
+      // 2. Check if last refresh was less than 10 minutes ago (skip force-refresh if within cooldown)
+      const lastRefreshTime = getLastRefreshTime(gn, tl, region);
+      const existingMatches = get(viewedMatches);
+      let matchCount = existingMatches?.length || 0;
+
+      if (matchCount === 0 && typeof localStorage !== "undefined") {
+        try {
+          const cacheKey = `rift_profile_v5_cache_${region.toLowerCase()}_${(gn || "").toLowerCase()}_${(tl || region).toLowerCase()}`;
+          const saved = localStorage.getItem(cacheKey);
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed?.matches)) {
+              matchCount = parsed.matches.length;
+            }
+          }
+        } catch {}
+      }
+
+      // If refreshed < 10 minutes ago and matches are available, do not force network refresh
+      // (a League game cannot conclude in < 10 minutes, so checking again is unnecessary)
+      const isRefreshedRecently = lastRefreshTime !== null && (Date.now() - lastRefreshTime < MATCH_REFRESH_COOLDOWN_MS);
+      const shouldForceRefresh = !(isRefreshedRecently && matchCount > 0);
+
+      await loadPlayerProfile(gn, tl, region, shouldForceRefresh);
 
       // 3. Retrieve latest match
       const matches = get(viewedMatches);
@@ -583,10 +646,14 @@
   }
 
   onMount(() => {
+    window.addEventListener("click", handleDropdownClickOutside);
     triggerEngineRecompute();
     for (const def of ROLE_DEFS) {
       void ensureRoleCache(def.role);
     }
+    return () => {
+      window.removeEventListener("click", handleDropdownClickOutside);
+    };
   });
 </script>
 
@@ -951,16 +1018,51 @@
 
           <!-- Scoring Mode Selector when in Recommendations tab -->
           {#if activeRightTab === "recommendations"}
-            <div class="flex items-center gap-1.5">
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mode:</span>
-              <select
-                bind:value={$scoringMode}
-                class="rounded-lg border border-purple-500/20 bg-void-950/90 px-2 py-1 text-[11px] font-semibold text-purple-200 focus:outline-none focus:border-purple-400"
+            <div class="relative sim-scoring-dropdown-container">
+              <button
+                type="button"
+                on:click|stopPropagation={() => (scoringDropdownOpen = !scoringDropdownOpen)}
+                class="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/30 bg-void-950/70 px-2.5 py-1 text-xs font-semibold text-purple-200 shadow-sm transition hover:border-purple-400 hover:bg-void-900/80 focus:outline-none"
+                title="Change scoring focus mode"
               >
-                <option value="default">Balanced</option>
-                <option value="counterpick">Counterpick</option>
-                <option value="teamplayer">Team Player</option>
-              </select>
+                <span class="text-[10px] uppercase font-bold text-slate-400">Mode:</span>
+                <span class="font-bold text-white">{activeScoringOption.label}</span>
+                <svg
+                  class="h-3 w-3 text-purple-400 transition-transform {scoringDropdownOpen ? 'rotate-180' : ''}"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+
+              {#if scoringDropdownOpen}
+                <div
+                  class="absolute right-0 top-full z-50 mt-1.5 w-56 rounded-xl border border-purple-500/30 bg-void-950/95 p-1.5 shadow-2xl backdrop-blur-xl animate-fade-in"
+                >
+                  {#each SCORING_OPTIONS as opt (opt.id)}
+                    <button
+                      type="button"
+                      on:click={() => handleScoringModeChange(opt.id)}
+                      class="w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-xs transition {$scoringMode === opt.id
+                        ? 'bg-purple-600/30 text-white font-bold'
+                        : 'text-slate-300 hover:bg-white/5 hover:text-white'}"
+                    >
+                      <div class="flex flex-col">
+                        <span class="leading-tight">{opt.label}</span>
+                        <span class="text-[10px] text-slate-400 font-normal">{opt.subtitle}</span>
+                      </div>
+                      {#if $scoringMode === opt.id}
+                        <svg class="h-3.5 w-3.5 text-purple-400 shrink-0 ml-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      {/if}
+                    </button>
+                  {/each}
+                </div>
+              {/if}
             </div>
           {/if}
         </div>

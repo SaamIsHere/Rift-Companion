@@ -10,6 +10,7 @@
   import { getChampionRecommendation, setScoringMode } from "../ipc/tauri";
   import { preselectedChampionId, referenceChampionId } from "../stores/preselect";
   import RecommendationCard from "./RecommendationCard.svelte";
+  import ChampionImporter from "./ChampionImporter.svelte";
 
   const dispatch = createEventDispatcher<{
     selectOverview: number;
@@ -115,6 +116,25 @@
 
   $: ranks = new Map($recommendations.map((rec, i) => [rec.champion_id, i + 1]));
 
+  $: isLockedIn =
+    inChampSelect &&
+    Boolean(
+      $draft?.is_locked ||
+        ($draft?.local_champion_id &&
+          !$draft?.allies.some((p) => p.is_local && p.is_hover)),
+    );
+  $: lockedChampionId = isLockedIn ? ($draft?.local_champion_id ?? null) : null;
+
+  $: remainingRecommendations = lockedChampionId
+    ? $recommendations.filter((rec) => rec.champion_id !== lockedChampionId)
+    : $recommendations;
+
+  $: filteredRemaining = query.trim()
+    ? remainingRecommendations.filter((rec) =>
+        rec.name.toLowerCase().includes(query.trim().toLowerCase()),
+      )
+    : remainingRecommendations;
+
   $: filtered = query.trim()
     ? $recommendations.filter((rec) =>
         rec.name.toLowerCase().includes(query.trim().toLowerCase()),
@@ -122,9 +142,126 @@
     : $recommendations;
 </script>
 
-<aside class="glass flex min-h-0 flex-1 flex-col rounded-2xl p-5 overflow-hidden">
-  <!-- Top Header with Title and Rating Focus Dropdown -->
-  <div class="mb-4 flex items-center justify-between gap-4">
+<aside class="glass flex min-h-0 flex-1 flex-col rounded-2xl p-4 overflow-hidden">
+  {#if inChampSelect && isLockedIn && lockedChampionId}
+    <!-- SPLIT VIEW: 75% Importer & 25% Remaining Top Picks -->
+    <div class="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden">
+      <!-- Upper Section: Champion Importer (75%) -->
+      <div class="flex min-h-0 flex-[3] flex-col overflow-hidden">
+        <ChampionImporter championId={lockedChampionId} role={localRole} />
+      </div>
+
+      <!-- Lower Section: Remaining Top Picks (25%) -->
+      <div class="flex min-h-[140px] flex-1 flex-col overflow-hidden rounded-xl border border-purple-500/15 bg-void-950/20 p-2.5 shadow-sm">
+        <div class="mb-2 flex items-center justify-between gap-3 shrink-0">
+          <div class="flex items-center gap-2">
+            <div class="grid h-6 w-6 place-items-center rounded-lg bg-purple-600/20 text-purple-300 ring-1 ring-purple-500/30">
+              <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3z" />
+              </svg>
+            </div>
+            <div>
+              <h3 class="text-xs font-bold text-white tracking-wide">Remaining Top Picks</h3>
+              <p class="text-[10px] text-slate-400">Alternative champion choices for the draft</p>
+            </div>
+          </div>
+
+          <!-- Rating Focus & Search -->
+          <div class="flex items-center gap-2">
+            <div class="scoring-dropdown-container relative shrink-0">
+              <button
+                type="button"
+                on:click={() => (dropdownOpen = !dropdownOpen)}
+                class="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/30 bg-void-950/50 px-2.5 py-1 text-xs font-semibold text-purple-200 shadow-sm transition hover:border-purple-400 hover:bg-void-900/60 focus:outline-none"
+              >
+                <span>{activeOption.label}</span>
+                <svg
+                  class="h-3 w-3 text-purple-400 transition-transform {dropdownOpen ? 'rotate-180' : ''}"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </button>
+
+              {#if dropdownOpen}
+                <div
+                  class="absolute right-0 top-full z-40 mt-1.5 w-56 rounded-xl border border-purple-500/30 bg-void-950/95 p-1.5 shadow-2xl backdrop-blur-xl animate-fade-in"
+                >
+                  {#each SCORING_OPTIONS as opt (opt.id)}
+                    <button
+                      type="button"
+                      on:click={() => selectMode(opt.id)}
+                      class="w-full flex items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs transition {$scoringMode === opt.id
+                        ? 'bg-purple-600/30 text-white font-bold'
+                        : 'text-slate-300 hover:bg-white/5 hover:text-white'}"
+                    >
+                      <div class="flex flex-col">
+                        <span class="leading-tight">{opt.label}</span>
+                        <span class="text-[10px] text-slate-400 font-normal">{opt.subtitle}</span>
+                      </div>
+                      {#if $scoringMode === opt.id}
+                        <svg class="h-3.5 w-3.5 text-purple-400 shrink-0 ml-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      {/if}
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+
+            <!-- Compact Search Input -->
+            <div class="relative w-36 shrink-0">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                class="pointer-events-none absolute left-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-purple-300/60"
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="m21 21-4.3-4.3" stroke-linecap="round" />
+              </svg>
+              <input
+                type="text"
+                bind:value={query}
+                placeholder="Search…"
+                class="glass-soft w-full rounded-lg py-1 pl-7 pr-2 text-xs text-slate-100 placeholder:text-slate-400/60 focus:outline-none focus:ring-1 focus:ring-purple-400/50"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Scrollable List of Remaining Recommendations -->
+        {#if filteredRemaining.length}
+          <div class="flex min-h-0 flex-1 flex-col overflow-y-auto py-0.5 pl-0.5 pr-2">
+            <div class="flex flex-col rounded-xl border border-purple-500/15 bg-void-950/15 overflow-hidden divide-y divide-purple-500/10 shrink-0">
+              {#each filteredRemaining as rec, index (rec.champion_id)}
+                <RecommendationCard
+                  {rec}
+                  rank={ranks.get(rec.champion_id) ?? 0}
+                  compact={true}
+                  isFirst={index === 0}
+                  isLast={index === filteredRemaining.length - 1}
+                  on:moreInfo={(e) => dispatch("selectOverview", e.detail)}
+                />
+              {/each}
+            </div>
+          </div>
+        {:else}
+          <div class="grid flex-1 place-items-center px-4 text-center text-xs text-slate-500">
+            No champions match "{query}".
+          </div>
+        {/if}
+      </div>
+    </div>
+  {:else}
+    <!-- Top Header with Title and Rating Focus Dropdown -->
+    <div class="mb-4 flex items-center justify-between gap-4">
     <div class="flex items-center gap-3">
       <div class="grid h-8 w-8 place-items-center rounded-xl bg-purple-600/20 text-purple-300 ring-1 ring-purple-500/30">
         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -378,11 +515,13 @@
     {#if filtered.length}
       <div class="flex min-h-0 flex-1 flex-col overflow-y-auto py-1 pl-0.5 pr-3.5">
         <div class="flex flex-col rounded-xl border border-purple-500/15 bg-void-950/15 overflow-hidden divide-y divide-purple-500/10 shrink-0">
-          {#each filtered as rec (rec.champion_id)}
+          {#each filtered as rec, index (rec.champion_id)}
             <RecommendationCard
               {rec}
               rank={ranks.get(rec.champion_id) ?? 0}
               compact={$settings.compact_density}
+              isFirst={index === 0}
+              isLast={index === filtered.length - 1}
               on:moreInfo={(e) => dispatch("selectOverview", e.detail)}
             />
           {/each}
@@ -401,5 +540,6 @@
       </div>
     </div>
   {/if}
+{/if}
 </aside>
 

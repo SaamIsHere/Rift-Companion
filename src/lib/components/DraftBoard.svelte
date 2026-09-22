@@ -184,9 +184,9 @@
 
 <section class="glass flex min-h-0 flex-col rounded-2xl p-5 overflow-hidden">
   <!-- Header -->
-  <div class="mb-4 flex items-center justify-between shrink-0">
-    <div class="flex items-center gap-2.5">
-      <div class="grid h-8 w-8 place-items-center rounded-xl bg-purple-600/20 text-purple-300 ring-1 ring-purple-500/30">
+  <div class="mb-4 flex items-center justify-between gap-2 shrink-0">
+    <div class="flex items-center gap-2.5 min-w-0">
+      <div class="grid h-8 w-8 place-items-center rounded-xl bg-purple-600/20 text-purple-300 ring-1 ring-purple-500/30 shrink-0">
         <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
           <circle cx="9" cy="7" r="4" />
@@ -194,9 +194,9 @@
           <path d="M16 3.13a4 4 0 0 1 0 7.75" />
         </svg>
       </div>
-      <div>
-        <h2 class="text-sm font-bold text-white tracking-wide">Picked Champions</h2>
-        <p class="text-[11px] text-slate-400">Drag or click enemy champions to swap roles.</p>
+      <div class="min-w-0">
+        <h2 class="text-sm font-bold text-white tracking-wide truncate">Picked Champions</h2>
+        <p class="text-[11px] text-slate-400 truncate">Drag or click enemy champions to swap roles.</p>
       </div>
     </div>
 
@@ -204,21 +204,21 @@
       <button
         type="button"
         on:click={() => (selectedSlot = null)}
-        class="flex items-center gap-1.5 text-xs text-rose-300 bg-rose-900/50 hover:bg-rose-800/70 border border-rose-500/40 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+        class="flex items-center gap-1.5 text-xs text-rose-300 bg-rose-900/50 hover:bg-rose-800/70 border border-rose-500/40 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
         title="Cancel role swap"
       >
         <span>Cancel Swap</span>
         <span class="text-[10px] text-slate-400 font-mono">(Esc)</span>
       </button>
     {:else if inChampSelect && referenceName}
-      <span class="text-xs text-slate-400 bg-purple-950/40 border border-purple-500/20 px-2.5 py-1 rounded-lg">
+      <span class="text-xs text-slate-400 bg-purple-950/40 border border-purple-500/20 px-2.5 py-1 rounded-lg shrink-0 truncate max-w-[150px]">
         Preview: <strong class="text-purple-300 font-semibold">{referenceName}</strong>
       </span>
     {/if}
   </div>
 
   {#if $draft && inChampSelect}
-    <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto py-1 pl-1.5 pr-4">
+    <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto py-1 pl-1 pr-2">
       <!-- Your Team (Auto-detected from live client, read-only) -->
       <div class="flex flex-col gap-2">
         <div class="flex items-center justify-between px-1">

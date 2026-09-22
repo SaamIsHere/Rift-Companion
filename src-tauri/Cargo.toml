@@ -1,6 +1,6 @@
 [package]
 name = "rift-companion"
-version = "0.1.6"
+version = "0.1.7"
 description = "League of Legends champion-select companion"
 edition = "2021"
 rust-version = "1.77"
@@ -16,6 +16,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-autostart = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

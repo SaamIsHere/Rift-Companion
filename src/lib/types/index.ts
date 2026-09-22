@@ -109,12 +109,14 @@ export type ThemeId =
 export type WallpaperScope = "landing_only" | "all_tabs";
 
 export type CloseBehavior = "close" | "minimize" | "tray";
+export type StartupBehavior = "none" | "system_boot" | "league_launch";
 
 // User-adjustable app settings (Issue #15), persisted to settings.json.
 export interface Settings {
   compact_density: boolean;
   always_on_top: boolean;
   close_behavior?: CloseBehavior;
+  startup_behavior?: StartupBehavior;
   comp_weight: number;
   server_url: string;
   api_key?: string;
@@ -212,6 +214,7 @@ export interface ChampionBuildStats {
   summoner_spells: SummonerSpellStats[];
   skill_order?: SkillOrderStats | null;
   starter_items: StarterItemStats[];
+  support_items?: StarterItemStats[];
   boots: BootsStats[];
   core_items: CoreItemStats[];
   fourth_items: DepthItemStats[];

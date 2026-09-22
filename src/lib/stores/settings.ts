@@ -9,6 +9,7 @@ function getInitialSettings(): Settings {
     compact_density: false,
     always_on_top: false,
     close_behavior: "tray",
+    startup_behavior: "none",
     comp_weight: 0.15,
     server_url: DEFAULT_SERVER_URL,
     api_key: DEFAULT_API_KEY,

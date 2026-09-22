@@ -558,25 +558,28 @@
       {:else if overviewData?.build}
         {@const build = overviewData.build}
 
-        <!-- 1. STARTING ITEMS -->
+        <!-- 1. STARTING / SUPPORT ITEMS -->
+        {@const isSupport = overviewData.selected_role === "support" || selectedRole === "support"}
+        {@const supportItems = isSupport && build.support_items && build.support_items.length > 0 ? build.support_items : null}
+        {@const itemsToShow = supportItems || build.starter_items || []}
         <div class="glass rounded-xl p-3 shadow-sm">
           <div class="mb-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-purple-200">
-            <span>Starting Items</span>
+            <span>{isSupport ? "Support Items" : "Starting Items"}</span>
             <div class="flex items-center gap-4 text-[9px] font-bold uppercase text-slate-400">
               <span class="w-16 text-right">Pick Rate</span>
               <span class="w-14 text-right">Winrate</span>
             </div>
           </div>
 
-          {#if build.starter_items && build.starter_items.length}
+          {#if itemsToShow && itemsToShow.length}
             <div class="flex flex-col gap-1.5">
-              {#each build.starter_items.slice(0, 2) as starter, stIdx (`st-${stIdx}`)}
+              {#each itemsToShow.slice(0, 2) as starter, stIdx (`st-${stIdx}`)}
                 <div class="flex items-center justify-between rounded-lg border border-purple-500/15 bg-purple-950/20 p-2 transition hover:bg-purple-900/25">
                   <div class="flex items-center gap-1.5">
                     {#each starter.ids as itId, i}
                       <img
                         src={itemIconUrl(itId, $ddragonVersion)}
-                        alt="Starter Item"
+                        alt={isSupport ? "Support Item" : "Starter Item"}
                         class="h-7 w-7 rounded-md border border-purple-500/30 object-cover bg-black shrink-0"
                         title={starter.names?.[i] || ""}
                       />
@@ -595,7 +598,7 @@
               {/each}
             </div>
           {:else}
-            <p class="text-xs text-slate-400 italic">No starter item data available</p>
+            <p class="text-xs text-slate-400 italic">No {isSupport ? "support" : "starter"} item data available</p>
           {/if}
         </div>
 

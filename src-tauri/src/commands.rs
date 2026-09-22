@@ -1,6 +1,7 @@
 //! Tauri command handlers exposed to the frontend via `invoke`.
 
 use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_autostart::ManagerExt;
 
 use crate::data::models::{
     ChampionBuildStats, ChampionMatchupEntry, ChampionOverviewData, DamageType, RankTier, Role,
@@ -74,6 +75,60 @@ pub async fn hover_champion(champion_id: u32) -> Result<bool, String> {
     crate::lcu::client::hover_champion_in_lcu(&lock, champion_id)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// Import a rune page into the League of Legends client.
+#[tauri::command]
+pub async fn import_rune_page(
+    name: String,
+    primary_style_id: u32,
+    sub_style_id: u32,
+    selected_perk_ids: Vec<u32>,
+) -> Result<bool, String> {
+    let lock = crate::lcu::lockfile::find().ok_or_else(|| "LCU lockfile not found".to_string())?;
+    crate::lcu::client::set_rune_page_in_lcu(
+        &lock,
+        &name,
+        primary_style_id,
+        sub_style_id,
+        &selected_perk_ids,
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Set summoner spells in champ select in the League of Legends client.
+#[tauri::command]
+pub async fn import_summoner_spells(
+    spell1_id: u64,
+    spell2_id: u64,
+) -> Result<bool, String> {
+    let lock = crate::lcu::lockfile::find().ok_or_else(|| "LCU lockfile not found".to_string())?;
+    crate::lcu::client::set_summoner_spells_in_lcu(&lock, spell1_id, spell2_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Create or update an Item Set for a champion in the League of Legends client.
+#[tauri::command]
+pub async fn import_item_set(
+    champion_id: u32,
+    champ_name: String,
+    starter_items: Vec<u64>,
+    core_items: Vec<u64>,
+    situational_items: Vec<u64>,
+) -> Result<bool, String> {
+    let lock = crate::lcu::lockfile::find().ok_or_else(|| "LCU lockfile not found".to_string())?;
+    crate::lcu::client::set_item_set_in_lcu(
+        &lock,
+        champion_id,
+        &champ_name,
+        starter_items,
+        core_items,
+        situational_items,
+    )
+    .await
+    .map_err(|e| e.to_string())
 }
 
 /// Compute full scoring and matchup recommendation for a specific champion on-demand
@@ -325,6 +380,23 @@ pub fn set_settings(state: State<Shared>, settings: Settings, app: AppHandle) ->
         let _ = window.set_always_on_top(settings.always_on_top);
     }
 
+    // Apply startup behavior: manage autostart registration
+    {
+        let autostart = app.autolaunch();
+        match settings.startup_behavior.as_str() {
+            "system_boot" | "league_launch" => {
+                if let Err(e) = autostart.enable() {
+                    tracing::warn!("failed to enable autostart: {e}");
+                }
+            }
+            _ => {
+                if let Err(e) = autostart.disable() {
+                    tracing::warn!("failed to disable autostart: {e}");
+                }
+            }
+        }
+    }
+
     // If server_url or api_key was added/changed, load stats from server into memory immediately
     let should_refetch = !new_server_url.trim().is_empty()
         && !api_key.trim().is_empty()
@@ -442,10 +514,11 @@ pub fn get_pairwise_stat(
 pub fn get_champion_build(
     state: State<Shared>,
     champion_id: u32,
-    role: Role,
+    role: Option<Role>,
 ) -> Option<ChampionBuildStats> {
     let repo = state.repo.lock().unwrap().clone();
-    repo.get(champion_id)?.role_stats(role)?.build.clone()
+    let target_role = role.or_else(|| repo.primary_role(champion_id))?;
+    repo.get(champion_id)?.role_stats(target_role)?.build.clone()
 }
 
 fn calculate_precise_winrate(stats: &crate::data::models::RoleStats) -> f64 {
@@ -1410,9 +1483,16 @@ pub struct SimulatedCounter {
 
 /// Compute pick recommendations for an offline or mock draft session.
 #[tauri::command]
-pub fn simulate_draft(state: State<Shared>, draft: DraftState) -> Vec<Recommendation> {
+pub fn simulate_draft(
+    state: State<Shared>,
+    draft: DraftState,
+    mode: Option<weights::ScoringMode>,
+) -> Vec<Recommendation> {
     let repo = state.repo.lock().unwrap().clone();
-    let weights = state.weights.lock().unwrap().clone();
+    let mut weights = state.weights.lock().unwrap().clone();
+    if let Some(m) = mode {
+        weights.mode = m;
+    }
     engine::recommend(repo.as_ref(), &draft, &weights)
 }
 
@@ -1422,10 +1502,14 @@ pub fn simulate_champion_recommendation(
     state: State<Shared>,
     draft: DraftState,
     champion_id: u32,
+    mode: Option<weights::ScoringMode>,
 ) -> Option<Recommendation> {
     let repo = state.repo.lock().unwrap().clone();
     let role = draft.local_role?;
-    let weights = state.weights.lock().unwrap().clone();
+    let mut weights = state.weights.lock().unwrap().clone();
+    if let Some(m) = mode {
+        weights.mode = m;
+    }
     let c = repo.get(champion_id)?;
     let needs = engine::comp::needs(&repo, &draft);
     Some(engine::score_one(&repo, &draft, &weights, role, c, &needs))

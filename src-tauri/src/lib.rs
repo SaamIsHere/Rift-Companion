@@ -106,6 +106,7 @@ pub fn run() {
     // Seed persisted user settings (Issue #15 & #40); comp-weight rides along on `weights`.
     let settings = data::store::read_settings().unwrap_or_default();
     let always_on_top = settings.always_on_top;
+    let startup_behavior = settings.startup_behavior.clone();
 
     // Seed the rank-tier selection from settings.json first, falling back to stats.meta.json
     // so a manual choice survives a restart even when remote server is configured (Issue #40).
@@ -135,8 +136,16 @@ pub fn run() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .manage(shared.clone())
         .invoke_handler(tauri::generate_handler![
             commands::get_connection_status,
@@ -148,6 +157,9 @@ pub fn run() {
             commands::set_scoring_mode,
             commands::get_scoring_mode,
             commands::hover_champion,
+            commands::import_rune_page,
+            commands::import_summoner_spells,
+            commands::import_item_set,
             commands::get_champion_recommendation,
             commands::set_enemy_role,
             commands::set_champion_role,
@@ -232,8 +244,13 @@ pub fn run() {
             // Apply the persisted always-on-top preference and attach close-behavior event handler
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_always_on_top(always_on_top);
-                let _ = window.show();
-                let _ = window.set_focus();
+                // "On League Launch" mode: start hidden, the LCU watcher will show the window when League is found.
+                if startup_behavior == "league_launch" {
+                    let _ = window.hide();
+                } else {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
 
                 let is_quitting_win = is_quitting.clone();
                 let shared_win = shared.clone();

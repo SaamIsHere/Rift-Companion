@@ -340,6 +340,7 @@ export async function fetchOpggBuildData(championKey, role, tier, dd) {
       summoner_spells: [],
       skill_order: null,
       starter_items: [],
+      support_items: [],
       boots: [],
       core_items: [],
       fourth_items: [],
@@ -459,6 +460,7 @@ export async function fetchOpggBuildData(championKey, role, tier, dd) {
     // 3. Starter items, Boots, Core builds, 4th, 5th, 6th items
     const prefixes = [
       { prefix: "starter_items_", field: "starter_items", max: 2 },
+      { prefix: "support_items_", field: "support_items", max: 2 },
       { prefix: "boots_", field: "boots", max: 2 },
       { prefix: "core_items_", field: "core_items", max: 5 },
       { prefix: "depth_4_item_", field: "fourth_items", max: 5 },
@@ -469,6 +471,7 @@ export async function fetchOpggBuildData(championKey, role, tier, dd) {
     for (const [id, raw] of chunkMap.entries()) {
       if (
         raw.includes("starter_items_") ||
+        raw.includes("support_items_") ||
         raw.includes("boots_") ||
         raw.includes("core_items_") ||
         raw.includes("depth_")
@@ -535,6 +538,7 @@ export async function fetchOpggBuildData(championKey, role, tier, dd) {
     const hasData =
       result.runes.length > 0 ||
       result.starter_items.length > 0 ||
+      result.support_items.length > 0 ||
       result.core_items.length > 0 ||
       result.summoner_spells.length > 0;
 
@@ -555,6 +559,7 @@ export function extractMcpBuildFallback(d, dd) {
     summoner_spells: [],
     skill_order: null,
     starter_items: [],
+    support_items: [],
     boots: [],
     core_items: [],
     fourth_items: [],
@@ -656,9 +661,25 @@ export function extractMcpBuildFallback(d, dd) {
     }
   }
 
+  const SUPPORT_UPGRADE_IDS = new Set([3869, 3870, 3871, 3876, 3877]);
+  for (const item of d.last_items || []) {
+    if (item?.ids?.length && SUPPORT_UPGRADE_IDS.has(item.ids[0])) {
+      if (result.support_items.length < 2) {
+        result.support_items.push({
+          ids: item.ids,
+          names: item.ids.map((id) => dd?.itemsById?.get(id) || item.ids_names?.[0] || String(id)),
+          pick_rate: item.pick_rate != null ? round3(item.pick_rate) : null,
+          win_rate: item.win != null && item.play ? round3(item.win / item.play) : null,
+          play: item.play | 0,
+        });
+      }
+    }
+  }
+
   const hasData =
     result.runes.length > 0 ||
     result.starter_items.length > 0 ||
+    result.support_items.length > 0 ||
     result.core_items.length > 0 ||
     result.summoner_spells.length > 0;
 

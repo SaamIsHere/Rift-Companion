@@ -9,7 +9,7 @@ pub mod websocket;
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::data::models::RankTier;
@@ -40,6 +40,18 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                 // until the API actually came up. A completed websocket handshake is
                 // concrete proof the API is actually up.
                 set_status(&app, &shared, ConnectionStatus::Connected);
+
+                // "On League Launch" mode: show the hidden window now that League is found.
+                {
+                    let behavior = shared.settings.lock().unwrap().startup_behavior.clone();
+                    if behavior == "league_launch" {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
+                        }
+                    }
+                }
 
                 // Fetch the active account's profile for the title bar (Issue #9).
                 // Persist to disk so it is remembered across sessions (Issue #40).

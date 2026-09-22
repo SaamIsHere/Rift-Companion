@@ -13,7 +13,7 @@
     clearCustomWallpaper,
   } from "../stores/theme";
   import { THEMES } from "../themes";
-  import type { CloseBehavior, ThemeId, WallpaperScope } from "../types";
+  import type { CloseBehavior, StartupBehavior, ThemeId, WallpaperScope } from "../types";
   import {
     checkForAppUpdate,
     APP_VERSION,
@@ -52,6 +52,11 @@
 
   function setCloseBehavior(val: CloseBehavior) {
     settings.update((s) => ({ ...s, close_behavior: val }));
+    push();
+  }
+
+  function setStartupBehavior(val: StartupBehavior) {
+    settings.update((s) => ({ ...s, startup_behavior: val }));
     push();
   }
 
@@ -406,6 +411,50 @@
                   title="Minimize to system tray (keeps running in background next to clock)"
                 >
                   System Tray
+                </button>
+              </div>
+            </div>
+
+            <!-- Startup Behavior (3-part segmented button) -->
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-t border-purple-500/15 pt-2.5">
+              <div class="flex flex-col min-w-0 pr-2">
+                <span class="text-xs font-semibold text-slate-200 whitespace-nowrap">Startup Behavior</span>
+                <span class="text-[11px] text-slate-400 whitespace-nowrap">Launch app automatically</span>
+              </div>
+
+              <!-- 3-Segmented Button -->
+              <div class="inline-flex shrink-0 rounded-lg border border-purple-500/25 bg-void-950/80 p-0.5 shadow-inner">
+                <button
+                  type="button"
+                  on:click={() => setStartupBehavior("none")}
+                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.startup_behavior ?? 'none') === 'none'
+                    ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
+                  title="Do not start automatically"
+                >
+                  None
+                </button>
+
+                <button
+                  type="button"
+                  on:click={() => setStartupBehavior("system_boot")}
+                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.startup_behavior ?? 'none') === 'system_boot'
+                    ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
+                  title="Launch Rift Companion when Windows starts"
+                >
+                  System Boot
+                </button>
+
+                <button
+                  type="button"
+                  on:click={() => setStartupBehavior("league_launch")}
+                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.startup_behavior ?? 'none') === 'league_launch'
+                    ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
+                  title="Start with Windows but stay hidden until League of Legends is detected"
+                >
+                  League Launch
                 </button>
               </div>
             </div>
