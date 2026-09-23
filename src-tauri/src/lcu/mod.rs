@@ -139,7 +139,7 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                     let got_live = check_liveclient_data(&app, &shared).await;
                     if !got_live {
                         if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
-                            handle_gameflow_session(&app, &shared, gf_val);
+                            handle_gameflow_session(&app, &shared, Some(&lock), gf_val).await;
                         }
                     }
                     let app_poller = app.clone();
@@ -175,7 +175,7 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                                             let got_live = check_liveclient_data(&app, &shared).await;
                                             if !got_live {
                                                 if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
-                                                    handle_gameflow_session(&app, &shared, gf_val);
+                                                    handle_gameflow_session(&app, &shared, Some(&lock), gf_val).await;
                                                 }
                                             }
                                             let app_poller = app.clone();
@@ -202,7 +202,7 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                                     if is_in_match(&current_phase) {
                                         let got_live = check_liveclient_data(&app, &shared).await;
                                         if !got_live {
-                                            handle_gameflow_session(&app, &shared, ev.data);
+                                            handle_gameflow_session(&app, &shared, Some(&lock), ev.data).await;
                                         }
                                     }
                                 } else if ev.uri.contains("champ-select") {
@@ -297,7 +297,12 @@ fn clear_session(app: &AppHandle, shared: &Shared) {
     let _ = app.emit("scoring-mode://update", crate::engine::weights::ScoringMode::Default);
 }
 
-fn handle_gameflow_session(app: &AppHandle, shared: &Shared, data: serde_json::Value) {
+async fn handle_gameflow_session(
+    app: &AppHandle,
+    shared: &Shared,
+    lock: Option<&lockfile::Lockfile>,
+    data: serde_json::Value,
+) {
     let session: models::GameflowSession = match serde_json::from_value(data) {
         Ok(s) => s,
         Err(e) => {
@@ -319,6 +324,36 @@ fn handle_gameflow_session(app: &AppHandle, shared: &Shared, data: serde_json::V
         local_name,
         existing_draft.as_ref(),
     ) {
+        // Resolve summoner names for picks missing player_name
+        if let Some(gd) = &session.game_data {
+            let mut champ_puuids: std::collections::HashMap<u32, String> = std::collections::HashMap::new();
+            for p in gd.team_one.iter().chain(gd.team_two.iter()) {
+                if p.champion_id > 0 && !p.puuid.is_empty() {
+                    champ_puuids.insert(p.champion_id as u32, p.puuid.clone());
+                }
+            }
+            for sel in &gd.player_champion_selections {
+                if sel.champion_id > 0 && !sel.puuid.is_empty() {
+                    champ_puuids.entry(sel.champion_id).or_insert_with(|| sel.puuid.clone());
+                }
+            }
+
+            for pick in state.allies.iter_mut().chain(state.enemies.iter_mut()) {
+                if pick.is_local && pick.player_name.is_none() {
+                    if let Some(lp) = &local_profile {
+                        pick.player_name = Some(lp.display_name.clone());
+                        continue;
+                    }
+                }
+                if pick.player_name.is_none() {
+                    if let (Some(lock), Some(puuid)) = (lock, champ_puuids.get(&pick.champion_id)) {
+                        if let Ok(Some(name)) = client::get_summoner_by_puuid(lock, puuid).await {
+                            pick.player_name = Some(name);
+                        }
+                    }
+                }
+            }
+        }
         // Re-apply any enemy role overrides
         {
             let mut overrides = shared.enemy_role_overrides.lock().unwrap();

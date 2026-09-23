@@ -36,5 +36,8 @@ __pycache__/
 *.py[cod]
 *Log.txt
 deploy_to_nas.py
+deploy-nas.ps1
+scripts/deploy-nas.ps1
+*deploy-nas*
 get_tunnel_url.py
 scripts/dev.js

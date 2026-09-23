@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import type { DraftPick, Role, SimulatedMatchAnalysis, ChampionOverviewData, CoreItemStats, StarterItemStats, BootsStats, DepthItemStats } from "../types";
   import { draft } from "../stores/draft";
+  import { profile } from "../stores/profile";
   import { championCatalog, ddragonVersion } from "../stores/champions";
   import { squareIconUrl, roleIconUrl, itemIconUrl, summonerSpellIconUrl } from "../utils/ddragon";
   import { simulateMatchAnalysis, getChampionOverview } from "../ipc/tauri";
@@ -165,6 +166,43 @@
     if (item.play && totalGames && totalGames > 0) return (item.play / totalGames) * 100;
     return 15.2;
   }
+
+  function parseRiotId(raw?: string | null): { name: string; tag: string | null } | null {
+    if (!raw || !raw.trim()) return null;
+    const parts = raw.split("#");
+    if (parts.length >= 2 && parts[1]) {
+      return { name: parts[0], tag: `#${parts[1]}` };
+    }
+    return { name: parts[0], tag: null };
+  }
+
+  function getPlayerDisplayName(
+    pick: DraftPick | undefined,
+    champName: string | undefined,
+    isLocal: boolean,
+    roleLabel: string,
+    isAlly: boolean
+  ): { main: string; tag: string | null; isSummoner: boolean; fullTooltip: string } {
+    if (pick?.player_name && (!champName || pick.player_name.trim().toLowerCase() !== champName.trim().toLowerCase())) {
+      const parsed = parseRiotId(pick.player_name);
+      if (parsed) {
+        const full = `${champName || 'Champion'} (${parsed.name}${parsed.tag || ''})`;
+        return { main: parsed.name, tag: parsed.tag, isSummoner: true, fullTooltip: full };
+      }
+    }
+    if (isLocal && $profile?.display_name) {
+      const parsed = parseRiotId($profile.display_name);
+      if (parsed) {
+        const full = `${champName || 'Champion'} (${parsed.name}${parsed.tag || ''})`;
+        return { main: parsed.name, tag: parsed.tag, isSummoner: true, fullTooltip: full };
+      }
+    }
+    if (isLocal) {
+      return { main: "Your Champion", tag: null, isSummoner: false, fullTooltip: champName || "Your Champion" };
+    }
+    const placeholder = isAlly ? `Ally ${roleLabel}` : `Enemy ${roleLabel}`;
+    return { main: placeholder, tag: null, isSummoner: false, fullTooltip: champName ? `${champName} (${placeholder})` : placeholder };
+  }
 </script>
 
 <div class="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-12 gap-5 px-6 pb-6 pt-3 overflow-hidden select-none">
@@ -310,20 +348,22 @@
           {@const enemyInfo = enemyPick ? $championCatalog.get(enemyPick.champion_id) : null}
           {@const matchup = analysis?.lane_matchups.find((m) => m.role === def.role)}
           {@const isMyLane = allyPick?.is_local || (!allyPick && localRole === def.role)}
+          {@const allyPlayer = getPlayerDisplayName(allyPick, allyInfo?.name, isMyLane, def.label, true)}
+          {@const enemyPlayer = getPlayerDisplayName(enemyPick, enemyInfo?.name, false, def.label, false)}
 
           <div
             role="region"
             aria-label="{def.label} Lane Matchup"
-            class="relative flex items-center justify-between rounded-xl border p-2.5 transition-all {isMyLane
+            class="relative grid grid-cols-[1fr_26px_140px_26px_1fr] items-center gap-2 rounded-xl border px-3 py-2 transition-all {isMyLane
               ? 'bg-purple-950/30 border-purple-400/40 shadow-sm ring-1 ring-purple-500/20'
               : 'bg-void-950/20 border-purple-500/15 hover:border-purple-500/30'}"
           >
-            <!-- ALLY SIDE (LEFT) -->
+            <!-- 1. ALLY SIDE (LEFT) -->
             <button
               type="button"
               on:click={() => allyPick && selectChampionToInspect(allyPick.champion_id, def.role, true)}
-              class="flex items-center gap-2.5 min-w-0 max-w-[38%] text-left group cursor-pointer focus:outline-none"
-              title="Click to inspect item build"
+              class="flex items-center gap-2.5 min-w-0 w-full text-left group cursor-pointer focus:outline-none"
+              title={allyPlayer.fullTooltip}
             >
               <div class="relative shrink-0">
                 {#if allyInfo}
@@ -346,41 +386,48 @@
                 />
               </div>
 
-              <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-1.5">
+              <div class="min-w-0 flex-1 overflow-hidden">
+                <div class="flex items-center gap-1.5 min-w-0">
                   <span class="text-xs font-bold text-white truncate group-hover:text-purple-300 transition">
                     {allyInfo?.name || "Undecided"}
                   </span>
                   {#if isMyLane}
-                    <span class="rounded bg-purple-600/80 px-1 py-0.2 text-[9px] font-extrabold text-white">YOU</span>
+                    <span class="shrink-0 rounded bg-purple-600/80 px-1 py-0.2 text-[9px] font-extrabold text-white">YOU</span>
                   {/if}
                 </div>
-                <div class="text-[10px] text-slate-400 truncate">
-                  {#if allyPick?.player_name}
-                    {allyPick.player_name}
-                  {:else if isMyLane}
-                    Your Champion
-                  {:else}
-                    Ally {def.label}
+                <div class="text-[10px] truncate flex items-center gap-0.5 {allyPlayer.isSummoner ? 'text-purple-300/90 font-medium' : 'text-slate-400'}">
+                  <span class="truncate">{allyPlayer.main}</span>
+                  {#if allyPlayer.tag}
+                    <span class="text-purple-400/60 text-[9px] shrink-0 font-normal">{allyPlayer.tag}</span>
                   {/if}
                 </div>
               </div>
-
-              <!-- Summoner Spells if available -->
-              {#if allyPick?.spell1_id || allyPick?.spell2_id}
-                <div class="flex flex-col gap-0.5 shrink-0">
-                  {#if allyPick.spell1_id}
-                    <img src={summonerSpellIconUrl(allyPick.spell1_id, $ddragonVersion)} alt="Spell" class="h-4 w-4 rounded border border-purple-500/30" />
-                  {/if}
-                  {#if allyPick.spell2_id}
-                    <img src={summonerSpellIconUrl(allyPick.spell2_id, $ddragonVersion)} alt="Spell" class="h-4 w-4 rounded border border-purple-500/30" />
-                  {/if}
-                </div>
-              {/if}
             </button>
 
-            <!-- CENTER DUEL WIDGET -->
-            <div class="flex flex-col items-center justify-center px-2 min-w-[120px] max-w-[24%]">
+            <!-- 2. ALLY SUMMONER SPELLS (FIXED ALIGNED COLUMN) -->
+            <div class="flex flex-col items-center justify-center gap-1 w-[26px] shrink-0">
+              {#if allyPick?.spell1_id}
+                <img
+                  src={summonerSpellIconUrl(allyPick.spell1_id, $ddragonVersion)}
+                  alt="Spell"
+                  class="h-4 w-4 rounded border border-purple-500/30 object-cover shadow-xs"
+                />
+              {:else}
+                <div class="h-4 w-4 rounded border border-purple-500/20 bg-purple-950/30"></div>
+              {/if}
+              {#if allyPick?.spell2_id}
+                <img
+                  src={summonerSpellIconUrl(allyPick.spell2_id, $ddragonVersion)}
+                  alt="Spell"
+                  class="h-4 w-4 rounded border border-purple-500/30 object-cover shadow-xs"
+                />
+              {:else}
+                <div class="h-4 w-4 rounded border border-purple-500/20 bg-purple-950/30"></div>
+              {/if}
+            </div>
+
+            <!-- 3. CENTER DUEL WIDGET (FIXED ALIGNED COLUMN) -->
+            <div class="flex flex-col items-center justify-center px-1 text-center w-[140px] min-w-0 shrink-0">
               <span class="text-[9px] font-bold uppercase tracking-widest text-purple-300/70 mb-0.5">{def.label} Lane</span>
 
               {#if matchup && matchup.ally_winrate !== null && matchup.ally_winrate !== undefined}
@@ -424,45 +471,51 @@
               {/if}
             </div>
 
-            <!-- ENEMY SIDE (RIGHT) -->
-            <div class="flex items-center gap-2.5 min-w-0 max-w-[38%] justify-end">
-              <!-- Summoner Spells if available -->
-              {#if enemyPick?.spell1_id || enemyPick?.spell2_id}
-                <div class="flex flex-col gap-0.5 shrink-0">
-                  {#if enemyPick.spell1_id}
-                    <img src={summonerSpellIconUrl(enemyPick.spell1_id, $ddragonVersion)} alt="Spell" class="h-4 w-4 rounded border border-rose-500/30" />
-                  {/if}
-                  {#if enemyPick.spell2_id}
-                    <img src={summonerSpellIconUrl(enemyPick.spell2_id, $ddragonVersion)} alt="Spell" class="h-4 w-4 rounded border border-rose-500/30" />
-                  {/if}
-                </div>
+            <!-- 4. ENEMY SUMMONER SPELLS (FIXED ALIGNED COLUMN) -->
+            <div class="flex flex-col items-center justify-center gap-1 w-[26px] shrink-0">
+              {#if enemyPick?.spell1_id}
+                <img
+                  src={summonerSpellIconUrl(enemyPick.spell1_id, $ddragonVersion)}
+                  alt="Spell"
+                  class="h-4 w-4 rounded border border-rose-500/30 object-cover shadow-xs"
+                />
+              {:else}
+                <div class="h-4 w-4 rounded border border-rose-500/20 bg-rose-950/30"></div>
               {/if}
+              {#if enemyPick?.spell2_id}
+                <img
+                  src={summonerSpellIconUrl(enemyPick.spell2_id, $ddragonVersion)}
+                  alt="Spell"
+                  class="h-4 w-4 rounded border border-rose-500/30 object-cover shadow-xs"
+                />
+              {:else}
+                <div class="h-4 w-4 rounded border border-rose-500/20 bg-rose-950/30"></div>
+              {/if}
+            </div>
 
-              <div class="min-w-0 text-right flex-1">
-                <button
-                  type="button"
-                  on:click={() => enemyPick && selectChampionToInspect(enemyPick.champion_id, def.role, false)}
-                  class="text-xs font-bold text-white truncate block hover:text-rose-300 transition cursor-pointer text-right w-full"
-                  title="Click to inspect build"
-                >
-                  {enemyInfo?.name || "Enemy " + def.label}
-                </button>
-                <div class="text-[10px] text-slate-400 truncate">
-                  {#if enemyPick?.player_name}
-                    {enemyPick.player_name}
-                  {:else}
-                    Enemy Pick
+            <!-- 5. ENEMY SIDE (RIGHT) -->
+            <button
+              type="button"
+              on:click={() => enemyPick && selectChampionToInspect(enemyPick.champion_id, def.role, false)}
+              class="flex items-center justify-end gap-2.5 min-w-0 w-full text-right group cursor-pointer focus:outline-none"
+              title={enemyPlayer.fullTooltip}
+            >
+              <div class="min-w-0 flex-1 overflow-hidden text-right">
+                <div class="flex items-center justify-end gap-1.5 min-w-0">
+                  <span class="text-xs font-bold text-white truncate group-hover:text-rose-300 transition block">
+                    {enemyInfo?.name || ("Enemy " + def.label)}
+                  </span>
+                </div>
+                <div class="text-[10px] truncate flex items-center justify-end gap-0.5 {enemyPlayer.isSummoner ? 'text-rose-300/90 font-medium' : 'text-slate-400'}">
+                  {#if enemyPlayer.tag}
+                    <span class="text-rose-400/60 text-[9px] shrink-0 font-normal">{enemyPlayer.tag}</span>
                   {/if}
+                  <span class="truncate">{enemyPlayer.main}</span>
                 </div>
               </div>
 
-              <!-- Enemy Portrait (Click to inspect build) -->
-              <button
-                type="button"
-                on:click={() => enemyPick && selectChampionToInspect(enemyPick.champion_id, def.role, false)}
-                class="relative shrink-0 group focus:outline-none cursor-pointer"
-                title="Click to inspect item build"
-              >
+              <!-- Enemy Portrait -->
+              <div class="relative shrink-0">
                 {#if enemyInfo}
                   <img
                     src={squareIconUrl(enemyInfo.key, $ddragonVersion)}
@@ -481,8 +534,8 @@
                   class="absolute -bottom-1 -left-1 h-4 w-4 rounded-full bg-void-950 p-0.5 border border-rose-400/40"
                   title={def.label}
                 />
-              </button>
-            </div>
+              </div>
+            </button>
           </div>
         {/each}
       </div>

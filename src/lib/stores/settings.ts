@@ -8,14 +8,18 @@ function getInitialSettings(): Settings {
   const s: Settings = {
     compact_density: false,
     always_on_top: false,
-    close_behavior: "tray",
+    close_behavior: "close",
     startup_behavior: "none",
     comp_weight: 0.15,
     server_url: DEFAULT_SERVER_URL,
     api_key: DEFAULT_API_KEY,
     theme: "void",
     custom_wallpaper: null,
-    wallpaper_scope: "landing_only",
+    wallpaper_scope: "all_tabs",
+    auto_import_runes: false,
+    auto_import_spells: false,
+    auto_import_items: false,
+    flash_key: "D",
   };
   if (typeof localStorage !== "undefined") {
     try {
@@ -24,7 +28,19 @@ function getInitialSettings(): Settings {
       const hasCustom = localStorage.getItem("rift_has_custom_wallpaper") === "true";
       if (hasCustom) s.custom_wallpaper = "custom";
       const savedScope = localStorage.getItem("rift_wallpaper_scope") as any;
-      if (savedScope) s.wallpaper_scope = savedScope;
+      if (savedScope === "landing_only" || savedScope === "all_tabs") s.wallpaper_scope = savedScope;
+      const savedClose = localStorage.getItem("rift_close_behavior") as any;
+      if (savedClose === "close" || savedClose === "minimize" || savedClose === "tray") s.close_behavior = savedClose;
+      const savedStartup = localStorage.getItem("rift_startup_behavior") as any;
+      if (savedStartup === "none" || savedStartup === "system_boot" || savedStartup === "league_launch") s.startup_behavior = savedStartup;
+      const savedRunes = localStorage.getItem("rift_auto_import_runes");
+      if (savedRunes !== null) s.auto_import_runes = savedRunes === "true";
+      const savedSpells = localStorage.getItem("rift_auto_import_spells");
+      if (savedSpells !== null) s.auto_import_spells = savedSpells === "true";
+      const savedItems = localStorage.getItem("rift_auto_import_items");
+      if (savedItems !== null) s.auto_import_items = savedItems === "true";
+      const savedFlash = localStorage.getItem("rift_flash_key") as "D" | "F";
+      if (savedFlash === "D" || savedFlash === "F") s.flash_key = savedFlash;
     } catch {}
   }
   return s;

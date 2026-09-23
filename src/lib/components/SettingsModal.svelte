@@ -52,11 +52,21 @@
 
   function setCloseBehavior(val: CloseBehavior) {
     settings.update((s) => ({ ...s, close_behavior: val }));
+    if (typeof localStorage !== "undefined") {
+      try {
+        localStorage.setItem("rift_close_behavior", val);
+      } catch {}
+    }
     push();
   }
 
   function setStartupBehavior(val: StartupBehavior) {
     settings.update((s) => ({ ...s, startup_behavior: val }));
+    if (typeof localStorage !== "undefined") {
+      try {
+        localStorage.setItem("rift_startup_behavior", val);
+      } catch {}
+    }
     push();
   }
 
@@ -270,17 +280,6 @@
             <div class="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                on:click={() => setWallpaperScope("landing_only")}
-                class="rounded-lg border px-3 py-1.5 text-xs font-medium transition text-left { $wallpaperScope === 'landing_only'
-                  ? 'border-purple-400 bg-purple-600/30 text-white shadow-sm'
-                  : 'border-purple-500/20 bg-purple-950/30 text-slate-300 hover:bg-purple-900/30 hover:text-white' }"
-              >
-                <div class="font-bold">Landing Page Only</div>
-                <div class="text-[10px] opacity-70">Classic Summoner's Rift look</div>
-              </button>
-
-              <button
-                type="button"
                 on:click={() => setWallpaperScope("all_tabs")}
                 class="rounded-lg border px-3 py-1.5 text-xs font-medium transition text-left { $wallpaperScope === 'all_tabs'
                   ? 'border-purple-400 bg-purple-600/30 text-white shadow-sm'
@@ -288,6 +287,17 @@
               >
                 <div class="font-bold">Entire Application</div>
                 <div class="text-[10px] opacity-70">Subtle backdrop across all panels & tabs</div>
+              </button>
+
+              <button
+                type="button"
+                on:click={() => setWallpaperScope("landing_only")}
+                class="rounded-lg border px-3 py-1.5 text-xs font-medium transition text-left { $wallpaperScope === 'landing_only'
+                  ? 'border-purple-400 bg-purple-600/30 text-white shadow-sm'
+                  : 'border-purple-500/20 bg-purple-950/30 text-slate-300 hover:bg-purple-900/30 hover:text-white' }"
+              >
+                <div class="font-bold">Landing Page Only</div>
+                <div class="text-[10px] opacity-70">Classic Summoner's Rift look</div>
               </button>
             </div>
           </div>
@@ -383,7 +393,7 @@
                 <button
                   type="button"
                   on:click={() => setCloseBehavior("close")}
-                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.close_behavior ?? 'tray') === 'close'
+                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.close_behavior ?? 'close') === 'close'
                     ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
                   title="Close and completely quit Rift Companion"
@@ -394,7 +404,7 @@
                 <button
                   type="button"
                   on:click={() => setCloseBehavior("minimize")}
-                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.close_behavior ?? 'tray') === 'minimize'
+                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.close_behavior ?? 'close') === 'minimize'
                     ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
                   title="Minimize window to taskbar"
@@ -405,7 +415,7 @@
                 <button
                   type="button"
                   on:click={() => setCloseBehavior("tray")}
-                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.close_behavior ?? 'tray') === 'tray'
+                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.close_behavior ?? 'close') === 'tray'
                     ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
                   title="Minimize to system tray (keeps running in background next to clock)"

@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { McpClient } from "./opgg.mjs";
+import { McpClient } from "./opgg.js";
 
 const DDRAGON = "https://ddragon.leagueoflegends.com";
 const ALL_POSITIONS = ["top", "jungle", "mid", "adc", "support"];
@@ -62,12 +62,12 @@ export async function loadDataDragon() {
   const res = await fetch(`${DDRAGON}/cdn/${version}/data/en_US/champion.json`, {
     headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) RiftServer/1.0" },
   });
-  const champ = await res.json();
+  const champ: any = await res.json();
   const byId = new Map();
   const resolve = new Map();
-  const norm = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const norm = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 
-  for (const e of Object.values(champ.data)) {
+  for (const e of Object.values<any>(champ.data)) {
     const id = Number(e.key);
     const rec = { id, key: e.id, name: e.name, tags: e.tags || [] };
     byId.set(id, rec);
@@ -82,10 +82,10 @@ export async function loadDataDragon() {
   const itemRes = await fetch(`${DDRAGON}/cdn/${version}/data/en_US/item.json`, {
     headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) RiftServer/1.0" },
   }).catch(() => null);
-  const itemJson = itemRes?.ok ? await itemRes.json() : null;
+  const itemJson: any = itemRes?.ok ? await itemRes.json() : null;
   const itemsById = new Map();
   if (itemJson?.data) {
-    for (const [idStr, item] of Object.entries(itemJson.data)) {
+    for (const [idStr, item] of Object.entries<any>(itemJson.data)) {
       itemsById.set(Number(idStr), item.name);
     }
   }
@@ -94,10 +94,10 @@ export async function loadDataDragon() {
   const summonerRes = await fetch(`${DDRAGON}/cdn/${version}/data/en_US/summoner.json`, {
     headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) RiftServer/1.0" },
   }).catch(() => null);
-  const summonerJson = summonerRes?.ok ? await summonerRes.json() : null;
+  const summonerJson: any = summonerRes?.ok ? await summonerRes.json() : null;
   const spellsById = new Map();
   if (summonerJson?.data) {
-    for (const spell of Object.values(summonerJson.data)) {
+    for (const spell of Object.values<any>(summonerJson.data)) {
       spellsById.set(Number(spell.key), spell.name);
     }
   }
@@ -689,9 +689,9 @@ export function extractMcpBuildFallback(d, dd) {
 /**
  * Mathematically combines two champion datasets into a single weighted dataset.
  */
-export function combineChampionDatasets(dataA, dataB) {
-  const mapB = new Map((dataB || []).map((c) => [c.champion_id, c]));
-  const combined = [];
+export function combineChampionDatasets(dataA: any[], dataB: any[]) {
+  const mapB = new Map((dataB || []).map((c: any) => [c.champion_id, c]));
+  const combined: any[] = [];
 
   for (const cA of dataA || []) {
     const cB = mapB.get(cA.champion_id);
@@ -700,7 +700,7 @@ export function combineChampionDatasets(dataA, dataB) {
       continue;
     }
 
-    const rec = {
+    const rec: any = {
       champion_id: cA.champion_id,
       name: cA.name,
       image: cA.image,
@@ -805,7 +805,7 @@ export function combineChampionDatasets(dataA, dataB) {
 /**
  * Crawls OP.GG champion data directly for an OP.GG recognized tier string.
  */
-export async function crawlBaseTier(opggTier = "emerald_plus", options = {}) {
+export async function crawlBaseTier(opggTier = "emerald_plus", options: Record<string, any> = {}) {
   const {
     concurrency = 6,
     delayMs = 50,
@@ -1049,12 +1049,12 @@ export async function crawlBaseTier(opggTier = "emerald_plus", options = {}) {
   for (const pos of ALL_POSITIONS) {
     const roleChamps = [...champs.values()].filter((c) => c.stats[pos]);
     for (const cA of roleChamps) {
-      const matchupsA = cA.stats[pos].matchups;
+      const matchupsA = cA.stats[pos].matchups as Record<string, any>;
       for (const [bIdStr, dataA] of Object.entries(matchupsA)) {
         const bId = Number(bIdStr);
         const cB = champs.get(bId);
         if (cB && cB.stats[pos]) {
-          const matchupsB = cB.stats[pos].matchups;
+          const matchupsB = cB.stats[pos].matchups as Record<string, any>;
           if (matchupsB[cA.champion_id] == null) {
             matchupsB[cA.champion_id] = {
               winrate: round3(1 - dataA.winrate),
@@ -1078,7 +1078,7 @@ export async function crawlBaseTier(opggTier = "emerald_plus", options = {}) {
 /**
  * Crawls OP.GG champion data for a tier, synthesizing Plus tiers where appropriate.
  */
-export async function crawlTier(tier = "emerald_plus", options = {}) {
+export async function crawlTier(tier = "emerald_plus", options: Record<string, any> = {}) {
   const dataDir = options.dataDir;
   const dd = options.ddragonData || (await loadDataDragon());
   const opts = { ...options, ddragonData: dd };
@@ -1171,7 +1171,7 @@ export async function saveDataset(dataDir, result) {
   let totalSynergies = 0;
   let totalBuilds = 0;
   for (const c of champions) {
-    for (const s of Object.values(c.stats || {})) {
+    for (const s of Object.values<any>(c.stats || {})) {
       totalMatchups += Object.keys(s.matchups || {}).length;
       totalSynergies += Object.keys(s.synergies || {}).length;
       if (s.build) totalBuilds++;

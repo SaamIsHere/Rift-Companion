@@ -43,7 +43,7 @@ const initialScope: WallpaperScope = (() => {
       }
     } catch {}
   }
-  return "landing_only";
+  return "all_tabs";
 })();
 
 export const wallpaperScope = writable<WallpaperScope>(initialScope);

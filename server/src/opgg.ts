@@ -11,21 +11,26 @@ const ENDPOINT = "https://mcp-api.op.gg/mcp";
  * Custom recursive-descent parser for OP.GG's class DSL
  * (e.g. `class ChampionAnalysis: ...` followed by constructor calls like `Counter(122, 0.447, 342)`).
  */
-export function parseOpgg(text) {
+export function parseOpgg(text: string): any {
   if (typeof text !== "string") return text;
   const lines = text.split(/\r?\n/);
-  const classes = {};
+  const classes: Record<string, string[]> = {};
   let start = 0;
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(/^class\s+(\w+):\s*(.*)$/);
     if (m) classes[m[1]] = m[2].split(",").map((s) => s.trim()).filter(Boolean);
     else if (lines[i].trim() === "") continue;
-    else { start = i; break; }
+    else {
+      start = i;
+      break;
+    }
   }
   const s = lines.slice(start).join("\n").trim();
   let p = 0;
-  const ws = () => { while (p < s.length && /\s/.test(s[p])) p++; };
-  const value = () => {
+  const ws = () => {
+    while (p < s.length && /\s/.test(s[p])) p++;
+  };
+  const value = (): any => {
     ws();
     const c = s[p];
     if (c === '"') return str();
@@ -33,7 +38,7 @@ export function parseOpgg(text) {
     if (/[A-Za-z_]/.test(c)) return identOrCtor();
     return num();
   };
-  const str = () => {
+  const str = (): string => {
     p++;
     let o = "";
     while (p < s.length) {
@@ -44,35 +49,44 @@ export function parseOpgg(text) {
     }
     return o;
   };
-  const arr = () => {
+  const arr = (): any[] => {
     p++;
-    const a = [];
+    const a: any[] = [];
     ws();
-    if (s[p] === "]") { p++; return a; }
+    if (s[p] === "]") {
+      p++;
+      return a;
+    }
     for (;;) {
       a.push(value());
       ws();
-      if (s[p] === ",") { p++; continue; }
+      if (s[p] === ",") {
+        p++;
+        continue;
+      }
       break;
     }
     ws();
     if (s[p] === "]") p++;
     return a;
   };
-  const identOrCtor = () => {
+  const identOrCtor = (): any => {
     const st = p;
     while (p < s.length && /[A-Za-z0-9_]/.test(s[p])) p++;
     const id = s.slice(st, p);
     ws();
     if (s[p] === "(") {
       p++;
-      const a = [];
+      const a: any[] = [];
       ws();
       if (s[p] !== ")") {
         for (;;) {
           a.push(value());
           ws();
-          if (s[p] === ",") { p++; continue; }
+          if (s[p] === ",") {
+            p++;
+            continue;
+          }
           break;
         }
       }
@@ -80,7 +94,7 @@ export function parseOpgg(text) {
       if (s[p] === ")") p++;
       const f = classes[id];
       if (f) {
-        const o = {};
+        const o: Record<string, any> = {};
         f.forEach((k, i) => (o[k] = a[i]));
         return o;
       }
@@ -91,7 +105,7 @@ export function parseOpgg(text) {
     if (id === "null" || id === "None") return null;
     return id;
   };
-  const num = () => {
+  const num = (): number | string => {
     const st = p;
     while (p < s.length && /[-0-9.eE+]/.test(s[p])) p++;
     const t = s.slice(st, p);
@@ -102,15 +116,18 @@ export function parseOpgg(text) {
 }
 
 export class McpClient {
+  private sessionId: string | null;
+  private counter: number;
+
   constructor() {
     this.sessionId = null;
     this.counter = 1;
   }
 
-  async post(body, isNotification = false) {
-    const headers = {
+  async post(body: Record<string, any>, isNotification = false): Promise<any> {
+    const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      "Accept": "application/json, text/event-stream",
+      Accept: "application/json, text/event-stream",
     };
     if (this.sessionId) {
       headers["Mcp-Session-Id"] = this.sessionId;
@@ -132,7 +149,7 @@ export class McpClient {
     const ct = res.headers.get("content-type") || "";
     const text = await res.text();
     if (ct.includes("text/event-stream")) {
-      const msgs = [];
+      const msgs: any[] = [];
       for (const line of text.split(/\r?\n/)) {
         if (line.startsWith("data:")) {
           const d = line.slice(5).trim();
@@ -152,7 +169,7 @@ export class McpClient {
     }
   }
 
-  async initialize() {
+  async initialize(): Promise<void> {
     await this.post({
       jsonrpc: "2.0",
       id: this.counter++,
@@ -163,13 +180,10 @@ export class McpClient {
         clientInfo: { name: "rift-server", version: "1.0.0" },
       },
     });
-    await this.post(
-      { jsonrpc: "2.0", method: "notifications/initialized" },
-      true
-    );
+    await this.post({ jsonrpc: "2.0", method: "notifications/initialized" }, true);
   }
 
-  async callTool(name, argsObj) {
+  async callTool(name: string, argsObj: Record<string, any>): Promise<any> {
     const body = {
       jsonrpc: "2.0",
       id: this.counter++,
@@ -180,7 +194,7 @@ export class McpClient {
     if (msg?.error) {
       throw new Error(`${name}: ${JSON.stringify(msg.error)}`);
     }
-    const text = msg?.result?.content?.find((c) => c.type === "text")?.text;
+    const text = msg?.result?.content?.find((c: any) => c.type === "text")?.text;
     if (!text) return msg?.result;
     const trimmed = text.trim();
     if (

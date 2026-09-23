@@ -114,18 +114,14 @@ pub async fn import_summoner_spells(
 pub async fn import_item_set(
     champion_id: u32,
     champ_name: String,
-    starter_items: Vec<u64>,
-    core_items: Vec<u64>,
-    situational_items: Vec<u64>,
+    blocks: Vec<crate::lcu::client::ItemSetBlockInput>,
 ) -> Result<bool, String> {
     let lock = crate::lcu::lockfile::find().ok_or_else(|| "LCU lockfile not found".to_string())?;
     crate::lcu::client::set_item_set_in_lcu(
         &lock,
         champion_id,
         &champ_name,
-        starter_items,
-        core_items,
-        situational_items,
+        blocks,
     )
     .await
     .map_err(|e| e.to_string())

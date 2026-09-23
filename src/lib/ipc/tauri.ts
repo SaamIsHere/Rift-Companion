@@ -11,8 +11,10 @@ import { settings, activationOpen } from "../stores/settings";
 import type {
   ChampionBuildStats,
   ChampionOverviewData,
+  CloseBehavior,
   ConnectionStatus,
   DraftState,
+  ItemSetBlock,
   PairwiseStat,
   RankTier,
   Recommendation,
@@ -22,7 +24,9 @@ import type {
   ServerStatus,
   Settings,
   SimulatedMatchAnalysis,
+  StartupBehavior,
   Summoner,
+  WallpaperScope,
   Weights,
 } from "../types";
 
@@ -95,6 +99,24 @@ export async function initIpc(): Promise<void> {
       if (mode) scoringMode.set(mode);
     } catch (_) {}
     const s = await invoke<Settings>("get_settings");
+    if (typeof localStorage !== "undefined") {
+      try {
+        const savedScope = localStorage.getItem("rift_wallpaper_scope") as WallpaperScope;
+        if (savedScope === "landing_only" || savedScope === "all_tabs") s.wallpaper_scope = savedScope;
+        const savedClose = localStorage.getItem("rift_close_behavior") as CloseBehavior;
+        if (savedClose === "close" || savedClose === "minimize" || savedClose === "tray") s.close_behavior = savedClose;
+        const savedStartup = localStorage.getItem("rift_startup_behavior") as StartupBehavior;
+        if (savedStartup === "none" || savedStartup === "system_boot" || savedStartup === "league_launch") s.startup_behavior = savedStartup;
+        const savedRunes = localStorage.getItem("rift_auto_import_runes");
+        if (savedRunes !== null) s.auto_import_runes = savedRunes === "true";
+        const savedSpells = localStorage.getItem("rift_auto_import_spells");
+        if (savedSpells !== null) s.auto_import_spells = savedSpells === "true";
+        const savedItems = localStorage.getItem("rift_auto_import_items");
+        if (savedItems !== null) s.auto_import_items = savedItems === "true";
+        const savedFlash = localStorage.getItem("rift_flash_key") as "D" | "F";
+        if (savedFlash === "D" || savedFlash === "F") s.flash_key = savedFlash;
+      } catch {}
+    }
     settings.set(s);
     if (!s.api_key || s.api_key.trim() === "") {
       activationOpen.set(true);
@@ -184,17 +206,13 @@ export async function importSummonerSpells(
 export async function importItemSet(
   championId: number,
   champName: string,
-  starterItems: number[],
-  coreItems: number[],
-  situationalItems: number[],
+  blocks: ItemSetBlock[],
 ): Promise<boolean> {
   if (!isTauri) {
     console.log("[Mock] importItemSet", {
       championId,
       champName,
-      starterItems,
-      coreItems,
-      situationalItems,
+      blocks,
     });
     return true;
   }
@@ -202,9 +220,7 @@ export async function importItemSet(
     return await invoke<boolean>("import_item_set", {
       championId,
       champName,
-      starterItems,
-      coreItems,
-      situationalItems,
+      blocks,
     });
   } catch (err) {
     console.error("Failed to import item set via IPC", err);

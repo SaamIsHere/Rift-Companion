@@ -123,6 +123,10 @@ export interface Settings {
   theme?: ThemeId | string;
   custom_wallpaper?: string | null;
   wallpaper_scope?: WallpaperScope;
+  auto_import_runes?: boolean;
+  auto_import_spells?: boolean;
+  auto_import_items?: boolean;
+  flash_key?: "D" | "F";
 }
 
 export interface ServerStatus {
@@ -207,6 +211,11 @@ export interface DepthItemStats {
   pick_rate?: number;
   win_rate?: number;
   play?: number;
+}
+
+export interface ItemSetBlock {
+  name: string;
+  items: number[];
 }
 
 export interface ChampionBuildStats {

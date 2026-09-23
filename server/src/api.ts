@@ -2,7 +2,7 @@ import express from "express";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
-import { SUPPORTED_TIERS } from "./crawler.mjs";
+import { SUPPORTED_TIERS } from "./crawler.js";
 
 function normalizeTier(tier) {
   if (!tier) return "emerald_plus";
@@ -127,8 +127,8 @@ export function createApiRouter(scheduler, dataDir) {
 
   // Fetch build recommendations for a specific champion and role
   router.get("/api/build", async (req, res) => {
-    const champQuery = (req.query.champion || "").toLowerCase().trim();
-    const roleQuery = (req.query.role || "").toLowerCase().trim();
+    const champQuery = String(req.query.champion || "").toLowerCase().trim();
+    const roleQuery = String(req.query.role || "").toLowerCase().trim();
     const tier = normalizeTier(req.query.tier);
 
     if (!champQuery || !roleQuery) {

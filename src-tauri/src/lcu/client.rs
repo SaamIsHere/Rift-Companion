@@ -187,6 +187,44 @@ pub async fn get_current_summoner(lock: &Lockfile) -> Result<Option<Summoner>> {
     }))
 }
 
+/// Fetch summoner details (Riot ID gameName#tagLine) for a given PUUID via `/lol-summoner/v2/summoners/puuid/{puuid}`.
+pub async fn get_summoner_by_puuid(lock: &Lockfile, puuid: &str) -> Result<Option<String>> {
+    if puuid.is_empty() {
+        return Ok(None);
+    }
+    let client = http_client()?;
+    let url = format!(
+        "https://127.0.0.1:{}/lol-summoner/v2/summoners/puuid/{}",
+        lock.port, puuid
+    );
+    let resp = client
+        .get(url)
+        .header("Authorization", auth_header(lock))
+        .timeout(std::time::Duration::from_millis(1500))
+        .send()
+        .await?;
+
+    if !resp.status().is_success() {
+        return Ok(None);
+    }
+    let v: serde_json::Value = resp.json().await?;
+    let game_name = v.get("gameName").and_then(|s| s.as_str()).unwrap_or("");
+    let tag_line = v.get("tagLine").and_then(|s| s.as_str()).unwrap_or("");
+    let display_name = v.get("displayName").and_then(|s| s.as_str()).unwrap_or("");
+
+    if !game_name.is_empty() {
+        if !tag_line.is_empty() {
+            Ok(Some(format!("{}#{}", game_name, tag_line)))
+        } else {
+            Ok(Some(game_name.to_string()))
+        }
+    } else if !display_name.is_empty() {
+        Ok(Some(display_name.to_string()))
+    } else {
+        Ok(None)
+    }
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct RankedQueueEntry {
     pub queue_type: String,
@@ -632,14 +670,18 @@ async fn save_item_sets_to_url(
     Ok(post_resp.status().is_success())
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ItemSetBlockInput {
+    pub name: String,
+    pub items: Vec<u64>,
+}
+
 /// Creates or updates a champion's item set via `/lol-item-sets/v1/item-sets/{summonerId}/sets`.
 pub async fn set_item_set_in_lcu(
     lock: &Lockfile,
     champion_id: u32,
     champ_name: &str,
-    starter_items: Vec<u64>,
-    core_items: Vec<u64>,
-    situational_items: Vec<u64>,
+    blocks_input: Vec<ItemSetBlockInput>,
 ) -> Result<bool> {
     let client = http_client()?;
 
@@ -664,37 +706,18 @@ pub async fn set_item_set_in_lcu(
 
     let mut blocks = Vec::new();
 
-    if !starter_items.is_empty() {
-        let items: Vec<serde_json::Value> = starter_items
-            .iter()
-            .map(|id| serde_json::json!({ "id": id.to_string(), "count": 1 }))
-            .collect();
-        blocks.push(serde_json::json!({
-            "type": "Starting Items",
-            "items": items
-        }));
-    }
-
-    if !core_items.is_empty() {
-        let items: Vec<serde_json::Value> = core_items
-            .iter()
-            .map(|id| serde_json::json!({ "id": id.to_string(), "count": 1 }))
-            .collect();
-        blocks.push(serde_json::json!({
-            "type": "Core Build",
-            "items": items
-        }));
-    }
-
-    if !situational_items.is_empty() {
-        let items: Vec<serde_json::Value> = situational_items
-            .iter()
-            .map(|id| serde_json::json!({ "id": id.to_string(), "count": 1 }))
-            .collect();
-        blocks.push(serde_json::json!({
-            "type": "Situational Items",
-            "items": items
-        }));
+    for block in blocks_input {
+        if !block.items.is_empty() {
+            let items: Vec<serde_json::Value> = block
+                .items
+                .iter()
+                .map(|id| serde_json::json!({ "id": id.to_string(), "count": 1 }))
+                .collect();
+            blocks.push(serde_json::json!({
+                "type": block.name,
+                "items": items
+            }));
+        }
     }
 
     let set_title = format!("Rift: {}", champ_name);

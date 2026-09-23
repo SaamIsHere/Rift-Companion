@@ -8,7 +8,8 @@ COPY package*.json ./
 # Install production dependencies & tzdata for local timezone scheduling
 RUN apk add --no-cache tzdata && (npm ci --only=production || npm install --only=production)
 
-# Copy application source and web dashboard
+# Copy configuration, application source and web dashboard
+COPY tsconfig.json ./
 COPY src/ ./src/
 COPY public/ ./public/
 
@@ -27,4 +28,4 @@ EXPOSE 8085
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://localhost:8085/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"
 
-CMD ["node", "src/index.mjs"]
+CMD ["npm", "start"]

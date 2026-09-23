@@ -5,11 +5,41 @@
  */
 
 import fs from "node:fs/promises";
-import existsSync from "node:fs";
+import { existsSync } from "node:fs";
 import path from "node:path";
-import { loadDataDragon, fetchOpggBuildData } from "../server/src/crawler.mjs";
+import type { StarterItemStats } from "../src/lib/types/index.js";
 
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// @ts-ignore - crawler in server directory is TypeScript
+import { loadDataDragon, fetchOpggBuildData } from "../server/src/crawler.js";
+
+interface ChampionSupportStats {
+  build?: {
+    runes: any[];
+    summoner_spells: any[];
+    skill_order: any | null;
+    starter_items: any[];
+    support_items?: StarterItemStats[];
+    boots: any[];
+    core_items: any[];
+    fourth_items: any[];
+    fifth_items: any[];
+    sixth_items: any[];
+  };
+  [key: string]: any;
+}
+
+interface ChampionFileEntry {
+  champion_id: number;
+  name: string;
+  image?: string;
+  stats?: {
+    support?: ChampionSupportStats;
+    [role: string]: any;
+  };
+  [key: string]: any;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
   console.log("Loading Data Dragon metadata...");
@@ -17,11 +47,11 @@ async function main() {
   console.log(`Loaded Data Dragon v${dd.version}`);
 
   const customArg = process.argv[2];
-  const targetFiles = [];
+  const targetFiles: string[] = [];
 
   if (customArg) {
     const resolvedArg = path.resolve(customArg);
-    if (existsSync.existsSync(resolvedArg)) {
+    if (existsSync(resolvedArg)) {
       const stat = await fs.stat(resolvedArg);
       if (stat.isDirectory()) {
         const files = await fs.readdir(resolvedArg);
@@ -48,7 +78,7 @@ async function main() {
     ];
 
     for (const p of defaultCandidates) {
-      if (p && existsSync.existsSync(p)) targetFiles.push(p);
+      if (p && existsSync(p)) targetFiles.push(p);
     }
   }
 
@@ -61,12 +91,12 @@ async function main() {
 
   // Use the primary file to determine champions
   const primaryRaw = await fs.readFile(targetFiles[0], "utf8");
-  const champions = JSON.parse(primaryRaw);
+  const champions: ChampionFileEntry[] = JSON.parse(primaryRaw);
 
   const supportChamps = champions.filter((c) => c.stats?.support);
   console.log(`Found ${supportChamps.length} support champions.`);
 
-  const supportItemsCache = new Map();
+  const supportItemsCache = new Map<number, StarterItemStats[]>();
 
   let count = 0;
   for (const champ of supportChamps) {
@@ -78,11 +108,11 @@ async function main() {
       const build = await fetchOpggBuildData(slug, "support", "emerald_plus", dd);
       if (build?.support_items && build.support_items.length > 0) {
         supportItemsCache.set(champ.champion_id, build.support_items);
-        console.log(`✓ (${build.support_items.map((i) => i.names[0]).join(", ")})`);
+        console.log(`✓ (${build.support_items.map((i: StarterItemStats) => i.names[0]).join(", ")})`);
       } else {
         console.log("⚠️ No support items found");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.log(`✗ Error: ${err.message}`);
     }
 
@@ -94,7 +124,7 @@ async function main() {
   // Enrich each target file
   for (const file of targetFiles) {
     const raw = await fs.readFile(file, "utf8");
-    const data = JSON.parse(raw);
+    const data: ChampionFileEntry[] = JSON.parse(raw);
     let updated = 0;
 
     for (const champ of data) {

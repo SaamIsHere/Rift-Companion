@@ -100,10 +100,22 @@ pub struct Settings {
     /// Wallpaper display scope: "landing_only" or "all_tabs"
     #[serde(default = "default_wallpaper_scope")]
     pub wallpaper_scope: String,
+    /// Live Match import: whether runes auto-import is enabled.
+    #[serde(default = "default_auto_import_runes")]
+    pub auto_import_runes: bool,
+    /// Live Match import: whether summoner spells auto-import is enabled.
+    #[serde(default = "default_auto_import_spells")]
+    pub auto_import_spells: bool,
+    /// Live Match import: whether item sets auto-import is enabled.
+    #[serde(default = "default_auto_import_items")]
+    pub auto_import_items: bool,
+    /// Live Match import: preferred flash key ("D" or "F").
+    #[serde(default = "default_flash_key")]
+    pub flash_key: String,
 }
 
 fn default_close_behavior() -> String {
-    "tray".to_string()
+    "close".to_string()
 }
 
 fn default_startup_behavior() -> String {
@@ -127,7 +139,23 @@ fn default_theme() -> String {
 }
 
 fn default_wallpaper_scope() -> String {
-    "landing_only".to_string()
+    "all_tabs".to_string()
+}
+
+fn default_auto_import_runes() -> bool {
+    false
+}
+
+fn default_auto_import_spells() -> bool {
+    false
+}
+
+fn default_auto_import_items() -> bool {
+    false
+}
+
+fn default_flash_key() -> String {
+    "D".to_string()
 }
 
 impl Default for Settings {
@@ -145,6 +173,10 @@ impl Default for Settings {
             theme: default_theme(),
             custom_wallpaper: None,
             wallpaper_scope: default_wallpaper_scope(),
+            auto_import_runes: default_auto_import_runes(),
+            auto_import_spells: default_auto_import_spells(),
+            auto_import_items: default_auto_import_items(),
+            flash_key: default_flash_key(),
         }
     }
 }
@@ -188,5 +220,56 @@ pub fn write_cached_profile(profile: &crate::lcu::client::Summoner) -> std::io::
         std::fs::create_dir_all(parent).ok();
     }
     std::fs::write(profile_path(), serde_json::to_string_pretty(profile).unwrap_or_default())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_settings_defaults() {
+        let s = Settings::default();
+        assert_eq!(s.close_behavior, "close");
+        assert_eq!(s.startup_behavior, "none");
+        assert_eq!(s.wallpaper_scope, "all_tabs");
+        assert_eq!(s.auto_import_runes, false);
+        assert_eq!(s.auto_import_spells, false);
+        assert_eq!(s.auto_import_items, false);
+        assert_eq!(s.flash_key, "D");
+    }
+
+    #[test]
+    fn test_deserialize_empty_json_uses_new_defaults() {
+        let json = "{}";
+        let s: Settings = serde_json::from_str(json).expect("should deserialize");
+        assert_eq!(s.close_behavior, "close");
+        assert_eq!(s.startup_behavior, "none");
+        assert_eq!(s.wallpaper_scope, "all_tabs");
+        assert_eq!(s.auto_import_runes, false);
+        assert_eq!(s.auto_import_spells, false);
+        assert_eq!(s.auto_import_items, false);
+        assert_eq!(s.flash_key, "D");
+    }
+
+    #[test]
+    fn test_deserialize_preserves_custom_user_settings() {
+        let json = r#"{
+            "close_behavior": "minimize",
+            "startup_behavior": "system_boot",
+            "wallpaper_scope": "landing_only",
+            "auto_import_runes": true,
+            "auto_import_spells": true,
+            "auto_import_items": true,
+            "flash_key": "F"
+        }"#;
+        let s: Settings = serde_json::from_str(json).expect("should deserialize");
+        assert_eq!(s.close_behavior, "minimize");
+        assert_eq!(s.startup_behavior, "system_boot");
+        assert_eq!(s.wallpaper_scope, "landing_only");
+        assert_eq!(s.auto_import_runes, true);
+        assert_eq!(s.auto_import_spells, true);
+        assert_eq!(s.auto_import_items, true);
+        assert_eq!(s.flash_key, "F");
+    }
 }
 

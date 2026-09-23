@@ -7,12 +7,37 @@ import {
   loadDataDragon,
   saveDataset,
   SUPPORTED_TIERS,
-} from "./crawler.mjs";
+} from "./crawler.js";
 
 const SCHEDULE_FILE = "schedule.json";
 
+export interface ScheduleConfig {
+  enabled: boolean;
+  hour: number;
+  minute: number;
+  lastRunDate: string | null;
+  lastRunTime: number | null;
+  lastRunStatus: string | null;
+}
+
+export interface SchedulerOptions {
+  dataDir?: string;
+  concurrency?: number;
+  checkIntervalMs?: number;
+  scheduledHour?: number;
+}
+
 export class CrawlerScheduler {
-  constructor(options = {}) {
+  dataDir: string;
+  concurrency: number;
+  checkIntervalMs: number;
+  scheduledHour: number;
+  isCrawling: boolean;
+  currentProgress: any;
+  timer: NodeJS.Timeout | null;
+  config: ScheduleConfig;
+
+  constructor(options: SchedulerOptions = {}) {
     this.dataDir = options.dataDir || "/data";
     this.concurrency = options.concurrency || 6;
     // Check every 30 seconds so we accurately catch the scheduled hour/minute window
@@ -96,7 +121,7 @@ export class CrawlerScheduler {
     };
   }
 
-  async updateSchedule(newSettings = {}) {
+  async updateSchedule(newSettings: Record<string, any> = {}) {
     let { enabled, hour, minute } = newSettings;
 
     if (hour === "disabled" || hour === -1 || hour === "-1") {

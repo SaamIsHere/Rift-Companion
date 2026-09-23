@@ -38,7 +38,7 @@
     isCloseHovered = false;
     (e?.currentTarget as HTMLElement)?.blur();
     if (!appWindow) return;
-    const behavior = $settings.close_behavior || "tray";
+    const behavior = $settings.close_behavior || "close";
     if (behavior === "minimize") {
       await appWindow.minimize();
     } else if (behavior === "tray") {

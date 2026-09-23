@@ -37,6 +37,9 @@
   let activeRole: Role = initialRole || "top";
   let showAllMatchupsModal = initialShowMatchups;
   let prevShowMatchups = initialShowMatchups;
+  let matchupTab: "worst" | "best" = "worst";
+  $: isWorstMatchup = matchupTab === "worst";
+  $: currentMatchups = isWorstMatchup ? (overview?.worst_matchups || []) : (overview?.best_matchups || []);
 
   $: if (initialShowMatchups !== prevShowMatchups) {
     prevShowMatchups = initialShowMatchups;
@@ -255,7 +258,7 @@
     </div>
 
     <!-- 3-Column Compact Grid Layout -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-3.5">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-start">
 
       <!-- ==================== COLUMN 1 (LEFT): RUNES & SKILL ORDER (4 Cols) ==================== -->
       <div class="lg:col-span-4 flex flex-col gap-3.5">
@@ -477,50 +480,185 @@
           {/if}
         </div>
 
-      </div>
+        <!-- CARD: MATCHUPS & SYNERGIES -->
+        <div class="glass rounded-xl p-3.5">
+          <div class="mb-3 flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">
+                Matchups &amp; Synergies
+              </h3>
+              <p class="text-[10px] text-purple-300/70">Historical pairings and lane advantages ({ROLE_LABELS[activeRole] || activeRole})</p>
+            </div>
 
-      <!-- ==================== COLUMN 2 (CENTER): HERO & RECOMMENDED ITEMS (4 Cols) ==================== -->
-      <div class="lg:col-span-4 flex flex-col gap-3.5">
+            <button
+              type="button"
+              on:click={() => showAllMatchupsModal = true}
+              class="flex items-center gap-1 rounded-md border border-purple-500/30 bg-purple-950/40 px-2 py-1 text-[10px] font-bold text-purple-200 transition hover:bg-purple-900/60 hover:text-white hover:border-purple-400"
+            >
+              <span>View All</span>
+              <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </button>
+          </div>
 
-        <!-- CHAMPION HERO BANNER -->
-        <div class="glass relative overflow-hidden rounded-xl p-4">
-          <!-- Background Splash Art Vignette -->
-          <div
-            class="pointer-events-none absolute inset-0 bg-cover bg-center opacity-35 mix-blend-luminosity"
-            style="background-image: url('{splashArtUrl(overview.image)}');"
-          ></div>
-          <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-void-950/60 via-void-950/30 to-transparent"></div>
-          <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-void-950/30 via-transparent to-void-950/30"></div>
-
-          <div class="relative z-10">
-            <h2 class="text-2xl font-black text-white tracking-wide">
-              {overview.name}
-            </h2>
-            <p class="text-xs text-purple-200/80 font-medium capitalize mb-2.5">
-              {detailedSpells?.title || `${ROLE_LABELS[activeRole]} Specialist`}
-            </p>
-
-            <div class="flex flex-wrap items-center gap-1.5">
-              {#if detailedSpells}
-                {@const diff = getDifficultyLabel(detailedSpells.difficulty)}
-                <span class="rounded-full border px-2 py-0.5 text-[9px] font-bold {diff.color}">
-                  Difficulty: {diff.label}
+          <div class="flex flex-col gap-3">
+            <!-- 1) UNIFIED MATCHUPS CARD (Switchable Worst / Best) -->
+            <div class="rounded-lg border p-2.5 transition-all duration-200 {isWorstMatchup ? 'border-rose-500/30 bg-rose-950/15' : 'border-emerald-500/30 bg-emerald-950/15'}">
+              <div class="mb-2 flex items-center justify-between gap-1.5 flex-wrap">
+                <span class="text-xs font-bold flex items-center gap-1.5 {isWorstMatchup ? 'text-rose-300' : 'text-emerald-300'}">
+                  <span class="h-2 w-2 rounded-full {isWorstMatchup ? 'bg-rose-500' : 'bg-emerald-500'}"></span>
+                  Matchups
                 </span>
-                {#each detailedSpells.tags as tag}
-                  <span class="rounded-full border border-purple-500/20 bg-purple-950/30 px-2 py-0.5 text-[9px] font-semibold text-purple-200">
-                    {tag}
-                  </span>
-                {/each}
+
+                <!-- Switch Buttons (Worst / Best) -->
+                <div class="flex items-center rounded-lg border border-purple-500/25 bg-void-950/80 p-0.5 text-[9px] font-bold">
+                  <button
+                    type="button"
+                    on:click={() => matchupTab = "worst"}
+                    class="rounded px-2.5 py-0.5 transition-all {isWorstMatchup
+                      ? 'bg-rose-500/30 text-rose-200 border border-rose-500/50 shadow-sm font-black'
+                      : 'text-slate-400 hover:text-white'}"
+                  >
+                    Worst
+                  </button>
+                  <button
+                    type="button"
+                    on:click={() => matchupTab = "best"}
+                    class="rounded px-2.5 py-0.5 transition-all {!isWorstMatchup
+                      ? 'bg-emerald-500/30 text-emerald-200 border border-emerald-500/50 shadow-sm font-black'
+                      : 'text-slate-400 hover:text-white'}"
+                  >
+                    Best
+                  </button>
+                </div>
+              </div>
+
+              {#if currentMatchups && currentMatchups.length}
+                <div class="flex flex-col gap-1.5">
+                  {#each currentMatchups as entry}
+                    <div class="flex items-center justify-between rounded-md border border-purple-500/10 bg-black/30 p-1.5">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <div class="relative h-6 w-6 rounded-md overflow-hidden border border-purple-500/20 bg-purple-950/40 shrink-0">
+                          <img
+                            src={squareIconUrl(entry.image, $ddragonVersion)}
+                            alt={entry.name}
+                            class="h-full w-full object-cover scale-[1.14]"
+                            loading="lazy"
+                          />
+                        </div>
+                        <div class="min-w-0">
+                          <span class="text-xs font-semibold text-white line-clamp-1">{entry.name}</span>
+                          <span class="text-[9px] text-slate-400">{formatGames(entry.games)} Games</span>
+                        </div>
+                      </div>
+                      <span class="text-xs font-bold shrink-0 {isWorstMatchup ? 'text-rose-400' : 'text-emerald-400'}">
+                        {formatWinrate(entry.winrate)}
+                      </span>
+                    </div>
+                  {/each}
+                </div>
+              {:else}
+                <p class="text-xs text-slate-400">No matchup data available</p>
               {/if}
-              <span class="rounded-full border border-purple-400/30 bg-purple-900/30 px-2 py-0.5 text-[9px] font-bold text-white">
-                {formatWinrate(overview.winrate)} WR ({formatGames(overview.games)} Games)
-              </span>
+            </div>
+
+            <!-- 3) BEST TEAM SYNERGIES -->
+            <div class="rounded-lg border border-purple-500/20 bg-purple-950/10 p-2.5">
+              <div class="mb-2 flex items-center justify-between">
+                <span class="text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                  <span class="h-2 w-2 rounded-full bg-purple-500"></span>
+                  Best Team Synergies
+                </span>
+                <span class="text-[9px] text-slate-400">Win rate</span>
+              </div>
+
+              {#if overview.best_synergies && overview.best_synergies.length}
+                <div class="flex flex-col gap-1.5">
+                  {#each overview.best_synergies as entry}
+                    <div class="flex items-center justify-between rounded-md border border-purple-500/10 bg-black/30 p-1.5">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <div class="relative h-6 w-6 rounded-md overflow-hidden border border-purple-500/20 bg-purple-950/40 shrink-0">
+                          <img
+                            src={squareIconUrl(entry.image, $ddragonVersion)}
+                            alt={entry.name}
+                            class="h-full w-full object-cover scale-[1.14]"
+                            loading="lazy"
+                          />
+                        </div>
+                        <div class="min-w-0">
+                          <span class="text-xs font-semibold text-white line-clamp-1">{entry.name}</span>
+                          <span class="text-[9px] text-slate-400">{formatGames(entry.games)} Games</span>
+                        </div>
+                      </div>
+                      <span class="text-xs font-bold text-emerald-400 shrink-0">
+                        {formatWinrate(entry.winrate)}
+                      </span>
+                    </div>
+                  {/each}
+                </div>
+              {:else}
+                <p class="text-xs text-slate-400">No synergy data available</p>
+              {/if}
             </div>
           </div>
         </div>
 
+      </div>
+
+      <!-- ==================== COLUMNS 2 & 3 (8 Cols): Synchronized Height ==================== -->
+      <div class="lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-3.5 items-stretch">
+
+        <!-- ==================== COLUMN 2 (CENTER): HERO & 5TH ITEMS ==================== -->
+        <div class="flex flex-col gap-3.5 h-full">
+
+          <!-- CHAMPION HERO BANNER -->
+          <div class="glass relative overflow-hidden rounded-xl p-5 flex-1 flex flex-col justify-between min-h-[140px]">
+          <!-- Background Splash Art Vignette -->
+          <div
+            class="pointer-events-none absolute inset-0 bg-cover bg-center opacity-40 mix-blend-luminosity"
+            style="background-image: url('{splashArtUrl(overview.image)}');"
+          ></div>
+          <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-void-950/80 via-void-950/40 to-transparent"></div>
+          <div class="pointer-events-none absolute inset-0 bg-gradient-to-r from-void-950/40 via-transparent to-void-950/40"></div>
+
+          <div class="relative z-10 flex flex-col">
+            <div class="flex items-center justify-between gap-2">
+              <h2 class="text-3xl font-black text-white tracking-wide drop-shadow">
+                {overview.name}
+              </h2>
+              <span class="rounded-full border border-purple-400/40 bg-purple-900/50 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-sm shrink-0">
+                {ROLE_LABELS[activeRole] || activeRole}
+              </span>
+            </div>
+            <p class="text-xs text-purple-200/90 font-semibold tracking-wide uppercase mt-1">
+              {detailedSpells?.title || `${ROLE_LABELS[activeRole]} Specialist`}
+            </p>
+          </div>
+
+          <div class="relative z-10 flex flex-wrap items-center gap-1.5 mt-4">
+            {#if detailedSpells}
+              {@const diff = getDifficultyLabel(detailedSpells.difficulty)}
+              <span class="rounded-full border px-2.5 py-0.5 text-[9px] font-bold {diff.color}">
+                Difficulty: {diff.label}
+              </span>
+              {#each detailedSpells.tags as tag}
+                <span class="rounded-full border border-purple-500/20 bg-purple-950/40 px-2.5 py-0.5 text-[9px] font-semibold text-purple-200">
+                  {tag}
+                </span>
+              {/each}
+            {/if}
+            <span class="rounded-full border border-purple-500/25 bg-purple-950/40 px-2.5 py-0.5 text-[9px] font-semibold text-purple-200 capitalize">
+              {overview.damage}
+            </span>
+            <span class="rounded-full border border-purple-400/30 bg-purple-900/30 px-2.5 py-0.5 text-[9px] font-bold text-white">
+              {formatWinrate(overview.winrate)} WR ({formatGames(overview.games)} Games)
+            </span>
+          </div>
+        </div>
+
         <!-- CARD: SUMMONER SPELLS -->
-        <div class="glass rounded-xl p-3.5">
+        <div class="glass rounded-xl p-3.5 shrink-0">
           <div class="mb-2.5 flex items-center justify-between px-2">
             <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">
               Summoner Spells
@@ -565,7 +703,7 @@
         </div>
 
         <!-- CARD: STARTER ITEMS / SUPPORT ITEMS -->
-        <div class="glass rounded-xl p-3.5">
+        <div class="glass rounded-xl p-3.5 shrink-0">
           <div class="mb-2.5 flex items-center justify-between px-2">
             <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">
               {isSupport ? "Support Items" : "Starter Items"}
@@ -610,7 +748,7 @@
         </div>
 
         <!-- CARD: BOOTS -->
-        <div class="glass rounded-xl p-3.5">
+        <div class="glass rounded-xl p-3.5 shrink-0">
           <div class="mb-2.5 flex items-center justify-between px-2">
             <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">
               Boots Options
@@ -663,10 +801,54 @@
           {/if}
         </div>
 
+        <!-- CARD: 5TH ITEM OPTIONS -->
+        <div class="glass rounded-xl p-3.5 shrink-0">
+          <div class="mb-2.5 flex items-center justify-between px-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">5th Item Options</h3>
+            <div class="flex items-center gap-3 shrink-0 text-[9px] font-bold uppercase text-slate-400">
+              <span class="w-20 text-right">Pick Rate</span>
+              <span class="w-14 text-right">Winrate</span>
+            </div>
+          </div>
+
+          {#if build?.fifth_items && build.fifth_items.length}
+            <div class="flex flex-col gap-1.5">
+              {#each build.fifth_items.slice(0, 5) as item, itmIdx (`fifth-${itmIdx}`)}
+                <div class="flex items-center justify-between rounded-lg border border-purple-500/15 bg-purple-950/20 p-2 transition hover:bg-purple-900/25">
+                  <div class="flex items-center gap-2 min-w-0 pr-2">
+                    <img
+                      src={itemIconUrl(item.id, $ddragonVersion)}
+                      alt={item.name}
+                      class="h-7 w-7 rounded-md border border-purple-500/30 object-cover bg-black shrink-0"
+                      title={item.name}
+                    />
+                    <div class="min-w-0">
+                      <span class="text-xs font-semibold text-white truncate block">{item.name}</span>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-3 shrink-0">
+                    <div class="w-20 text-right">
+                      <span class="text-xs font-bold text-white block">{formatPercent(getSituationalPickRate(item, overview?.games), itmIdx + 80)}</span>
+                      <span class="text-[9px] text-slate-400">{formatGames(item.play)} Games</span>
+                    </div>
+                    <div class="w-14 text-right">
+                      <span class="text-xs font-extrabold text-emerald-400 block">
+                        {formatWinrate(item.win_rate, itmIdx + 85)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <p class="text-xs text-slate-400">No 5th item data available</p>
+          {/if}
+        </div>
+
       </div>
 
-      <!-- ==================== COLUMN 3 (RIGHT): RECOMMENDED BUILDS & ITEMS (4 Cols) ==================== -->
-      <div class="lg:col-span-4 flex flex-col gap-3.5">
+        <!-- ==================== COLUMN 3 (RIGHT): RECOMMENDED BUILDS & ITEMS ==================== -->
+        <div class="flex flex-col gap-3.5">
 
         <!-- CARD: CORE BUILDS -->
         <div class="glass rounded-xl p-3.5">
@@ -717,10 +899,10 @@
           {/if}
         </div>
 
-        <!-- CARD: SITUATIONAL ITEMS -->
+        <!-- CARD: 4TH ITEM OPTIONS -->
         <div class="glass rounded-xl p-3.5">
           <div class="mb-2.5 flex items-center justify-between px-2">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">Situational Items</h3>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">4th Item Options</h3>
             <div class="flex items-center gap-3 shrink-0 text-[9px] font-bold uppercase text-slate-400">
               <span class="w-20 text-right">Pick Rate</span>
               <span class="w-14 text-right">Winrate</span>
@@ -740,7 +922,6 @@
                     />
                     <div class="min-w-0">
                       <span class="text-xs font-semibold text-white truncate block">{item.name}</span>
-                      <span class="text-[9px] text-purple-300/70 block">4th Item</span>
                     </div>
                   </div>
                   <div class="flex items-center gap-3 shrink-0">
@@ -758,142 +939,56 @@
               {/each}
             </div>
           {:else}
-            <p class="text-xs text-slate-400">No situational item data available</p>
+            <p class="text-xs text-slate-400">No 4th item data available</p>
+          {/if}
+        </div>
+
+        <!-- CARD: 6TH ITEM OPTIONS -->
+        <div class="glass rounded-xl p-3.5">
+          <div class="mb-2.5 flex items-center justify-between px-2">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-purple-200">6th Item Options</h3>
+            <div class="flex items-center gap-3 shrink-0 text-[9px] font-bold uppercase text-slate-400">
+              <span class="w-20 text-right">Pick Rate</span>
+              <span class="w-14 text-right">Winrate</span>
+            </div>
+          </div>
+
+          {#if build?.sixth_items && build.sixth_items.length}
+            <div class="flex flex-col gap-1.5">
+              {#each build.sixth_items.slice(0, 5) as item, itmIdx (`si-${itmIdx}`)}
+                <div class="flex items-center justify-between rounded-lg border border-purple-500/15 bg-purple-950/20 p-2 transition hover:bg-purple-900/25">
+                  <div class="flex items-center gap-2 min-w-0 pr-2">
+                    <img
+                      src={itemIconUrl(item.id, $ddragonVersion)}
+                      alt={item.name}
+                      class="h-7 w-7 rounded-md border border-purple-500/30 object-cover bg-black shrink-0"
+                      title={item.name}
+                    />
+                    <div class="min-w-0">
+                      <span class="text-xs font-semibold text-white truncate block">{item.name}</span>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-3 shrink-0">
+                    <div class="w-20 text-right">
+                      <span class="text-xs font-bold text-white block">{formatPercent(getSituationalPickRate(item, overview?.games), itmIdx + 100)}</span>
+                      <span class="text-[9px] text-slate-400">{formatGames(item.play)} Games</span>
+                    </div>
+                    <div class="w-14 text-right">
+                      <span class="text-xs font-extrabold text-emerald-400 block">
+                        {formatWinrate(item.win_rate, itmIdx + 105)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <p class="text-xs text-slate-400">No 6th item data available</p>
           {/if}
         </div>
 
       </div>
 
-    </div>
-
-    <!-- ==================== MATCHUPS & SYNERGIES SECTION ==================== -->
-    <div class="glass mt-3.5 rounded-xl p-4">
-      <div class="mb-3 flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h3 class="text-sm font-black uppercase tracking-wider text-white">
-            Matchups &amp; Synergies ({ROLE_LABELS[activeRole] || activeRole})
-          </h3>
-          <p class="text-xs text-purple-300/70">Historical pairings and lane advantages</p>
-        </div>
-
-        <button
-          type="button"
-          on:click={() => showAllMatchupsModal = true}
-          class="flex items-center gap-1.5 rounded-lg border border-purple-500/30 bg-purple-950/40 px-3 py-1.5 text-xs font-bold text-purple-200 transition hover:bg-purple-900/60 hover:text-white hover:border-purple-400"
-        >
-          <span>View All Matchups</span>
-          <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-          </svg>
-        </button>
-      </div>
-
-      <!-- 3 Matchup Columns: Worst Matchups (Counters), Best Matchups, Best Synergies -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <!-- 1) WORST MATCHUPS (COUNTERS) -->
-        <div class="rounded-lg border border-rose-500/20 bg-rose-950/10 p-3">
-          <div class="mb-2 flex items-center justify-between">
-            <span class="text-xs font-bold text-rose-300 flex items-center gap-1.5">
-              <span class="h-2 w-2 rounded-full bg-rose-500"></span>
-              Worst Matchups (Counters)
-            </span>
-            <span class="text-[9px] text-slate-400">Win rate</span>
-          </div>
-
-          <div class="flex flex-col gap-1.5">
-            {#each overview.worst_matchups as entry}
-              <div class="flex items-center justify-between rounded-md border border-purple-500/10 bg-black/30 p-1.5">
-                <div class="flex items-center gap-2">
-                  <div class="relative h-7 w-7 rounded-md overflow-hidden border border-purple-500/20 bg-purple-950/40 shrink-0">
-                    <img
-                      src={squareIconUrl(entry.image, $ddragonVersion)}
-                      alt={entry.name}
-                      class="h-full w-full object-cover scale-[1.14]"
-                      loading="lazy"
-                    />
-                  </div>
-                  <div>
-                    <span class="text-xs font-semibold text-white line-clamp-1">{entry.name}</span>
-                    <span class="text-[9px] text-slate-400">{formatGames(entry.games)} Games</span>
-                  </div>
-                </div>
-                <span class="text-xs font-bold text-rose-400">
-                  {formatWinrate(entry.winrate)}
-                </span>
-              </div>
-            {/each}
-          </div>
-        </div>
-
-        <!-- 2) BEST MATCHUPS -->
-        <div class="rounded-lg border border-emerald-500/20 bg-emerald-950/10 p-3">
-          <div class="mb-2 flex items-center justify-between">
-            <span class="text-xs font-bold text-emerald-300 flex items-center gap-1.5">
-              <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-              Best Matchups
-            </span>
-            <span class="text-[9px] text-slate-400">Win rate</span>
-          </div>
-
-          <div class="flex flex-col gap-1.5">
-            {#each overview.best_matchups as entry}
-              <div class="flex items-center justify-between rounded-md border border-purple-500/10 bg-black/30 p-1.5">
-                <div class="flex items-center gap-2">
-                  <div class="relative h-7 w-7 rounded-md overflow-hidden border border-purple-500/20 bg-purple-950/40 shrink-0">
-                    <img
-                      src={squareIconUrl(entry.image, $ddragonVersion)}
-                      alt={entry.name}
-                      class="h-full w-full object-cover scale-[1.14]"
-                      loading="lazy"
-                    />
-                  </div>
-                  <div>
-                    <span class="text-xs font-semibold text-white line-clamp-1">{entry.name}</span>
-                    <span class="text-[9px] text-slate-400">{formatGames(entry.games)} Games</span>
-                  </div>
-                </div>
-                <span class="text-xs font-bold text-emerald-400">
-                  {formatWinrate(entry.winrate)}
-                </span>
-              </div>
-            {/each}
-          </div>
-        </div>
-
-        <!-- 3) BEST TEAM SYNERGIES -->
-        <div class="rounded-lg border border-purple-500/20 bg-purple-950/10 p-3">
-          <div class="mb-2 flex items-center justify-between">
-            <span class="text-xs font-bold text-purple-300 flex items-center gap-1.5">
-              <span class="h-2 w-2 rounded-full bg-purple-500"></span>
-              Best Team Synergies
-            </span>
-            <span class="text-[9px] text-slate-400">Win rate</span>
-          </div>
-
-          <div class="flex flex-col gap-1.5">
-            {#each overview.best_synergies as entry}
-              <div class="flex items-center justify-between rounded-md border border-purple-500/10 bg-black/30 p-1.5">
-                <div class="flex items-center gap-2">
-                  <div class="relative h-7 w-7 rounded-md overflow-hidden border border-purple-500/20 bg-purple-950/40 shrink-0">
-                    <img
-                      src={squareIconUrl(entry.image, $ddragonVersion)}
-                      alt={entry.name}
-                      class="h-full w-full object-cover scale-[1.14]"
-                      loading="lazy"
-                    />
-                  </div>
-                  <div>
-                    <span class="text-xs font-semibold text-white line-clamp-1">{entry.name}</span>
-                    <span class="text-[9px] text-slate-400">{formatGames(entry.games)} Games</span>
-                  </div>
-                </div>
-                <span class="text-xs font-bold text-emerald-400">
-                  {formatWinrate(entry.winrate)}
-                </span>
-              </div>
-            {/each}
-          </div>
-        </div>
       </div>
     </div>
   {/if}

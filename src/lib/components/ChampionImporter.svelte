@@ -1,12 +1,15 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { Role, ChampionBuildStats, RunePageStats, SummonerSpellStats } from "../types";
+  import { get } from "svelte/store";
+  import type { Role, ChampionBuildStats, RunePageStats, SummonerSpellStats, ItemSetBlock } from "../types";
   import { championCatalog, ddragonVersion } from "../stores/champions";
+  import { settings } from "../stores/settings";
   import {
     getChampionBuild,
     importRunePage,
     importSummonerSpells,
     importItemSet,
+    setSettings,
     isTauri,
   } from "../ipc/tauri";
   import {
@@ -36,18 +39,72 @@
   $: isSupport = role === "support";
   $: supportItems = isSupport && build?.support_items && build.support_items.length > 0 ? build.support_items : null;
   $: displayedStarterItemRow = supportItems?.[0] || build?.starter_items?.[0] || null;
+  $: allSituationalItems = (() => {
+    const raw = [
+      ...(build?.fourth_items || []),
+      ...(build?.fifth_items || []),
+      ...(build?.sixth_items || []),
+    ];
+    const seen = new Set<number>();
+    const list: typeof raw = [];
+    for (const item of raw) {
+      if (item?.id && !seen.has(item.id)) {
+        seen.add(item.id);
+        list.push(item);
+      }
+    }
+    return list;
+  })();
 
-  // Persisted Auto-Import Toggles
-  let autoImportRunes = localStorage.getItem("rift_auto_import_runes") !== "false";
-  let autoImportSpells = localStorage.getItem("rift_auto_import_spells") !== "false";
-  let autoImportItems = localStorage.getItem("rift_auto_import_items") !== "false";
+  // Persisted Auto-Import Toggles (Default: false / OFF; preserved if user has configured them)
+  let autoImportRunes = (() => {
+    try {
+      const saved = localStorage.getItem("rift_auto_import_runes");
+      if (saved !== null) return saved === "true";
+    } catch {}
+    const sVal = get(settings)?.auto_import_runes;
+    if (sVal !== undefined && sVal !== null) return Boolean(sVal);
+    return false;
+  })();
 
-  // Flash Key Preference ("D" or "F", default "F")
-  let flashKey: "D" | "F" = (localStorage.getItem("rift_flash_key") as "D" | "F") || "F";
+  let autoImportSpells = (() => {
+    try {
+      const saved = localStorage.getItem("rift_auto_import_spells");
+      if (saved !== null) return saved === "true";
+    } catch {}
+    const sVal = get(settings)?.auto_import_spells;
+    if (sVal !== undefined && sVal !== null) return Boolean(sVal);
+    return false;
+  })();
+
+  let autoImportItems = (() => {
+    try {
+      const saved = localStorage.getItem("rift_auto_import_items");
+      if (saved !== null) return saved === "true";
+    } catch {}
+    const sVal = get(settings)?.auto_import_items;
+    if (sVal !== undefined && sVal !== null) return Boolean(sVal);
+    return false;
+  })();
+
+  // Flash Key Preference ("D" or "F", default "D"; preserved if user has configured it)
+  let flashKey: "D" | "F" = (() => {
+    try {
+      const saved = localStorage.getItem("rift_flash_key");
+      if (saved === "D" || saved === "F") return saved;
+    } catch {}
+    const sVal = get(settings)?.flash_key;
+    if (sVal === "D" || sVal === "F") return sVal;
+    return "D";
+  })();
 
   function setFlashKey(key: "D" | "F") {
     flashKey = key;
-    localStorage.setItem("rift_flash_key", key);
+    try {
+      localStorage.setItem("rift_flash_key", key);
+    } catch {}
+    settings.update((s) => ({ ...s, flash_key: key }));
+    void setSettings(get(settings));
     showFeedback(`✓ Flash preference: key ${key}`);
     if (autoImportSpells && build?.summoner_spells?.[activeSpellIndex]) {
       void executeImportSpells(activeSpellIndex);
@@ -82,7 +139,11 @@
 
   function toggleRunes() {
     autoImportRunes = !autoImportRunes;
-    localStorage.setItem("rift_auto_import_runes", String(autoImportRunes));
+    try {
+      localStorage.setItem("rift_auto_import_runes", String(autoImportRunes));
+    } catch {}
+    settings.update((s) => ({ ...s, auto_import_runes: autoImportRunes }));
+    void setSettings(get(settings));
     if (autoImportRunes && build?.runes?.[activeRunePageIndex]) {
       void executeImportRunePage(activeRunePageIndex);
     }
@@ -90,7 +151,11 @@
 
   function toggleSpells() {
     autoImportSpells = !autoImportSpells;
-    localStorage.setItem("rift_auto_import_spells", String(autoImportSpells));
+    try {
+      localStorage.setItem("rift_auto_import_spells", String(autoImportSpells));
+    } catch {}
+    settings.update((s) => ({ ...s, auto_import_spells: autoImportSpells }));
+    void setSettings(get(settings));
     if (autoImportSpells && build?.summoner_spells?.[activeSpellIndex]) {
       void executeImportSpells(activeSpellIndex);
     }
@@ -98,7 +163,11 @@
 
   function toggleItems() {
     autoImportItems = !autoImportItems;
-    localStorage.setItem("rift_auto_import_items", String(autoImportItems));
+    try {
+      localStorage.setItem("rift_auto_import_items", String(autoImportItems));
+    } catch {}
+    settings.update((s) => ({ ...s, auto_import_items: autoImportItems }));
+    void setSettings(get(settings));
     if (autoImportItems && build) {
       void executeImportItems();
     }
@@ -211,19 +280,128 @@
 
   async function executeImportItems() {
     if (!build) return;
-    const starterIds = (isSupport && build.support_items?.[0]?.ids?.length)
-      ? [3865, ...build.support_items[0].ids]
-      : (build.starter_items?.[0]?.ids || []);
-    const coreIds = build.core_items?.[0]?.ids || [];
-    const situationalIds = (build.fourth_items || []).slice(0, 6).map((it) => it.id);
 
-    if (starterIds.length === 0 && coreIds.length === 0 && situationalIds.length === 0) {
+    const blocks: ItemSetBlock[] = [];
+
+    // 1. Starting Items / Support Items
+    const starterIds: number[] = [];
+    const seenStarter = new Set<number>();
+    if (isSupport) {
+      for (const id of [3865, 2003]) {
+        if (!seenStarter.has(id)) {
+          seenStarter.add(id);
+          starterIds.push(id);
+        }
+      }
+      if (build.support_items) {
+        for (const sup of build.support_items) {
+          for (const id of sup.ids) {
+            if (!seenStarter.has(id)) {
+              seenStarter.add(id);
+              starterIds.push(id);
+            }
+          }
+        }
+      }
+    } else if (build.starter_items && build.starter_items.length > 0) {
+      for (const st of build.starter_items.slice(0, 2)) {
+        for (const id of st.ids) {
+          if (!seenStarter.has(id)) {
+            seenStarter.add(id);
+            starterIds.push(id);
+          }
+        }
+      }
+    }
+    if (starterIds.length > 0) {
+      blocks.push({
+        name: isSupport ? "Support Items" : "Starting Items",
+        items: starterIds,
+      });
+    }
+
+    // 2. Boots (Schuhe)
+    if (build.boots && build.boots.length > 0) {
+      const bootsIds: number[] = [];
+      const seenBoots = new Set<number>();
+      seenBoots.add(1001);
+      bootsIds.push(1001);
+      for (const b of build.boots) {
+        if (b.id && !seenBoots.has(b.id)) {
+          seenBoots.add(b.id);
+          bootsIds.push(b.id);
+        }
+      }
+      if (bootsIds.length > 0) {
+        blocks.push({
+          name: "Boots",
+          items: bootsIds,
+        });
+      }
+    }
+
+    // 3. Core Items (Top 3 distinct options)
+    if (build.core_items && build.core_items.length > 0) {
+      const coreIds: number[] = [];
+      const seenCore = new Set<number>();
+      for (const combo of build.core_items.slice(0, 3)) {
+        for (const id of combo.ids) {
+          if (!seenCore.has(id)) {
+            seenCore.add(id);
+            coreIds.push(id);
+          }
+        }
+      }
+      if (coreIds.length > 0) {
+        blocks.push({
+          name: "Core Items",
+          items: coreIds,
+        });
+      }
+    }
+
+    // 4. 4th Item Options
+    const fourthIds = (build.fourth_items || []).slice(0, 5).map((it) => it.id).filter(Boolean);
+    if (fourthIds.length > 0) {
+      blocks.push({
+        name: "4th Item Options",
+        items: fourthIds,
+      });
+    }
+
+    // 5. 5th Item Options
+    const fifthIds = (build.fifth_items || []).slice(0, 5).map((it) => it.id).filter(Boolean);
+    if (fifthIds.length > 0) {
+      blocks.push({
+        name: "5th Item Options",
+        items: fifthIds,
+      });
+    }
+
+    // 6. 6th Item Options
+    const sixthIds = (build.sixth_items || []).slice(0, 5).map((it) => it.id).filter(Boolean);
+    if (sixthIds.length > 0) {
+      blocks.push({
+        name: "6th Item Options",
+        items: sixthIds,
+      });
+    }
+
+    // Fallback: If 4th/5th/6th had no items, but allSituationalItems has items
+    if (fourthIds.length === 0 && fifthIds.length === 0 && sixthIds.length === 0 && allSituationalItems.length > 0) {
+      blocks.push({
+        name: "Situational Items",
+        items: allSituationalItems.slice(0, 10).map((it) => it.id),
+      });
+    }
+
+    if (blocks.length === 0) {
       showFeedback("⚠️ No item data available to import");
       return;
     }
 
     try {
-      await importItemSet(championId, champName, starterIds, coreIds, situationalIds);
+      await importItemSet(championId, champName, blocks);
       showFeedback(`✓ Item Set created for ${champName}`);
     } catch (err) {
       console.warn("Failed to import item set", err);
@@ -618,51 +796,153 @@
             </div>
           </div>
 
-          <!-- Starting Items / Support Items -->
+          <!-- 1. Starting Items / Support Items -->
           {#if displayedStarterItemRow}
             <div class="flex flex-col gap-1">
               <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 {isSupport ? "Support Items" : "Starting Items"}
               </span>
-              <div class="flex items-center gap-1.5">
-                {#each displayedStarterItemRow.ids as itId, i}
+              <div class="flex items-center gap-1.5 flex-wrap">
+                {#if isSupport}
                   <img
-                    src={itemIconUrl(itId, $ddragonVersion)}
-                    alt={isSupport ? "Support Item" : "Starter"}
+                    src={itemIconUrl(3865, $ddragonVersion)}
+                    alt="World Atlas"
                     class="h-6 w-6 rounded-md object-cover bg-black ring-1 ring-purple-500/30"
-                    title={displayedStarterItemRow.names?.[i] || ""}
+                    title="World Atlas"
                   />
-                {/each}
-              </div>
-            </div>
-          {/if}
-
-          <!-- Build Order (Core Items) -->
-          {#if build?.core_items?.[0]}
-            <div class="flex flex-col gap-1">
-              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Build Order</span>
-              <div class="flex items-center gap-1 flex-wrap">
-                {#each build.core_items[0].ids as itId, i}
                   <img
-                    src={itemIconUrl(itId, $ddragonVersion)}
-                    alt="Core"
+                    src={itemIconUrl(2003, $ddragonVersion)}
+                    alt="Health Potion"
                     class="h-6 w-6 rounded-md object-cover bg-black ring-1 ring-purple-500/30"
-                    title={build.core_items[0].names?.[i] || ""}
+                    title="Health Potion"
                   />
-                  {#if i < build.core_items[0].ids.length - 1}
-                    <span class="text-[9px] text-purple-400/60 font-bold">&gt;</span>
+                  {#if build?.support_items}
+                    {#each build.support_items as sup}
+                      {#each sup.ids as itId, i}
+                        {#if itId !== 3865 && itId !== 2003}
+                          <img
+                            src={itemIconUrl(itId, $ddragonVersion)}
+                            alt="Support Upgrade"
+                            class="h-6 w-6 rounded-md object-cover bg-black ring-1 ring-purple-500/30"
+                            title={sup.names?.[i] || ""}
+                          />
+                        {/if}
+                      {/each}
+                    {/each}
                   {/if}
+                {:else}
+                  {#each displayedStarterItemRow.ids as itId, i}
+                    <img
+                      src={itemIconUrl(itId, $ddragonVersion)}
+                      alt="Starter"
+                      class="h-6 w-6 rounded-md object-cover bg-black ring-1 ring-purple-500/30"
+                      title={displayedStarterItemRow.names?.[i] || ""}
+                    />
+                  {/each}
+                {/if}
+              </div>
+            </div>
+          {/if}
+
+          <!-- 2. Boots Options -->
+          {#if build?.boots && build.boots.length > 0}
+            <div class="flex flex-col gap-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Boots</span>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                {#each build.boots as boot}
+                  <img
+                    src={itemIconUrl(boot.id, $ddragonVersion)}
+                    alt={boot.name}
+                    class="h-6 w-6 rounded-md object-cover bg-black ring-1 ring-purple-500/30"
+                    title={boot.name}
+                  />
                 {/each}
               </div>
             </div>
           {/if}
 
-          <!-- Completed / Situational Items -->
+          <!-- 3. Core Items (Top Options) -->
+          {#if build?.core_items && build.core_items.length > 0}
+            <div class="flex flex-col gap-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Core Items (Top {Math.min(build.core_items.length, 3)} Options)
+              </span>
+              <div class="flex flex-col gap-1">
+                {#each build.core_items.slice(0, 3) as combo, cIdx}
+                  <div class="flex items-center gap-1">
+                    <span class="text-[8px] font-bold text-purple-400/80 w-3">{cIdx + 1}.</span>
+                    {#each combo.ids as itId, i}
+                      <img
+                        src={itemIconUrl(itId, $ddragonVersion)}
+                        alt="Core"
+                        class="h-6 w-6 rounded-md object-cover bg-black ring-1 ring-purple-500/30"
+                        title={combo.names?.[i] || ""}
+                      />
+                      {#if i < combo.ids.length - 1}
+                        <span class="text-[8px] text-purple-400/50 font-bold">&gt;</span>
+                      {/if}
+                    {/each}
+                  </div>
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          <!-- 4. 4th Item Options -->
           {#if build?.fourth_items && build.fourth_items.length > 0}
+            <div class="flex flex-col gap-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">4th Item Options</span>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                {#each build.fourth_items.slice(0, 5) as item}
+                  <img
+                    src={itemIconUrl(item.id, $ddragonVersion)}
+                    alt={item.name}
+                    class="h-6 w-6 rounded-md object-cover bg-black ring-1 ring-purple-500/30"
+                    title={item.name}
+                  />
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          <!-- 5. 5th Item Options -->
+          {#if build?.fifth_items && build.fifth_items.length > 0}
+            <div class="flex flex-col gap-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">5th Item Options</span>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                {#each build.fifth_items.slice(0, 5) as item}
+                  <img
+                    src={itemIconUrl(item.id, $ddragonVersion)}
+                    alt={item.name}
+                    class="h-6 w-6 rounded-md object-cover bg-black ring-1 ring-purple-500/30"
+                    title={item.name}
+                  />
+                {/each}
+              </div>
+            </div>
+          {/if}
+
+          <!-- 6. 6th Item Options -->
+          {#if build?.sixth_items && build.sixth_items.length > 0}
+            <div class="flex flex-col gap-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">6th Item Options</span>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                {#each build.sixth_items.slice(0, 5) as item}
+                  <img
+                    src={itemIconUrl(item.id, $ddragonVersion)}
+                    alt={item.name}
+                    class="h-6 w-6 rounded-md object-cover bg-black ring-1 ring-purple-500/30"
+                    title={item.name}
+                  />
+                {/each}
+              </div>
+            </div>
+          {:else if allSituationalItems.length > 0 && (!build?.fourth_items?.length && !build?.fifth_items?.length)}
+            <!-- Fallback Situational Items if no depth item data -->
             <div class="flex flex-col gap-1">
               <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Situational Items</span>
               <div class="flex items-center gap-1.5 flex-wrap">
-                {#each build.fourth_items.slice(0, 5) as item}
+                {#each allSituationalItems.slice(0, 10) as item}
                   <img
                     src={itemIconUrl(item.id, $ddragonVersion)}
                     alt={item.name}

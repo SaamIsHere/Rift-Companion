@@ -261,7 +261,7 @@ pub fn from_gameflow(
                     .or_else(|| d.enemies.iter().find(|e| e.champion_id == champ_id))
             });
             let role = existing_pick.and_then(|p| p.role).or_else(|| repo.primary_role(champ_id));
-            let name = repo.get(champ_id).map(|c| c.name.clone());
+            let player_name = existing_pick.and_then(|p| p.player_name.clone());
 
             let pick = DraftPick {
                 champion_id: champ_id,
@@ -270,7 +270,7 @@ pub fn from_gameflow(
                 is_hover: false,
                 spell1_id: if sel.spell1_id > 0 { Some(sel.spell1_id) } else { None },
                 spell2_id: if sel.spell2_id > 0 { Some(sel.spell2_id) } else { None },
-                player_name: name,
+                player_name,
             };
 
             // Determine if player belongs to team_one or team_two
@@ -400,21 +400,36 @@ pub fn from_live_client(
         return None;
     }
 
-    let active_name = active
-        .map(|a| a.riot_id.as_str())
-        .filter(|s| !s.is_empty() && *s != "#")
-        .or_else(|| active.map(|a| a.summoner_name.as_str()).filter(|s| !s.is_empty()));
+    let active_name = active.and_then(|a| {
+        if !a.riot_id.is_empty() && a.riot_id != "#" {
+            Some(a.riot_id.clone())
+        } else if !a.riot_id_game_name.is_empty() {
+            if !a.riot_id_tag_line.is_empty() {
+                Some(format!("{}#{}", a.riot_id_game_name, a.riot_id_tag_line))
+            } else {
+                Some(a.riot_id_game_name.clone())
+            }
+        } else if !a.summoner_name.is_empty() {
+            Some(a.summoner_name.clone())
+        } else {
+            None
+        }
+    });
 
     let active_team = players
         .iter()
         .find(|p| {
-            active_name.map_or(false, |name| p.riot_id == name || p.summoner_name == name)
-                || existing.and_then(|d| d.local_champion_id).map_or(false, |cid| {
-                    repo.get(cid).map_or(false, |c| {
-                        c.name.eq_ignore_ascii_case(&p.champion_name)
-                            || c.image.eq_ignore_ascii_case(&p.champion_name)
-                    })
+            active_name.as_deref().map_or(false, |name| {
+                p.riot_id == name
+                    || p.summoner_name == name
+                    || p.riot_id_game_name == name
+                    || (!p.riot_id_game_name.is_empty() && name.starts_with(&p.riot_id_game_name))
+            }) || existing.and_then(|d| d.local_champion_id).map_or(false, |cid| {
+                repo.get(cid).map_or(false, |c| {
+                    c.name.eq_ignore_ascii_case(&p.champion_name)
+                        || c.image.eq_ignore_ascii_case(&p.champion_name)
                 })
+            })
         })
         .map(|p| p.team.as_str())
         .unwrap_or("ORDER");
@@ -457,10 +472,18 @@ pub fn from_live_client(
 
         let player_name = if !p.riot_id.is_empty() && p.riot_id != "#" {
             Some(p.riot_id.clone())
-        } else if !p.summoner_name.is_empty() {
+        } else if !p.riot_id_game_name.is_empty() {
+            if !p.riot_id_tag_line.is_empty() {
+                Some(format!("{}#{}", p.riot_id_game_name, p.riot_id_tag_line))
+            } else {
+                Some(p.riot_id_game_name.clone())
+            }
+        } else if !p.summoner_name.is_empty() && !champ_opt.map_or(false, |c| c.name.eq_ignore_ascii_case(&p.summoner_name)) {
             Some(p.summoner_name.clone())
         } else {
-            champ_opt.map(|c| c.name.clone())
+            existing.and_then(|d| {
+                d.allies.iter().chain(d.enemies.iter()).find(|x| x.champion_id == champ_id).and_then(|x| x.player_name.clone())
+            })
         };
 
         let spell1_id = p.summoner_spells.as_ref().and_then(|s| parse_spell_id(s.summoner_spell_one.as_ref()));
@@ -483,13 +506,17 @@ pub fn from_live_client(
     for p in players {
         let is_ally = p.team == active_team;
         let is_local = is_ally
-            && (active_name.map_or(false, |name| p.riot_id == name || p.summoner_name == name)
-                || existing.and_then(|d| d.local_champion_id).map_or(false, |cid| {
-                    repo.get(cid).map_or(false, |c| {
-                        c.name.eq_ignore_ascii_case(&p.champion_name)
-                            || c.image.eq_ignore_ascii_case(&p.champion_name)
-                    })
-                }));
+            && (active_name.as_deref().map_or(false, |name| {
+                p.riot_id == name
+                    || p.summoner_name == name
+                    || p.riot_id_game_name == name
+                    || (!p.riot_id_game_name.is_empty() && name.starts_with(&p.riot_id_game_name))
+            }) || existing.and_then(|d| d.local_champion_id).map_or(false, |cid| {
+                repo.get(cid).map_or(false, |c| {
+                    c.name.eq_ignore_ascii_case(&p.champion_name)
+                        || c.image.eq_ignore_ascii_case(&p.champion_name)
+                })
+            }));
 
         let pick = map_player(p, is_local);
         if is_local {

@@ -2,7 +2,7 @@ import { writable, get } from "svelte/store";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
-export const APP_VERSION = "0.1.7";
+export const APP_VERSION = "0.1.8";
 
 export const updateAvailable = writable<boolean>(false);
 export const availableUpdate = writable<Update | null>(null);
@@ -37,7 +37,7 @@ export async function checkForAppUpdate(interactive = false): Promise<boolean> {
       updateVersion.set(update.version);
       updateNotes.set(
         update.body ||
-          "### What's New in v0.1.7\n* **Rune, Item & Summoner Spell Importer:** One-click and automated import of optimal rune pages, summoner spells (with configurable D/F Flash key preference), and custom item sets directly into the League of Legends client.\n* **Single-Instance Protection:** Prevents multiple app instances from running simultaneously, gracefully restoring focus to the existing window.\n* **Support Item Tracking:** Displays the 2 most popular upgraded support items (Celestial Opposition, Bloodsong, Dream Maker, Zaz'Zak's Realmspike, Solstice Sleigh) with live pick and win rates.\n* **Match Simulator Fixes:** Added scoring focus mode switcher (Balanced, Counterpick, Team Player) with real-time recalculation, dropdown click-outside handling, and 10-minute match cache cooldowns.\n* **Autostart Preferences:** Configurable startup options under Settings -> Behavior (None, System Boot, or League Launch mode).\n* **Windows 10 Window Border Fix:** Adaptive window outline when restored/unmaximized to fix visual edge bleeding on Windows 10."
+          "### What's New in v0.1.8\n* **Extended Item Import:** Item sets imported into the League of Legends shop now generate 6 dedicated columns (Starting/Support Items, Boots, Core Items with top 3 options, 4th Item Options, 5th Item Options, and 6th Item Options).\n* **More Items for Champions:** Full tracking and recommendation for 4th, 5th, and 6th item slots with pick and win rates, plus a cleaner item presentation without redundant subtext.\n* **Alignment of Matchups for Ingame Tab:** Streamlined matchups and synergies layout with a unified Worst/Best switcher, independent column heights, and perfectly flush bottom alignment for situational item columns."
       );
       if (interactive) {
         showUpdateModal.set(true);

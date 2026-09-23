@@ -246,6 +246,18 @@ export const LATEST_PATCH_DATA: PatchNotesData = {
 
     // Rift Companion Updates
     {
+      id: "app-update-018",
+      type: "app",
+      category: "app",
+      title: "Rift Companion v0.1.8 Updates",
+      summary: "Extended Item Import with 6 shop columns, More Items for Champions (4th, 5th, and 6th slots), and Alignment of Matchups for the Ingame Tab.",
+      details: [
+        "Extended Item Import: Item sets imported into the League of Legends shop now generate 6 dedicated columns (Starting/Support Items, Boots, Core Items with the top 3 options, 4th Item Options, 5th Item Options, and 6th Item Options)",
+        "More Items for Champions: Added full tracking and recommendation for 4th, 5th, and 6th item slots with live pick and win rates, plus a cleaner item presentation without redundant subtext",
+        "Alignment of Matchups for Ingame Tab: Streamlined matchups and synergies layout with a unified Worst/Best switcher, independent column heights, and perfectly flush bottom alignment for situational item columns",
+      ],
+    },
+    {
       id: "app-update-017",
       type: "app",
       category: "app",

@@ -4,8 +4,8 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createApiRouter } from "./api.mjs";
-import { CrawlerScheduler } from "./scheduler.mjs";
+import { createApiRouter } from "./api.js";
+import { CrawlerScheduler } from "./scheduler.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
