@@ -1,6 +1,6 @@
-import { spawn } from "child_process";
-import os from "os";
-import path from "path";
+import { spawn } from "node:child_process";
+import * as os from "node:os";
+import * as path from "node:path";
 
 const targetDir = process.env.CARGO_TARGET_DIR || path.join(os.homedir(), ".cargo_target_rift");
 process.env.CARGO_TARGET_DIR = targetDir;
@@ -12,6 +12,6 @@ const child = spawn(tauriCmd, ["tauri", "build", ...process.argv.slice(2)], {
   env: process.env,
 });
 
-child.on("exit", (code) => {
+child.on("exit", (code: number | null) => {
   process.exit(code ?? 0);
 });
