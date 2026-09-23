@@ -246,6 +246,19 @@ export const LATEST_PATCH_DATA: PatchNotesData = {
 
     // Rift Companion Updates
     {
+      id: "app-update-019",
+      type: "app",
+      category: "app",
+      title: "Rift Companion v0.1.9 Updates",
+      summary: "Clickable players in match history, improved small window layout and scoreboard scaling, and startup build fixes.",
+      details: [
+        "Clickable Players in Match History: Summoners in expanded match scoreboards can now be clicked directly to immediately navigate to their profile and inspect their stats and recent games.",
+        "Improved Small Window Handling: Optimized layout and scoreboard scaling on smaller window sizes; eliminated player name, level, and KDA clipping, and constrained profile sidecards to give maximum horizontal room to match details.",
+        "Profile & Match Navigation Polish: Clean row hover highlight for participants, and ensured that matches always start collapsed when loading profiles to guarantee proper scoreboard loading.",
+        "App Startup & Build Fix: Resolved application startup and compilation issues on systems with space-separated workspace directories.",
+      ],
+    },
+    {
       id: "app-update-018",
       type: "app",
       category: "app",

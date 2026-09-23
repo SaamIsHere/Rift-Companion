@@ -1,7 +1,7 @@
 {
   "name": "rift-companion",
   "private": true,
-  "version": "0.1.8",
+  "version": "0.1.9",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,8 +9,8 @@
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
+    "tauri:dev": "node scripts/dev.js",
+    "tauri:build": "node scripts/build.js",
     "ingest:opgg": "tsx scripts/ingest-opgg.ts",
     "enrich:support": "tsx scripts/enrich-support-items.ts",
     "deploy:nas": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-nas.ps1"

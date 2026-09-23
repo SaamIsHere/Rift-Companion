@@ -29,6 +29,18 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
 
         tracing::info!(port = lock.port, "LCU lockfile found; connecting");
 
+        // "On League Launch" mode: open as a real window as soon as League client is detected.
+        {
+            let behavior = shared.settings.lock().unwrap().startup_behavior.clone();
+            if behavior == "league_launch" {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.unminimize();
+                    let _ = window.set_focus();
+                }
+            }
+        }
+
         match websocket::connect(&lock).await {
             Ok(mut ws) => {
                 // Only report Connected — and fire the REST-dependent setup — once the

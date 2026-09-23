@@ -20,6 +20,7 @@ use std::sync::{Arc, Mutex};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager};
+use tauri_plugin_autostart::ManagerExt;
 
 use data::models::{RankTier, Role};
 use data::repository::Repository;
@@ -145,7 +146,10 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--autostart"]),
+        ))
         .manage(shared.clone())
         .invoke_handler(tauri::generate_handler![
             commands::get_connection_status,
@@ -244,11 +248,28 @@ pub fn run() {
             // Apply the persisted always-on-top preference and attach close-behavior event handler
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_always_on_top(always_on_top);
-                // "On League Launch" mode: start hidden, the LCU watcher will show the window when League is found.
-                if startup_behavior == "league_launch" {
+                // Detect if launched automatically in background at Windows boot / autostart
+                let is_autostart = std::env::args().any(|arg| {
+                    arg == "--autostart" || arg == "--minimized" || arg == "--hidden"
+                });
+
+                // Ensure autostart entry is synchronized and includes the --autostart flag
+                {
+                    let autostart = app.autolaunch();
+                    if startup_behavior == "system_boot" || startup_behavior == "league_launch" {
+                        let _ = autostart.enable();
+                    }
+                }
+
+                // "On League Launch" mode: only start hidden in tray if launched via autostart
+                // AND League of Legends is not already running.
+                // If the user explicitly launched the app manually, always show the window.
+                if is_autostart && startup_behavior == "league_launch" && lcu::lockfile::find().is_none() {
+                    // Window remains hidden in system tray (visible: false in tauri.conf.json prevents any flash)
                     let _ = window.hide();
                 } else {
                     let _ = window.show();
+                    let _ = window.unminimize();
                     let _ = window.set_focus();
                 }
 

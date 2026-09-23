@@ -2,7 +2,7 @@ import { writable, get } from "svelte/store";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
-export const APP_VERSION = "0.1.8";
+export const APP_VERSION = "0.1.9";
 
 export const updateAvailable = writable<boolean>(false);
 export const availableUpdate = writable<Update | null>(null);
@@ -37,7 +37,7 @@ export async function checkForAppUpdate(interactive = false): Promise<boolean> {
       updateVersion.set(update.version);
       updateNotes.set(
         update.body ||
-          "### What's New in v0.1.8\n* **Extended Item Import:** Item sets imported into the League of Legends shop now generate 6 dedicated columns (Starting/Support Items, Boots, Core Items with top 3 options, 4th Item Options, 5th Item Options, and 6th Item Options).\n* **More Items for Champions:** Full tracking and recommendation for 4th, 5th, and 6th item slots with pick and win rates, plus a cleaner item presentation without redundant subtext.\n* **Alignment of Matchups for Ingame Tab:** Streamlined matchups and synergies layout with a unified Worst/Best switcher, independent column heights, and perfectly flush bottom alignment for situational item columns."
+          "### What's New in v0.1.9\n* **Clickable Players in Match History:** Click any summoner in the match history scoreboard to immediately view their profile, stats, and matches.\n* **Improved Small Window Handling:** Optimized scoreboard layout to prevent player name and KDA clipping on smaller screen sizes, giving match details maximum room.\n* **Profile Navigation Polish:** Smooth hover highlighting and ensured match details always start collapsed upon loading a profile for reliable data fetching.\n* **App Startup Fix:** Resolved startup and compilation issues for paths containing spaces."
       );
       if (interactive) {
         showUpdateModal.set(true);

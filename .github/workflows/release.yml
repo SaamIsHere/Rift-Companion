@@ -81,12 +81,10 @@ jobs:
             ## Rift Companion Release ${{ steps.get_version.outputs.tag }}
 
             ### Highlights
-            * **Rune, Item & Summoner Spell Importer:** One-click and automated import of optimal rune pages, summoner spells (with configurable D/F Flash key preference), and custom item sets directly into the League of Legends client during champ select.
-            * **Single-Instance Protection:** Prevents multiple instances from running at the same time, automatically focusing and restoring the active window.
-            * **Support Item Tracking:** Tracks and displays optimal upgraded support items (Celestial Opposition, Bloodsong, Dream Maker, Zaz'Zak's Realmspike, Solstice Sleigh) with live pick and win rates.
-            * **Match Simulator Enhancements:** Added scoring focus modes (Balanced, Counterpick, Team Player) with real-time recalculation, dropdown click-outside handling, and 10-minute match cache cooldowns.
-            * **Autostart Preferences:** Configurable startup options in Settings -> Behavior (None, System Boot, or League Launch mode).
-            * **Windows 10 Window Border Polish:** Adaptive border when windowed/restored to fix visual edge bleeding on Windows 10 borderless windows.
+            * **Clickable Players in Match History:** Summoners in expanded match scoreboards can now be clicked directly to open and view their full player profile and recent match history.
+            * **Improved Small Window Layout:** Completely eliminated player name, level, and KDA clipping on smaller window sizes with responsive scoreboard scaling and optimized profile sidecard widths.
+            * **Profile & Match Navigation Polish:** Clean hover outline on scoreboard player rows and guaranteed collapse reset on profile loads to ensure proper match data fetching.
+            * **App Startup Fix:** Resolved startup compilation and target directory path issues on systems with space-separated workspace directories.
 
             ### Download & Installation
             * **Windows Installer:** Download `Rift-Companion_${{ steps.get_version.outputs.version }}_x64-setup.exe` below and double-click to install.

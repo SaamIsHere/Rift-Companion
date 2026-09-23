@@ -32,7 +32,7 @@
     loadRunesReforged,
   } from "../utils/ddragon";
   import { inferRegionFromTag } from "../utils/profileNormalizer";
-  import type { PlayerMatch, ChampionPerformance } from "../types";
+  import type { PlayerMatch, ChampionPerformance, DetailedParticipant } from "../types";
 
   const REGIONS = [
     { code: "EUW", label: "Europe West (EUW)" },
@@ -57,6 +57,27 @@
   let scrollContainer: HTMLDivElement | null = null;
   let searchInputEl: HTMLInputElement | null = null;
   let lastSyncedProfileName = "";
+  let lastLoadedProfileKey = "";
+
+  function resetExpandedMatches() {
+    expandedMatchIds = new Set();
+    loadingMatchDetailIds = new Set();
+  }
+
+  // Ensure all matches start collapsed whenever a new profile starts loading or the profile identity changes
+  $: {
+    const profileKey = $viewedProfile
+      ? `${$viewedProfile.region || ""}:${$viewedProfile.game_name}#${$viewedProfile.tag_line}`
+      : "";
+    if (profileKey !== lastLoadedProfileKey) {
+      lastLoadedProfileKey = profileKey;
+      resetExpandedMatches();
+    }
+  }
+
+  $: if ($viewedProfileLoading) {
+    resetExpandedMatches();
+  }
 
   $: if ($ddragonVersion) {
     loadRunesReforged($ddragonVersion).then((map) => {
@@ -110,6 +131,7 @@
     const trimmed = searchQuery.trim();
     if (!trimmed) return;
 
+    resetExpandedMatches();
     isExplicitSearch.set(true);
     activeSearchQuery.set(trimmed);
     viewedProfileError.set(null);
@@ -141,6 +163,7 @@
   }
 
   function selectRecent(item: RecentSearchItem) {
+    resetExpandedMatches();
     isExplicitSearch.set(true);
     searchQuery = item.riot_id;
     activeSearchQuery.set(item.riot_id);
@@ -148,7 +171,55 @@
     handleSearch(false);
   }
 
+  function openPlayerProfile(p: DetailedParticipant) {
+    let gn = (p.game_name || p.summoner_name || "").trim();
+    let tl = (p.tag_line || "").trim();
+
+    // Ignore placeholder names like "Player 1", "Player 2"
+    if (!gn || /^Player\s+\d+$/i.test(gn)) return;
+
+    if (gn.includes("#")) {
+      const parts = gn.split("#");
+      gn = parts[0].trim();
+      tl = parts[1].trim() || tl;
+    }
+
+    if (!tl) {
+      tl = selectedRegion;
+    }
+
+    // If clicking the profile currently being viewed, just smooth-scroll to top
+    if (
+      $viewedProfile &&
+      $viewedProfile.game_name.toLowerCase() === gn.toLowerCase() &&
+      (!$viewedProfile.tag_line || !tl || $viewedProfile.tag_line.toLowerCase() === tl.toLowerCase())
+    ) {
+      if (scrollContainer) {
+        scrollContainer.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      return;
+    }
+
+    resetExpandedMatches();
+    isExplicitSearch.set(true);
+    const fullQuery = `${gn}#${tl}`;
+    searchQuery = fullQuery;
+    activeSearchQuery.set(fullQuery);
+    viewedProfileError.set(null);
+
+    const inferred = inferRegionFromTag(tl);
+    const targetRegion = inferred || selectedRegion;
+    selectedRegion = targetRegion;
+
+    if (scrollContainer) {
+      scrollContainer.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    loadPlayerProfile(gn, tl, targetRegion, false);
+  }
+
   function returnToMyAccount() {
+    resetExpandedMatches();
     isExplicitSearch.set(false);
     viewedProfileError.set(null);
     if (scrollContainer) {
@@ -169,6 +240,7 @@
   }
 
   function handleManualRefresh() {
+    resetExpandedMatches();
     if ($viewedProfile) {
       loadPlayerProfile($viewedProfile.game_name, $viewedProfile.tag_line, selectedRegion, true);
     } else {
@@ -651,25 +723,8 @@
               </span>
             </div>
 
-            <!-- Source & Connection status -->
+            <!-- Status & Sync info -->
             <div class="mt-2 flex flex-wrap items-center gap-2.5">
-              {#if $viewedProfile.source === "lcu"}
-                <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-950/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300">
-                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
-                  <span>Live League Client</span>
-                </span>
-              {:else if $profile && $viewedProfile.display_name.toLowerCase() === $profile.display_name.toLowerCase()}
-                <span class="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-950/30 px-2.5 py-0.5 text-[10px] font-bold text-amber-300">
-                  <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
-                  <span>Remembered Local Account</span>
-                </span>
-              {:else}
-                <span class="inline-flex items-center gap-1.5 rounded-full border border-purple-500/30 bg-purple-950/30 px-2.5 py-0.5 text-[10px] font-bold text-purple-300">
-                  <span class="h-1.5 w-1.5 rounded-full bg-purple-400"></span>
-                  <span>OP.GG Remote Profile</span>
-                </span>
-              {/if}
-
               <span
                 class="text-[10px] text-slate-400"
                 title="Last synchronized: {new Date($lastSyncedAt || $viewedProfile.updated_at || Date.now()).toLocaleTimeString()} (auto-refreshes every 3 hours)"
@@ -840,16 +895,16 @@
   {/if}
 
   {#if $viewedProfile}
-  <!-- MAIN CONTENT GRID (TWO COLUMNS) -->
-  <div class="grid grid-cols-12 gap-5 shrink-0">
-    <!-- LEFT COLUMN: RECENT METRICS & TOP CHAMPIONS (col-span-12 lg:col-span-4) -->
-    <div class="col-span-12 lg:col-span-4 flex flex-col gap-5">
+  <!-- MAIN CONTENT LAYOUT (TWO COLUMNS) -->
+  <div class="grid grid-cols-1 lg:grid-cols-[310px_minmax(0,1fr)] gap-5 shrink-0 items-start">
+    <!-- LEFT COLUMN: RECENT METRICS & TOP CHAMPIONS -->
+    <div class="w-full lg:max-w-[310px] flex flex-col gap-5">
       <!-- CARD: RECENT PERFORMANCE SUMMARY -->
       {#if recentStats}
         <div class="glass rounded-2xl p-4">
           <div class="flex items-center justify-between mb-3">
             <h2 class="text-xs font-bold uppercase tracking-wider text-purple-200">
-              Match History Summary
+              Recent Games
             </h2>
             <span class="rounded-md border border-purple-500/30 bg-purple-950/40 px-2 py-0.5 text-[10px] font-bold text-purple-300">
               Last {recentStats.count} Games
@@ -924,28 +979,28 @@
           <div class="flex flex-col gap-2">
             {#each (showAllChampions ? displayedChampions : displayedChampions.slice(0, 7)) as champ, cIdx (`champ-${championQueueFilter}-${champ.id}-${cIdx}`)}
               {@const champInfo = getChampInfo(champ.id)}
-              <div class="flex items-center justify-between rounded-xl border border-purple-500/15 bg-purple-950/25 p-2.5 transition hover:bg-purple-900/30">
+              <div class="flex items-center justify-between rounded-xl border border-purple-500/15 bg-purple-950/25 p-2 transition hover:bg-purple-900/30">
                 <!-- Champion Icon & Name -->
-                <div class="flex items-center gap-2.5 min-w-0 pr-2">
+                <div class="flex items-center gap-2 min-w-0 pr-1.5">
                   <img
                     src={squareIconUrl(champInfo.key, $ddragonVersion)}
                     alt={champ.name}
-                    class="h-9 w-9 rounded-lg border border-purple-500/30 object-cover bg-black shrink-0"
+                    class="h-8.5 w-8.5 rounded-lg border border-purple-500/30 object-cover bg-black shrink-0"
                   />
                   <div class="min-w-0">
-                    <span class="text-xs font-bold text-white truncate block">
+                    <span class="text-xs font-bold text-white truncate block" title={champInfo.name || champ.name}>
                       {champInfo.name || champ.name}
                     </span>
                     {#if champ.games > 0}
                       <span class="text-[10px] font-semibold text-slate-400 block truncate">
                         {champ.games} {champ.games === 1 ? "Game" : "Games"}
                         {#if champ.mastery_points}
-                          · <span class="text-purple-300 font-bold">{(champ.mastery_points / 1000).toFixed(1)}k pts</span>
+                          · <span class="text-purple-300 font-bold">{(champ.mastery_points / 1000).toFixed(1)}k</span>
                         {/if}
                       </span>
                     {:else if champ.mastery_points}
                       <span class="text-[10px] font-bold text-purple-300 block truncate">
-                        Mastery Lv. {champ.mastery_level || 7} · {(champ.mastery_points / 1000).toFixed(1)}k pts
+                        Mastery Lv. {champ.mastery_level || 7} · {(champ.mastery_points / 1000).toFixed(1)}k
                       </span>
                     {:else}
                       <span class="text-[10px] text-slate-500 block">No recent games</span>
@@ -956,8 +1011,8 @@
                 <!-- Stats -->
                 <div class="text-right shrink-0">
                   {#if champ.games > 0}
-                    <div class="flex items-center gap-2">
-                      <div>
+                    <div class="flex items-center gap-1.5">
+                      <div class="text-right">
                         <span class="text-xs font-bold text-white block">
                           {formatPct(champ.win_rate)}
                         </span>
@@ -965,7 +1020,7 @@
                           {champ.wins}W {champ.losses}L
                         </span>
                       </div>
-                      <div class="w-14 border-l border-purple-500/20 pl-2">
+                      <div class="w-12 border-l border-purple-500/20 pl-1.5 text-right">
                         <span class="text-xs {getKdaColor(champ.kda)} block">
                           {champ.kda.toFixed(2)}:1
                         </span>
@@ -1023,8 +1078,8 @@
       </div>
     </div>
 
-    <!-- RIGHT COLUMN: MATCH HISTORY FEED (col-span-12 lg:col-span-8) -->
-    <div class="col-span-12 lg:col-span-8 flex flex-col gap-4">
+    <!-- RIGHT COLUMN: MATCH HISTORY FEED -->
+    <div class="w-full min-w-0 flex flex-col gap-4">
       <!-- FILTER TABS & MATCH COUNT -->
       <div class="glass flex flex-wrap items-center justify-between gap-3 rounded-2xl px-4 py-2.5">
         <div class="flex items-center gap-1.5">
@@ -1277,13 +1332,13 @@
                     <div class="h-4 w-4 animate-spin rounded-full border-2 border-purple-400 border-t-transparent"></div>
                     <span class="text-xs font-semibold text-purple-300">Loading full match scoreboard…</span>
                   </div>
-                {:else if match.participants && match.participants.length > 0}
+                {:else if match.participants && match.participants.length > 1}
                   {@const blueParticipants = match.participants.filter((p) => p.team_id === 100 || p.team_id === 1)}
                   {@const redParticipants = match.participants.filter((p) => p.team_id === 200 || p.team_id === 2)}
                   {@const blueTeam = blueParticipants.length > 0 || redParticipants.length > 0 ? blueParticipants : match.participants.slice(0, Math.ceil(match.participants.length / 2))}
                   {@const redTeam = blueParticipants.length > 0 || redParticipants.length > 0 ? redParticipants : match.participants.slice(Math.ceil(match.participants.length / 2))}
                   <div class="border-t border-purple-500/20 bg-void-950/40 p-4 transition-all">
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div class="grid grid-cols-1 min-[1180px]:grid-cols-2 gap-4">
                     <!-- Blue Team (100) -->
                     <div class="flex flex-col gap-1.5">
                       <div class="flex items-center justify-between px-2 pb-1 border-b border-cyan-500/20 text-[11px] font-black uppercase text-cyan-300">
@@ -1299,13 +1354,33 @@
                       </div>
                       {#each blueTeam as p}
                         {@const pChamp = getChampInfo(p.champion_id)}
-                        <div class="flex items-center justify-between rounded-lg py-1.5 px-2 transition {p.is_local ? 'bg-purple-900/30 border border-purple-500/30' : 'hover:bg-purple-950/20'}">
-                          <div class="flex items-center gap-2 min-w-0 pr-2">
-                            <img
-                              src={squareIconUrl(pChamp.key, $ddragonVersion)}
-                              alt={pChamp.name}
-                              class="h-8.5 w-8.5 rounded-lg border border-purple-500/30 object-cover bg-black shrink-0"
-                            />
+                        <div
+                          role="button"
+                          tabindex="0"
+                          on:click={() => openPlayerProfile(p)}
+                          on:keydown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              openPlayerProfile(p);
+                            }
+                          }}
+                          class="flex items-center justify-between rounded-lg py-1.5 px-2 transition border {p.is_local
+                            ? 'bg-purple-900/30 border-purple-500/30 hover:bg-purple-900/50 hover:border-purple-400/50'
+                            : 'border-transparent hover:border-purple-500/40 hover:bg-purple-950/40'} cursor-pointer overflow-hidden text-left"
+                          title="Profil von {p.summoner_name} aufrufen"
+                        >
+                          <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                            <!-- Champion Avatar with Level Badge -->
+                            <div class="relative shrink-0">
+                              <img
+                                src={squareIconUrl(pChamp.key, $ddragonVersion)}
+                                alt={pChamp.name}
+                                class="h-8.5 w-8.5 rounded-lg border border-purple-500/30 object-cover bg-black shrink-0"
+                              />
+                              <span class="absolute -bottom-1 -right-1 rounded bg-void-950/90 border border-purple-400/40 px-1 text-[8px] font-black text-purple-200 leading-tight">
+                                {p.champion_level}
+                              </span>
+                            </div>
                             <!-- Summoners & Runes -->
                             <div class="flex items-center gap-0.5 shrink-0">
                               {#if p.spells && p.spells.length >= 2}
@@ -1343,26 +1418,31 @@
                                 {/if}
                               </div>
                             </div>
-                            <div class="min-w-0 max-w-[125px]">
-                              <span class="text-xs font-bold truncate block {p.is_local ? 'text-amber-300 font-extrabold' : 'text-white'}">
+                            <div class="min-w-0 flex-1">
+                              <span
+                                class="text-xs font-bold truncate block {p.is_local ? 'text-amber-300 font-extrabold' : 'text-white'}"
+                                title="{p.summoner_name} (Lv. {p.champion_level})"
+                              >
                                 {p.summoner_name}
                               </span>
-                              <span class="text-[11px] font-medium text-slate-400">Lv. {p.champion_level}</span>
+                              <span class="text-[10px] font-medium text-slate-400 block truncate">
+                                Lv. {p.champion_level}
+                              </span>
                             </div>
                           </div>
-                          <div class="flex items-center gap-3 shrink-0">
-                            <span class="text-xs font-bold text-slate-100 w-16 text-center shrink-0">
+                          <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
+                            <span class="text-xs font-bold text-slate-100 w-14 sm:w-16 text-center shrink-0">
                               {p.kills}/{p.deaths}/{p.assists}
                             </span>
-                            <span class="text-xs font-semibold text-rose-300/90 w-12 text-right shrink-0">
+                            <span class="text-xs font-semibold text-rose-300/90 w-11 sm:w-12 text-right shrink-0">
                               {p.total_damage > 0 ? (p.total_damage / 1000).toFixed(1) + "k" : "–"}
                             </span>
-                            <div class="flex items-center gap-1 shrink-0">
+                            <div class="flex items-center gap-0.5 sm:gap-1 shrink-0">
                               {#each p.items.slice(0, 6) as itId}
                                 {#if itId > 0}
-                                  <img src={itemIconUrl(itId, $ddragonVersion)} alt="Item" class="h-5.5 w-5.5 rounded-md border border-purple-500/25 bg-black" />
+                                  <img src={itemIconUrl(itId, $ddragonVersion)} alt="Item" class="h-5 w-5 sm:h-5.5 sm:w-5.5 rounded-md border border-purple-500/25 bg-black" />
                                 {:else}
-                                  <div class="h-5.5 w-5.5 rounded-md border border-purple-500/15 bg-purple-950/30"></div>
+                                  <div class="h-5 w-5 sm:h-5.5 sm:w-5.5 rounded-md border border-purple-500/15 bg-purple-950/30"></div>
                                 {/if}
                               {/each}
                             </div>
@@ -1386,13 +1466,33 @@
                       </div>
                       {#each redTeam as p}
                         {@const pChamp = getChampInfo(p.champion_id)}
-                        <div class="flex items-center justify-between rounded-lg py-1.5 px-2 transition {p.is_local ? 'bg-purple-900/30 border border-purple-500/30' : 'hover:bg-purple-950/20'}">
-                          <div class="flex items-center gap-2 min-w-0 pr-2">
-                            <img
-                              src={squareIconUrl(pChamp.key, $ddragonVersion)}
-                              alt={pChamp.name}
-                              class="h-8.5 w-8.5 rounded-lg border border-purple-500/30 object-cover bg-black shrink-0"
-                            />
+                        <div
+                          role="button"
+                          tabindex="0"
+                          on:click={() => openPlayerProfile(p)}
+                          on:keydown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              openPlayerProfile(p);
+                            }
+                          }}
+                          class="flex items-center justify-between rounded-lg py-1.5 px-2 transition border {p.is_local
+                            ? 'bg-purple-900/30 border-purple-500/30 hover:bg-purple-900/50 hover:border-purple-400/50'
+                            : 'border-transparent hover:border-purple-500/40 hover:bg-purple-950/40'} cursor-pointer overflow-hidden text-left"
+                          title="Profil von {p.summoner_name} aufrufen"
+                        >
+                          <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                            <!-- Champion Avatar with Level Badge -->
+                            <div class="relative shrink-0">
+                              <img
+                                src={squareIconUrl(pChamp.key, $ddragonVersion)}
+                                alt={pChamp.name}
+                                class="h-8.5 w-8.5 rounded-lg border border-purple-500/30 object-cover bg-black shrink-0"
+                              />
+                              <span class="absolute -bottom-1 -right-1 rounded bg-void-950/90 border border-purple-400/40 px-1 text-[8px] font-black text-purple-200 leading-tight">
+                                {p.champion_level}
+                              </span>
+                            </div>
                             <!-- Summoners & Runes -->
                             <div class="flex items-center gap-0.5 shrink-0">
                               {#if p.spells && p.spells.length >= 2}
@@ -1430,26 +1530,31 @@
                                 {/if}
                               </div>
                             </div>
-                            <div class="min-w-0 max-w-[125px]">
-                              <span class="text-xs font-bold truncate block {p.is_local ? 'text-amber-300 font-extrabold' : 'text-white'}">
+                            <div class="min-w-0 flex-1">
+                              <span
+                                class="text-xs font-bold truncate block {p.is_local ? 'text-amber-300 font-extrabold' : 'text-white'}"
+                                title="{p.summoner_name} (Lv. {p.champion_level})"
+                              >
                                 {p.summoner_name}
                               </span>
-                              <span class="text-[11px] font-medium text-slate-400">Lv. {p.champion_level}</span>
+                              <span class="text-[10px] font-medium text-slate-400 block truncate">
+                                Lv. {p.champion_level}
+                              </span>
                             </div>
                           </div>
-                          <div class="flex items-center gap-3 shrink-0">
-                            <span class="text-xs font-bold text-slate-100 w-16 text-center shrink-0">
+                          <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
+                            <span class="text-xs font-bold text-slate-100 w-14 sm:w-16 text-center shrink-0">
                               {p.kills}/{p.deaths}/{p.assists}
                             </span>
-                            <span class="text-xs font-semibold text-rose-300/90 w-12 text-right shrink-0">
+                            <span class="text-xs font-semibold text-rose-300/90 w-11 sm:w-12 text-right shrink-0">
                               {p.total_damage > 0 ? (p.total_damage / 1000).toFixed(1) + "k" : "–"}
                             </span>
-                            <div class="flex items-center gap-1 shrink-0">
+                            <div class="flex items-center gap-0.5 sm:gap-1 shrink-0">
                               {#each p.items.slice(0, 6) as itId}
                                 {#if itId > 0}
-                                  <img src={itemIconUrl(itId, $ddragonVersion)} alt="Item" class="h-5.5 w-5.5 rounded-md border border-purple-500/25 bg-black" />
+                                  <img src={itemIconUrl(itId, $ddragonVersion)} alt="Item" class="h-5 w-5 sm:h-5.5 sm:w-5.5 rounded-md border border-purple-500/25 bg-black" />
                                 {:else}
-                                  <div class="h-5.5 w-5.5 rounded-md border border-purple-500/15 bg-purple-950/30"></div>
+                                  <div class="h-5 w-5 sm:h-5.5 sm:w-5.5 rounded-md border border-purple-500/15 bg-purple-950/30"></div>
                                 {/if}
                               {/each}
                             </div>
