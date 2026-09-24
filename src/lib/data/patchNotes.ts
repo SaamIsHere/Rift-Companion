@@ -246,6 +246,19 @@ export const LATEST_PATCH_DATA: PatchNotesData = {
 
     // Rift Companion Updates
     {
+      id: "app-update-020",
+      type: "app",
+      category: "app",
+      title: "Rift Companion v0.2.0 Updates",
+      summary: "Windows Defender anti-virus fix for autostart, reliable League Launch background mode, and improved item set import structure.",
+      details: [
+        "Windows Defender & Autostart Fix: Replaced intrusive registry modifications with standard Windows Startup folder shortcuts (`.lnk`), eliminating Windows Defender false positives and quarantine blocks.",
+        "Reliable League Launch Mode: App now cleanly starts minimized in the system tray on Windows boot and automatically pops up in the foreground as soon as League of Legends is launched.",
+        "Optimized Item Set Import: Restructured shop item set blocks into clean Start Items (including health potion), top boots choices, dual core paths (Core 1 & Core 2), and dedicated optional items.",
+        "Fast Lockfile Discovery: Added instant direct lookup of default League install directories, significantly speeding up client detection while reducing background CPU usage.",
+      ],
+    },
+    {
       id: "app-update-019",
       type: "app",
       category: "app",

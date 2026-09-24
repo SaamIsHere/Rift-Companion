@@ -52,6 +52,22 @@ fn locate_path() -> Option<PathBuf> {
         }
     }
 
+    // Direct check for standard League of Legends installation directories
+    #[cfg(windows)]
+    {
+        for default_path in [
+            r"C:\Riot Games\League of Legends\lockfile",
+            r"D:\Riot Games\League of Legends\lockfile",
+            r"E:\Riot Games\League of Legends\lockfile",
+        ] {
+            let p = PathBuf::from(default_path);
+            if p.exists() {
+                *LAST_KNOWN_PATH.lock().unwrap() = Some(p.clone());
+                return Some(p);
+            }
+        }
+    }
+
     let resolved = locate_path_via_process_scan();
     if let Some(path) = &resolved {
         *LAST_KNOWN_PATH.lock().unwrap() = Some(path.clone());

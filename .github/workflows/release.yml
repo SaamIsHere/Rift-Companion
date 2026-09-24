@@ -81,10 +81,10 @@ jobs:
             ## Rift Companion Release ${{ steps.get_version.outputs.tag }}
 
             ### Highlights
-            * **Clickable Players in Match History:** Summoners in expanded match scoreboards can now be clicked directly to open and view their full player profile and recent match history.
-            * **Improved Small Window Layout:** Completely eliminated player name, level, and KDA clipping on smaller window sizes with responsive scoreboard scaling and optimized profile sidecard widths.
-            * **Profile & Match Navigation Polish:** Clean hover outline on scoreboard player rows and guaranteed collapse reset on profile loads to ensure proper match data fetching.
-            * **App Startup Fix:** Resolved startup compilation and target directory path issues on systems with space-separated workspace directories.
+            * **Windows Defender & Safe Autostart Fix:** Completely eliminated antivirus false positives and quarantine blocks by replacing intrusive registry tampering with standard Windows Startup folder shortcuts (`.lnk`).
+            * **Reliable League Launch Mode:** In League Launch mode, the companion cleanly starts minimized in the system tray on Windows boot and automatically pops up in the foreground as soon as League of Legends launches.
+            * **Optimized Item Set Import:** Restructured shop item set blocks into clean Start Items (including health potion), top boots choices, dual core paths (Core 1 & Core 2), and dedicated optional items.
+            * **Fast Client Discovery:** Added instant direct detection for default League of Legends installation paths, eliminating unnecessary process-wide scans and reducing CPU usage.
 
             ### Download & Installation
             * **Windows Installer:** Download `Rift-Companion_${{ steps.get_version.outputs.version }}_x64-setup.exe` below and double-click to install.

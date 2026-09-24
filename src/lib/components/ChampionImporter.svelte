@@ -283,53 +283,75 @@
 
     const blocks: ItemSetBlock[] = [];
 
-    // 1. Starting Items / Support Items
+    // 1. Start Items (Top 1 Start Item, Top 2 Start Item, and Health Pots)
     const starterIds: number[] = [];
     const seenStarter = new Set<number>();
+    const isPotionOrTrinket = (id: number) =>
+      id === 2003 || id === 2031 || id === 2055 || (id >= 3340 && id <= 3364) || (id >= 2138 && id <= 2140);
+
     if (isSupport) {
-      for (const id of [3865, 2003]) {
-        if (!seenStarter.has(id)) {
-          seenStarter.add(id);
-          starterIds.push(id);
-        }
-      }
-      if (build.support_items) {
-        for (const sup of build.support_items) {
-          for (const id of sup.ids) {
-            if (!seenStarter.has(id)) {
+      seenStarter.add(3865);
+      starterIds.push(3865);
+
+      if (build.starter_items) {
+        for (const st of build.starter_items) {
+          for (const id of st.ids) {
+            if (id && !isPotionOrTrinket(id) && !seenStarter.has(id)) {
               seenStarter.add(id);
               starterIds.push(id);
+              break;
             }
           }
+          if (starterIds.length >= 2) break;
         }
       }
     } else if (build.starter_items && build.starter_items.length > 0) {
-      for (const st of build.starter_items.slice(0, 2)) {
+      for (const st of build.starter_items) {
         for (const id of st.ids) {
-          if (!seenStarter.has(id)) {
+          if (id && !isPotionOrTrinket(id) && !seenStarter.has(id)) {
             seenStarter.add(id);
             starterIds.push(id);
+            break;
           }
+        }
+        if (starterIds.length >= 2) break;
+      }
+      if (starterIds.length < 2) {
+        for (const st of build.starter_items) {
+          for (const id of st.ids) {
+            if (id && !isPotionOrTrinket(id) && !seenStarter.has(id)) {
+              seenStarter.add(id);
+              starterIds.push(id);
+              if (starterIds.length >= 2) break;
+            }
+          }
+          if (starterIds.length >= 2) break;
         }
       }
     }
+
+    // Append Health Potion (2003)
+    if (!seenStarter.has(2003)) {
+      seenStarter.add(2003);
+      starterIds.push(2003);
+    }
+
     if (starterIds.length > 0) {
       blocks.push({
-        name: isSupport ? "Support Items" : "Starting Items",
+        name: "Start Items",
         items: starterIds,
       });
     }
 
-    // 2. Boots (Schuhe)
+    // 2. Boots (Top 1 most popular boots, then Top 2 most popular boots)
     if (build.boots && build.boots.length > 0) {
       const bootsIds: number[] = [];
       const seenBoots = new Set<number>();
-      seenBoots.add(1001);
-      bootsIds.push(1001);
       for (const b of build.boots) {
         if (b.id && !seenBoots.has(b.id)) {
           seenBoots.add(b.id);
           bootsIds.push(b.id);
+          if (bootsIds.length >= 2) break;
         }
       }
       if (bootsIds.length > 0) {
@@ -340,58 +362,61 @@
       }
     }
 
-    // 3. Core Items (Top 3 distinct options)
+    // 3. Core 1 (Top 1 3-item core build)
     if (build.core_items && build.core_items.length > 0) {
-      const coreIds: number[] = [];
-      const seenCore = new Set<number>();
-      for (const combo of build.core_items.slice(0, 3)) {
-        for (const id of combo.ids) {
-          if (!seenCore.has(id)) {
-            seenCore.add(id);
-            coreIds.push(id);
-          }
-        }
-      }
-      if (coreIds.length > 0) {
+      const core1Ids = (build.core_items[0]?.ids || []).filter(Boolean);
+      if (core1Ids.length > 0) {
         blocks.push({
-          name: "Core Items",
-          items: coreIds,
+          name: "Core 1",
+          items: core1Ids,
         });
       }
     }
 
-    // 4. 4th Item Options
-    const fourthIds = (build.fourth_items || []).slice(0, 5).map((it) => it.id).filter(Boolean);
-    if (fourthIds.length > 0) {
-      blocks.push({
-        name: "4th Item Options",
-        items: fourthIds,
-      });
+    // 4. Core 2 (2nd most popular 3-item core build)
+    if (build.core_items && build.core_items.length > 1) {
+      const core2Ids = (build.core_items[1]?.ids || []).filter(Boolean);
+      if (core2Ids.length > 0) {
+        blocks.push({
+          name: "Core 2",
+          items: core2Ids,
+        });
+      }
     }
 
-    // 5. 5th Item Options
-    const fifthIds = (build.fifth_items || []).slice(0, 5).map((it) => it.id).filter(Boolean);
-    if (fifthIds.length > 0) {
-      blocks.push({
-        name: "5th Item Options",
-        items: fifthIds,
-      });
+    // 5. Optional Items (All items from 4th, 5th, and 6th item slots under top 5, unique)
+    const optionalIds: number[] = [];
+    const seenOptional = new Set<number>();
+
+    const slotLists = [
+      (build.fourth_items || []).slice(0, 5),
+      (build.fifth_items || []).slice(0, 5),
+      (build.sixth_items || []).slice(0, 5),
+    ];
+
+    for (const list of slotLists) {
+      for (const item of list) {
+        if (item?.id && !seenOptional.has(item.id)) {
+          seenOptional.add(item.id);
+          optionalIds.push(item.id);
+        }
+      }
     }
 
-    // 6. 6th Item Options
-    const sixthIds = (build.sixth_items || []).slice(0, 5).map((it) => it.id).filter(Boolean);
-    if (sixthIds.length > 0) {
-      blocks.push({
-        name: "6th Item Options",
-        items: sixthIds,
-      });
+    // Fallback if 4th/5th/6th had no items
+    if (optionalIds.length === 0 && allSituationalItems.length > 0) {
+      for (const item of allSituationalItems.slice(0, 15)) {
+        if (item?.id && !seenOptional.has(item.id)) {
+          seenOptional.add(item.id);
+          optionalIds.push(item.id);
+        }
+      }
     }
 
-    // Fallback: If 4th/5th/6th had no items, but allSituationalItems has items
-    if (fourthIds.length === 0 && fifthIds.length === 0 && sixthIds.length === 0 && allSituationalItems.length > 0) {
+    if (optionalIds.length > 0) {
       blocks.push({
-        name: "Situational Items",
-        items: allSituationalItems.slice(0, 10).map((it) => it.id),
+        name: "Optional Items",
+        items: optionalIds,
       });
     }
 
@@ -868,9 +893,8 @@
                 Core Items (Top {Math.min(build.core_items.length, 3)} Options)
               </span>
               <div class="flex flex-col gap-1">
-                {#each build.core_items.slice(0, 3) as combo, cIdx}
+                {#each build.core_items.slice(0, 3) as combo}
                   <div class="flex items-center gap-1">
-                    <span class="text-[8px] font-bold text-purple-400/80 w-3">{cIdx + 1}.</span>
                     {#each combo.ids as itId, i}
                       <img
                         src={itemIconUrl(itId, $ddragonVersion)}

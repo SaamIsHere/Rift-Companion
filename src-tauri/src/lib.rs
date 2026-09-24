@@ -6,6 +6,7 @@
 //!   * run the weighted scoring engine,
 //!   * push live updates to the webview via events.
 
+pub mod autostart;
 pub mod commands;
 pub mod data;
 pub mod draft;
@@ -20,7 +21,6 @@ use std::sync::{Arc, Mutex};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager};
-use tauri_plugin_autostart::ManagerExt;
 
 use data::models::{RankTier, Role};
 use data::repository::Repository;
@@ -146,10 +146,6 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_autostart::init(
-            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
-            Some(vec!["--autostart"]),
-        ))
         .manage(shared.clone())
         .invoke_handler(tauri::generate_handler![
             commands::get_connection_status,
@@ -248,25 +244,27 @@ pub fn run() {
             // Apply the persisted always-on-top preference and attach close-behavior event handler
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_always_on_top(always_on_top);
+
                 // Detect if launched automatically in background at Windows boot / autostart
                 let is_autostart = std::env::args().any(|arg| {
                     arg == "--autostart" || arg == "--minimized" || arg == "--hidden"
                 });
 
-                // Ensure autostart entry is synchronized and includes the --autostart flag
-                {
-                    let autostart = app.autolaunch();
-                    if startup_behavior == "system_boot" || startup_behavior == "league_launch" {
-                        let _ = autostart.enable();
-                    }
+                // Ensure autostart shortcut is synchronized with persisted settings
+                if startup_behavior == "system_boot" || startup_behavior == "league_launch" {
+                    let _ = autostart::set_autostart(true);
+                } else {
+                    let _ = autostart::set_autostart(false);
                 }
 
-                // "On League Launch" mode: only start hidden in tray if launched via autostart
-                // AND League of Legends is not already running.
-                // If the user explicitly launched the app manually, always show the window.
+                // In "League Launch" mode:
+                // If launched via Windows autostart AND League is not already running:
+                // start minimized in system tray (window remains hidden until League is launched).
+                // In all other cases (manual launch, system_boot, or League already open):
+                // open the window directly in the foreground.
                 if is_autostart && startup_behavior == "league_launch" && lcu::lockfile::find().is_none() {
-                    // Window remains hidden in system tray (visible: false in tauri.conf.json prevents any flash)
                     let _ = window.hide();
+                    tracing::info!("Rift Companion started minimized in system tray (waiting for League of Legends)");
                 } else {
                     let _ = window.show();
                     let _ = window.unminimize();

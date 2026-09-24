@@ -429,7 +429,7 @@
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-t border-purple-500/15 pt-2.5">
               <div class="flex flex-col min-w-0 pr-2">
                 <span class="text-xs font-semibold text-slate-200 whitespace-nowrap">Startup Behavior</span>
-                <span class="text-[11px] text-slate-400 whitespace-nowrap">Launch app automatically</span>
+                <span class="text-[11px] text-slate-400 whitespace-nowrap">Launch app automatically on Windows boot</span>
               </div>
 
               <!-- 3-Segmented Button -->
@@ -451,7 +451,7 @@
                   class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.startup_behavior ?? 'none') === 'system_boot'
                     ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
-                  title="Launch Rift Companion when Windows starts"
+                  title="Launch Rift Companion in the foreground when Windows starts"
                 >
                   System Boot
                 </button>
@@ -462,7 +462,7 @@
                   class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.startup_behavior ?? 'none') === 'league_launch'
                     ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
-                  title="Start with Windows but stay hidden until League of Legends is detected"
+                  title="Start in system tray on Windows boot, then open automatically in foreground when League of Legends is detected"
                 >
                   League Launch
                 </button>

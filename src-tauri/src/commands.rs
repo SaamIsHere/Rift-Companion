@@ -1,7 +1,6 @@
 //! Tauri command handlers exposed to the frontend via `invoke`.
 
 use tauri::{AppHandle, Emitter, Manager, State};
-use tauri_plugin_autostart::ManagerExt;
 
 use crate::data::models::{
     ChampionBuildStats, ChampionMatchupEntry, ChampionOverviewData, DamageType, RankTier, Role,
@@ -376,19 +375,16 @@ pub fn set_settings(state: State<Shared>, settings: Settings, app: AppHandle) ->
         let _ = window.set_always_on_top(settings.always_on_top);
     }
 
-    // Apply startup behavior: manage autostart registration
-    {
-        let autostart = app.autolaunch();
-        match settings.startup_behavior.as_str() {
-            "system_boot" | "league_launch" => {
-                if let Err(e) = autostart.enable() {
-                    tracing::warn!("failed to enable autostart: {e}");
-                }
+    // Apply startup behavior: manage autostart shortcut in Windows Startup folder
+    match settings.startup_behavior.as_str() {
+        "system_boot" | "league_launch" => {
+            if let Err(e) = crate::autostart::set_autostart(true) {
+                tracing::warn!("failed to enable autostart: {e}");
             }
-            _ => {
-                if let Err(e) = autostart.disable() {
-                    tracing::warn!("failed to disable autostart: {e}");
-                }
+        }
+        _ => {
+            if let Err(e) = crate::autostart::set_autostart(false) {
+                tracing::warn!("failed to disable autostart: {e}");
             }
         }
     }

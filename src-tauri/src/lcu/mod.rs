@@ -15,6 +15,29 @@ use tokio_tungstenite::tungstenite::Message;
 use crate::data::models::RankTier;
 use crate::{draft, engine, opgg, ConnectionStatus, DraftState, Shared};
 
+/// Reliably activates and focuses the main window, bypassing Windows Foreground Lock.
+fn bring_window_to_foreground(app: &AppHandle, shared: &Shared) {
+    let behavior = shared.settings.lock().unwrap().startup_behavior.clone();
+    if behavior == "league_launch" {
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.show();
+            let _ = window.unminimize();
+            // Bypass Windows LockSetForegroundWindow restriction using temporary topmost flag
+            let _ = window.set_always_on_top(true);
+            let _ = window.set_focus();
+
+            let user_always_on_top = shared.settings.lock().unwrap().always_on_top;
+            if !user_always_on_top {
+                let win = window.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(Duration::from_millis(600)).await;
+                    let _ = win.set_always_on_top(false);
+                });
+            }
+        }
+    }
+}
+
 /// Runs forever: (re)discovers the client and processes events, reconnecting on drop.
 pub async fn run_watcher(app: AppHandle, shared: Shared) {
     loop {
@@ -28,42 +51,14 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
         };
 
         tracing::info!(port = lock.port, "LCU lockfile found; connecting");
-
-        // "On League Launch" mode: open as a real window as soon as League client is detected.
-        {
-            let behavior = shared.settings.lock().unwrap().startup_behavior.clone();
-            if behavior == "league_launch" {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.unminimize();
-                    let _ = window.set_focus();
-                }
-            }
-        }
+        bring_window_to_foreground(&app, &shared);
 
         match websocket::connect(&lock).await {
             Ok(mut ws) => {
                 // Only report Connected — and fire the REST-dependent setup — once the
-                // websocket handshake has actually succeeded. The lockfile can appear
-                // on disk slightly before the LCU's internal HTTPS API is accepting
-                // connections (a startup race most noticeable when the League client
-                // is launched *after* this app); reporting Connected right after
-                // `lockfile::find()` above flapped Connected/Searching every retry
-                // until the API actually came up. A completed websocket handshake is
-                // concrete proof the API is actually up.
+                // websocket handshake has actually succeeded.
                 set_status(&app, &shared, ConnectionStatus::Connected);
-
-                // "On League Launch" mode: show the hidden window now that League is found.
-                {
-                    let behavior = shared.settings.lock().unwrap().startup_behavior.clone();
-                    if behavior == "league_launch" {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.unminimize();
-                            let _ = window.set_focus();
-                        }
-                    }
-                }
+                bring_window_to_foreground(&app, &shared);
 
                 // Fetch the active account's profile for the title bar (Issue #9).
                 // Persist to disk so it is remembered across sessions (Issue #40).

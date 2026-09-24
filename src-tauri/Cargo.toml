@@ -1,6 +1,6 @@
 [package]
 name = "rift-companion"
-version = "0.1.9"
+version = "0.2.0"
 description = "League of Legends champion-select companion"
 edition = "2021"
 rust-version = "1.77"
@@ -17,9 +17,12 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
 tauri-plugin-single-instance = "2"
-tauri-plugin-autostart = "2"
+mslnk = "0.1.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
 
 # Async runtime (trimmed feature set to stay lightweight)
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync"] }
