@@ -429,7 +429,7 @@
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-t border-purple-500/15 pt-2.5">
               <div class="flex flex-col min-w-0 pr-2">
                 <span class="text-xs font-semibold text-slate-200 whitespace-nowrap">Startup Behavior</span>
-                <span class="text-[11px] text-slate-400 whitespace-nowrap">Launch app automatically on Windows boot</span>
+                <span class="text-[11px] text-slate-400">Launch app automatically on Windows boot</span>
               </div>
 
               <!-- 3-Segmented Button -->
