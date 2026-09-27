@@ -81,10 +81,10 @@ jobs:
             ## Rift Companion Release ${{ steps.get_version.outputs.tag }}
 
             ### Highlights
-            * **Windows Defender & Safe Autostart Fix:** Completely eliminated antivirus false positives and quarantine blocks by replacing intrusive registry tampering with standard Windows Startup folder shortcuts (`.lnk`).
-            * **Reliable League Launch Mode:** In League Launch mode, the companion cleanly starts minimized in the system tray on Windows boot and automatically pops up in the foreground as soon as League of Legends launches.
-            * **Optimized Item Set Import:** Restructured shop item set blocks into clean Start Items (including health potion), top boots choices, dual core paths (Core 1 & Core 2), and dedicated optional items.
-            * **Fast Client Discovery:** Added instant direct detection for default League of Legends installation paths, eliminating unnecessary process-wide scans and reducing CPU usage.
+            * **Match History Role Sorting:** Scoreboard participants in expanded match history are now sorted by standard role order on both teams: Top, Jungle, Mid, ADC, and Support, with smart detection for Smite and support quest items.
+            * **Scoreboard Layout Polish:** KDA is now stacked vertically above the damage number and role icons were removed, freeing up ~80px of horizontal space so summoner names are clearly visible without truncation.
+            * **Reliable League Launch Fix:** Stale League client lockfiles are now verified against active OS processes, and foreground transitions are tracked per session so closing to tray keeps the app in tray without repeated popups.
+            * **Settings Modal UI Consistency:** Aligned the Close Button behavior and Startup Behavior button groups with matching three-column grid dimensions for a unified, balanced layout.
 
             ### Download & Installation
             * **Windows Installer:** Download `Rift-Companion_${{ steps.get_version.outputs.version }}_x64-setup.exe` below and double-click to install.

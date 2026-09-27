@@ -860,3 +860,117 @@ export function extractBansFromGameDetail(raw: any): number[] {
 
   return bans;
 }
+
+export type StandardRole = "top" | "jungle" | "mid" | "adc" | "support";
+
+export const ROLE_ORDER: Record<StandardRole, number> = {
+  top: 0,
+  jungle: 1,
+  mid: 2,
+  adc: 3,
+  support: 4,
+};
+
+const SUPPORT_ITEMS = new Set([
+  // Current Season 14+ starter & upgraded support items
+  3865, 3866, 3867, 3869, 3870, 3871, 3876, 3877,
+  // Older support items
+  3850, 3851, 3853, 3854, 3855, 3857, 3858, 3859, 3860, 3862, 3863, 3864,
+]);
+
+export function normalizeRoleString(pos?: string): StandardRole | null {
+  if (!pos) return null;
+  const p = pos.toLowerCase().trim();
+  if (p.includes("top")) return "top";
+  if (p.includes("jungle") || p === "jug") return "jungle";
+  if (p.includes("mid") || p.includes("middle")) return "mid";
+  if (p.includes("adc") || p === "bottom" || p === "bot" || p.includes("carry")) return "adc";
+  if (p.includes("support") || p.includes("utility") || p === "supp" || p === "sup") return "support";
+  return null;
+}
+
+/**
+ * Sorts team participants into the standard League of Legends role order:
+ * Top -> Jungle -> Mid -> Adc -> Support.
+ *
+ * Uses explicit position metadata, summoner spells (Smite for jungle),
+ * and support starter/quest items to accurately disambiguate roles.
+ */
+export function sortTeamByRole(participants: DetailedParticipant[]): DetailedParticipant[] {
+  if (!participants || participants.length <= 1) return participants || [];
+
+  const roles: StandardRole[] = ["top", "jungle", "mid", "adc", "support"];
+  const assigned = new Map<DetailedParticipant, StandardRole>();
+  const takenRoles = new Set<StandardRole>();
+  const unassigned: DetailedParticipant[] = [];
+
+  // Pass 1: Identify definitive item/spell markers:
+  // - Smite (spell 11) is uniquely taken by Junglers.
+  // - Support quest items are uniquely taken by Supports.
+  for (const p of participants) {
+    const hasSmite = p.spells?.includes(11);
+    const hasSuppItem = p.items?.some((it) => SUPPORT_ITEMS.has(it));
+
+    if (hasSmite && !takenRoles.has("jungle")) {
+      assigned.set(p, "jungle");
+      takenRoles.add("jungle");
+    } else if (hasSuppItem && !takenRoles.has("support")) {
+      assigned.set(p, "support");
+      takenRoles.add("support");
+    } else {
+      unassigned.push(p);
+    }
+  }
+
+  // Pass 2: Assign unassigned players with clear, unambiguous positions from API
+  const stillUnassigned: DetailedParticipant[] = [];
+  for (const p of unassigned) {
+    let pos = normalizeRoleString(p.position);
+    if (pos && !takenRoles.has(pos)) {
+      assigned.set(p, pos);
+      takenRoles.add(pos);
+    } else {
+      stillUnassigned.push(p);
+    }
+  }
+
+  // Pass 3: Handle bot-lane role collisions (e.g. both marked as "bottom" or "adc")
+  for (let i = stillUnassigned.length - 1; i >= 0; i--) {
+    const p = stillUnassigned[i];
+    const pos = normalizeRoleString(p.position);
+    if (pos === "adc" || pos === "support") {
+      if (!takenRoles.has("adc")) {
+        assigned.set(p, "adc");
+        takenRoles.add("adc");
+        stillUnassigned.splice(i, 1);
+      } else if (!takenRoles.has("support")) {
+        assigned.set(p, "support");
+        takenRoles.add("support");
+        stillUnassigned.splice(i, 1);
+      }
+    }
+  }
+
+  // Pass 4: Fill remaining unfilled roles in standard order: top, jungle, mid, adc, support
+  const availableRoles = roles.filter((r) => !takenRoles.has(r));
+  for (let i = 0; i < stillUnassigned.length && i < availableRoles.length; i++) {
+    assigned.set(stillUnassigned[i], availableRoles[i]);
+  }
+
+  // Update participant.position with the resolved role if unset or generic
+  for (const [p, role] of assigned.entries()) {
+    if (!p.position || ["bottom", "bot", "middle", "utility", "none"].includes(p.position.toLowerCase())) {
+      p.position = role;
+    }
+  }
+
+  // Sort participants by standard role order (Top: 0, Jungle: 1, Mid: 2, Adc: 3, Support: 4)
+  return [...participants].sort((a, b) => {
+    const roleA = assigned.get(a);
+    const roleB = assigned.get(b);
+    const rankA = roleA !== undefined ? ROLE_ORDER[roleA] : 99;
+    const rankB = roleB !== undefined ? ROLE_ORDER[roleB] : 99;
+    return rankA - rankB;
+  });
+}
+

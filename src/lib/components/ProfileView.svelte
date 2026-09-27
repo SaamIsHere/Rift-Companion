@@ -31,7 +31,7 @@
     formatDuration,
     loadRunesReforged,
   } from "../utils/ddragon";
-  import { inferRegionFromTag } from "../utils/profileNormalizer";
+  import { inferRegionFromTag, sortTeamByRole } from "../utils/profileNormalizer";
   import type { PlayerMatch, ChampionPerformance, DetailedParticipant } from "../types";
 
   const REGIONS = [
@@ -1335,8 +1335,10 @@
                 {:else if match.participants && match.participants.length > 1}
                   {@const blueParticipants = match.participants.filter((p) => p.team_id === 100 || p.team_id === 1)}
                   {@const redParticipants = match.participants.filter((p) => p.team_id === 200 || p.team_id === 2)}
-                  {@const blueTeam = blueParticipants.length > 0 || redParticipants.length > 0 ? blueParticipants : match.participants.slice(0, Math.ceil(match.participants.length / 2))}
-                  {@const redTeam = blueParticipants.length > 0 || redParticipants.length > 0 ? redParticipants : match.participants.slice(Math.ceil(match.participants.length / 2))}
+                  {@const blueRaw = blueParticipants.length > 0 || redParticipants.length > 0 ? blueParticipants : match.participants.slice(0, Math.ceil(match.participants.length / 2))}
+                  {@const redRaw = blueParticipants.length > 0 || redParticipants.length > 0 ? redParticipants : match.participants.slice(Math.ceil(match.participants.length / 2))}
+                  {@const blueTeam = sortTeamByRole(blueRaw)}
+                  {@const redTeam = sortTeamByRole(redRaw)}
                   <div class="border-t border-purple-500/20 bg-void-950/40 p-4 transition-all">
                   <div class="grid grid-cols-1 min-[1180px]:grid-cols-2 gap-4">
                     <!-- Blue Team (100) -->
@@ -1350,7 +1352,6 @@
                             </span>
                           {/if}
                         </span>
-                        <span>KDA · DMG · Items</span>
                       </div>
                       {#each blueTeam as p}
                         {@const pChamp = getChampInfo(p.champion_id)}
@@ -1431,12 +1432,14 @@
                             </div>
                           </div>
                           <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
-                            <span class="text-xs font-bold text-slate-100 w-14 sm:w-16 text-center shrink-0">
-                              {p.kills}/{p.deaths}/{p.assists}
-                            </span>
-                            <span class="text-xs font-semibold text-rose-300/90 w-11 sm:w-12 text-right shrink-0">
-                              {p.total_damage > 0 ? (p.total_damage / 1000).toFixed(1) + "k" : "–"}
-                            </span>
+                            <div class="flex flex-col items-end text-right shrink-0">
+                              <span class="text-xs font-bold text-slate-100 leading-tight">
+                                {p.kills}/{p.deaths}/{p.assists}
+                              </span>
+                              <span class="text-[10px] font-medium text-rose-300/90 leading-tight">
+                                {p.total_damage > 0 ? (p.total_damage / 1000).toFixed(1) + "k" : "–"}
+                              </span>
+                            </div>
                             <div class="flex items-center gap-0.5 sm:gap-1 shrink-0">
                               {#each p.items.slice(0, 6) as itId}
                                 {#if itId > 0}
@@ -1462,7 +1465,6 @@
                             </span>
                           {/if}
                         </span>
-                        <span>KDA · DMG · Items</span>
                       </div>
                       {#each redTeam as p}
                         {@const pChamp = getChampInfo(p.champion_id)}
@@ -1543,12 +1545,14 @@
                             </div>
                           </div>
                           <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
-                            <span class="text-xs font-bold text-slate-100 w-14 sm:w-16 text-center shrink-0">
-                              {p.kills}/{p.deaths}/{p.assists}
-                            </span>
-                            <span class="text-xs font-semibold text-rose-300/90 w-11 sm:w-12 text-right shrink-0">
-                              {p.total_damage > 0 ? (p.total_damage / 1000).toFixed(1) + "k" : "–"}
-                            </span>
+                            <div class="flex flex-col items-end text-right shrink-0">
+                              <span class="text-xs font-bold text-slate-100 leading-tight">
+                                {p.kills}/{p.deaths}/{p.assists}
+                              </span>
+                              <span class="text-[10px] font-medium text-rose-300/90 leading-tight">
+                                {p.total_damage > 0 ? (p.total_damage / 1000).toFixed(1) + "k" : "–"}
+                              </span>
+                            </div>
                             <div class="flex items-center gap-0.5 sm:gap-1 shrink-0">
                               {#each p.items.slice(0, 6) as itId}
                                 {#if itId > 0}

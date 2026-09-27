@@ -2,7 +2,7 @@ import { writable, get } from "svelte/store";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
-export const APP_VERSION = "0.2.0";
+export const APP_VERSION = "0.2.1";
 
 export const updateAvailable = writable<boolean>(false);
 export const availableUpdate = writable<Update | null>(null);
@@ -37,7 +37,7 @@ export async function checkForAppUpdate(interactive = false): Promise<boolean> {
       updateVersion.set(update.version);
       updateNotes.set(
         update.body ||
-          "### What's New in v0.2.0\n* **Safe Autostart & Windows Defender Fix:** Completely eliminated antivirus false positives by using standard Windows Startup folder shortcuts (`.lnk`) instead of intrusive registry modifications.\n* **Reliable League Launch Mode:** Rift Companion can now start cleanly minimized in the system tray on Windows boot and automatically pops up in the foreground as soon as League of Legends is launched.\n* **Optimized Item Set Import:** Restructured shop item set blocks into clean Start Items (including health potion), top boots choices, dual core paths (Core 1 & Core 2), and dedicated optional items.\n* **Fast Lockfile Discovery:** Added instant direct detection for default League of Legends installation paths, eliminating unnecessary process-wide scans."
+          "### What's New in v0.2.1\n* **Match History Role Sorting:** Participants in match scoreboards are now automatically sorted in standard role order: Top, Jungle, Mid, ADC, and Support, with smart detection for Smite and support quest items.\n* **Scoreboard Layout Polish:** KDA is now stacked vertically above the damage number and role icons were removed, freeing up ~80px of horizontal space so summoner names are clearly readable without truncation.\n* **Reliable League Launch Detection:** Stale League client lockfiles are now verified against active OS processes, and foreground transitions are tracked per session so the app stays safely in the system tray when closed without repeated popups.\n* **Settings Modal Consistency:** Close Button behavior and Startup Behavior button groups now share matching three-column grid dimensions for a unified, clean layout."
       );
       if (interactive) {
         showUpdateModal.set(true);

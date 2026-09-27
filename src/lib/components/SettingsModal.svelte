@@ -389,11 +389,11 @@
               </div>
 
               <!-- 3-Segmented Button -->
-              <div class="inline-flex shrink-0 rounded-lg border border-purple-500/25 bg-void-950/80 p-0.5 shadow-inner">
+              <div class="grid grid-cols-3 w-full sm:w-[285px] shrink-0 rounded-lg border border-purple-500/25 bg-void-950/80 p-0.5 shadow-inner">
                 <button
                   type="button"
                   on:click={() => setCloseBehavior("close")}
-                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.close_behavior ?? 'close') === 'close'
+                  class="flex items-center justify-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-all duration-150 {($settings.close_behavior ?? 'close') === 'close'
                     ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
                   title="Close and completely quit Rift Companion"
@@ -404,7 +404,7 @@
                 <button
                   type="button"
                   on:click={() => setCloseBehavior("minimize")}
-                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.close_behavior ?? 'close') === 'minimize'
+                  class="flex items-center justify-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-all duration-150 {($settings.close_behavior ?? 'close') === 'minimize'
                     ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
                   title="Minimize window to taskbar"
@@ -415,7 +415,7 @@
                 <button
                   type="button"
                   on:click={() => setCloseBehavior("tray")}
-                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.close_behavior ?? 'close') === 'tray'
+                  class="flex items-center justify-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-all duration-150 {($settings.close_behavior ?? 'close') === 'tray'
                     ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
                   title="Minimize to system tray (keeps running in background next to clock)"
@@ -433,11 +433,11 @@
               </div>
 
               <!-- 3-Segmented Button -->
-              <div class="inline-flex shrink-0 rounded-lg border border-purple-500/25 bg-void-950/80 p-0.5 shadow-inner">
+              <div class="grid grid-cols-3 w-full sm:w-[285px] shrink-0 rounded-lg border border-purple-500/25 bg-void-950/80 p-0.5 shadow-inner">
                 <button
                   type="button"
                   on:click={() => setStartupBehavior("none")}
-                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.startup_behavior ?? 'none') === 'none'
+                  class="flex items-center justify-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-all duration-150 {($settings.startup_behavior ?? 'none') === 'none'
                     ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
                   title="Do not start automatically"
@@ -448,7 +448,7 @@
                 <button
                   type="button"
                   on:click={() => setStartupBehavior("system_boot")}
-                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.startup_behavior ?? 'none') === 'system_boot'
+                  class="flex items-center justify-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-all duration-150 {($settings.startup_behavior ?? 'none') === 'system_boot'
                     ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
                   title="Launch Rift Companion in the foreground when Windows starts"
@@ -459,7 +459,7 @@
                 <button
                   type="button"
                   on:click={() => setStartupBehavior("league_launch")}
-                  class="rounded-md px-3 py-1 text-xs font-medium transition-all duration-150 {($settings.startup_behavior ?? 'none') === 'league_launch'
+                  class="flex items-center justify-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-all duration-150 {($settings.startup_behavior ?? 'none') === 'league_launch'
                     ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
                   title="Start in system tray on Windows boot, then open automatically in foreground when League of Legends is detected"

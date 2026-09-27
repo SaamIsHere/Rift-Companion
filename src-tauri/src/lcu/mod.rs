@@ -40,25 +40,34 @@ fn bring_window_to_foreground(app: &AppHandle, shared: &Shared) {
 
 /// Runs forever: (re)discovers the client and processes events, reconnecting on drop.
 pub async fn run_watcher(app: AppHandle, shared: Shared) {
+    let mut last_foreground_pid: Option<u32> = None;
+
     loop {
         let lock = match lockfile::find() {
             Some(l) => l,
             None => {
+                last_foreground_pid = None;
                 set_status(&app, &shared, ConnectionStatus::Searching);
                 tokio::time::sleep(Duration::from_secs(3)).await;
                 continue;
             }
         };
 
-        tracing::info!(port = lock.port, "LCU lockfile found; connecting");
-        bring_window_to_foreground(&app, &shared);
+        tracing::info!(port = lock.port, pid = lock.pid, "LCU lockfile found; connecting");
 
         match websocket::connect(&lock).await {
             Ok(mut ws) => {
                 // Only report Connected — and fire the REST-dependent setup — once the
                 // websocket handshake has actually succeeded.
                 set_status(&app, &shared, ConnectionStatus::Connected);
-                bring_window_to_foreground(&app, &shared);
+
+                // Only bring window to foreground when League of Legends launches.
+                // If the user placed it in the tray with the close button during this session,
+                // keep it in the tray until League client restarts.
+                if last_foreground_pid != Some(lock.pid) {
+                    bring_window_to_foreground(&app, &shared);
+                    last_foreground_pid = Some(lock.pid);
+                }
 
                 // Fetch the active account's profile for the title bar (Issue #9).
                 // Persist to disk so it is remembered across sessions (Issue #40).

@@ -246,6 +246,19 @@ export const LATEST_PATCH_DATA: PatchNotesData = {
 
     // Rift Companion Updates
     {
+      id: "app-update-021",
+      type: "app",
+      category: "app",
+      title: "Rift Companion v0.2.1 Updates",
+      summary: "Match history role sorting (Top, Jungle, Mid, ADC, Support), scoreboard layout polish with more room for summoner names, League Launch background startup fix, and settings UI alignment.",
+      details: [
+        "Match History Role Sorting: Participants in expanded match scoreboards are now automatically sorted in standard role order: Top, Jungle, Mid, ADC, and Support, with smart detection for Smite and support quest items.",
+        "Scoreboard Layout Polish: KDA is now stacked vertically above the damage number and role icons were removed, freeing up ~80px of horizontal space so summoner names are clearly readable without truncation.",
+        "Reliable League Launch Detection: Stale League client lockfiles are now verified against active OS processes, and foreground transitions are tracked per session so the app stays safely in the system tray when closed without repeated popups.",
+        "Settings Modal Consistency: Close Button behavior and Startup Behavior button groups now share matching three-column grid dimensions for a unified, clean layout.",
+      ],
+    },
+    {
       id: "app-update-020",
       type: "app",
       category: "app",
