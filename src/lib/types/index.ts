@@ -47,6 +47,9 @@ export interface DraftState {
   bans: number[];
   allies: DraftPick[];
   enemies: DraftPick[];
+  is_ban_phase?: boolean;
+  local_ban_completed?: boolean;
+  recent_bans?: number[];
 }
 
 export interface ScoreComponents {
@@ -127,6 +130,7 @@ export interface Settings {
   auto_import_spells?: boolean;
   auto_import_items?: boolean;
   flash_key?: "D" | "F";
+  backdrop_blur?: number;
 }
 
 export interface ServerStatus {

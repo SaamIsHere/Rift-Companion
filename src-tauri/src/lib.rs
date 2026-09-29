@@ -66,6 +66,8 @@ pub struct Shared {
     pub settings: Arc<Mutex<Settings>>,
     /// Current LCU gameflow phase ("None", "ChampSelect", "GameStart", "InProgress", etc.)
     pub gameflow_phase: Arc<Mutex<String>>,
+    /// ID of the local player's ban action that has already been recorded for the current session
+    pub last_recorded_ban_action_id: Arc<Mutex<Option<i64>>>,
 }
 
 /// CLI entry point: install a normalized champion-stats JSON (the `Champion[]`
@@ -134,6 +136,7 @@ pub fn run() {
         refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
         settings: Arc::new(Mutex::new(settings)),
         gameflow_phase: Arc::new(Mutex::new("None".to_string())),
+        last_recorded_ban_action_id: Arc::new(Mutex::new(None)),
     };
 
     tauri::Builder::default()
@@ -157,6 +160,11 @@ pub fn run() {
             commands::set_scoring_mode,
             commands::get_scoring_mode,
             commands::hover_champion,
+            commands::ban_champion,
+            commands::get_recent_bans,
+            commands::get_ban_history,
+            commands::record_ban,
+            commands::clear_ban_history,
             commands::import_rune_page,
             commands::import_summoner_spells,
             commands::import_item_set,

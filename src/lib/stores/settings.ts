@@ -20,6 +20,7 @@ function getInitialSettings(): Settings {
     auto_import_spells: false,
     auto_import_items: false,
     flash_key: "D",
+    backdrop_blur: 12,
   };
   if (typeof localStorage !== "undefined") {
     try {
@@ -41,6 +42,11 @@ function getInitialSettings(): Settings {
       if (savedItems !== null) s.auto_import_items = savedItems === "true";
       const savedFlash = localStorage.getItem("rift_flash_key") as "D" | "F";
       if (savedFlash === "D" || savedFlash === "F") s.flash_key = savedFlash;
+      const savedBlur = localStorage.getItem("rift_backdrop_blur");
+      if (savedBlur !== null) {
+        const val = parseInt(savedBlur, 10);
+        if (!isNaN(val) && val >= 0 && val <= 40) s.backdrop_blur = val;
+      }
     } catch {}
   }
   return s;

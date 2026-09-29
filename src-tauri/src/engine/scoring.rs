@@ -471,6 +471,7 @@ mod tests {
                 spell2_id: None,
                 player_name: None,
             }],
+            ..Default::default()
         };
 
         let recs = recommend(&repo, &draft, &Weights::default());
@@ -516,6 +517,7 @@ mod tests {
                 spell2_id: None,
                 player_name: None,
             }],
+            ..Default::default()
         };
         let recs = recommend(&repo, &draft, &Weights::default());
         let teemo = recs.iter().position(|r| r.champion_id == 17);
@@ -538,6 +540,7 @@ mod tests {
             bans: vec![],
             allies: vec![],
             enemies: vec![],
+            ..Default::default()
         };
 
         let recs = recommend(&repo, &draft, &Weights::default());
@@ -570,6 +573,7 @@ mod tests {
             bans: vec![],
             allies: vec![],
             enemies: vec![],
+            ..Default::default()
         };
         let zero_recs = recommend(&repo, &zero_draft, &Weights::default());
 
@@ -590,6 +594,7 @@ mod tests {
                 player_name: None,
             }],
             enemies: vec![],
+            ..Default::default()
         };
         let hover_recs = recommend(&repo, &hover_draft, &Weights::default());
 
@@ -629,6 +634,7 @@ mod tests {
                 player_name: None,
             }],
             enemies: vec![],
+            ..Default::default()
         };
         let recs = recommend(&repo, &draft, &Weights::default());
         assert!(

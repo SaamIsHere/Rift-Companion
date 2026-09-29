@@ -275,6 +275,7 @@ fn run_internal_tests() {
             bans: vec![],
             allies: vec![],
             enemies: vec![],
+            ..Default::default()
         };
         let zero_needs = comp::needs(&repo, &zero_draft);
         assert!(!zero_needs.needs_ap && !zero_needs.needs_ad && !zero_needs.needs_frontline, "zero picks should not flag gaps");
@@ -296,6 +297,7 @@ fn run_internal_tests() {
                 player_name: None,
             }],
             enemies: vec![],
+            ..Default::default()
         };
         let ad_needs = comp::needs(&repo, &ad_hover_draft);
         assert!(ad_needs.needs_ap, "ally hovered AD, so team needs AP");
@@ -319,6 +321,7 @@ fn run_internal_tests() {
                 player_name: None,
             }],
             enemies: vec![],
+            ..Default::default()
         };
         let ap_tank_needs = comp::needs(&repo, &ap_tank_draft);
         assert!(!ap_tank_needs.needs_ap, "ally hovered AP, so team does not need AP");

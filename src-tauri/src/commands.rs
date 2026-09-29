@@ -76,6 +76,39 @@ pub async fn hover_champion(champion_id: u32) -> Result<bool, String> {
         .map_err(|e| e.to_string())
 }
 
+/// Hover or lock in a champion ban in the League of Legends client during champ select.
+#[tauri::command]
+pub async fn ban_champion(champion_id: u32, lock_in: bool) -> Result<bool, String> {
+    let lock = crate::lcu::lockfile::find().ok_or_else(|| "LCU lockfile not found".to_string())?;
+    crate::lcu::client::ban_champion_in_lcu(&lock, champion_id, lock_in)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Get the up to 5 most recent unique ban suggestions.
+#[tauri::command]
+pub fn get_recent_bans() -> Vec<u32> {
+    crate::data::store::get_recent_ban_suggestions()
+}
+
+/// Get full recorded ban history (up to 20 bans).
+#[tauri::command]
+pub fn get_ban_history() -> Vec<u32> {
+    crate::data::store::read_ban_history()
+}
+
+/// Record a ban into FIFO history.
+#[tauri::command]
+pub fn record_ban(champion_id: u32) -> Vec<u32> {
+    crate::data::store::record_ban(champion_id)
+}
+
+/// Clear recorded ban history.
+#[tauri::command]
+pub fn clear_ban_history() -> Result<(), String> {
+    crate::data::store::clear_ban_history().map_err(|e| e.to_string())
+}
+
 /// Import a rune page into the League of Legends client.
 #[tauri::command]
 pub async fn import_rune_page(

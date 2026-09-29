@@ -25,6 +25,12 @@ pub struct DraftState {
     pub allies: Vec<DraftPick>,
     #[serde(default)]
     pub enemies: Vec<DraftPick>,
+    #[serde(default)]
+    pub is_ban_phase: bool,
+    #[serde(default)]
+    pub local_ban_completed: bool,
+    #[serde(default)]
+    pub recent_bans: Vec<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -135,6 +141,14 @@ pub fn from_session(repo: &Repository, s: &ChampSelectSession) -> DraftState {
         })
         .collect();
 
+    let is_ban_phase = s.actions.iter().any(|round| {
+        round.iter().any(|a| a.action_type == "ban" && a.is_in_progress)
+    });
+    let local_ban_completed = s.actions.iter().any(|round| {
+        round.iter().any(|a| a.actor_cell_id == local_cell && a.action_type == "ban" && a.completed)
+    });
+    let recent_bans = crate::data::store::get_recent_ban_suggestions();
+
     DraftState {
         local_role,
         local_champion_id,
@@ -143,6 +157,9 @@ pub fn from_session(repo: &Repository, s: &ChampSelectSession) -> DraftState {
         bans: collect_bans(s),
         allies,
         enemies,
+        is_ban_phase,
+        local_ban_completed,
+        recent_bans,
     }
 }
 
@@ -343,6 +360,9 @@ pub fn from_gameflow(
         bans: existing.map(|d| d.bans.clone()).unwrap_or_default(),
         allies,
         enemies,
+        is_ban_phase: false,
+        local_ban_completed: true,
+        recent_bans: crate::data::store::get_recent_ban_suggestions(),
     })
 }
 
@@ -549,6 +569,9 @@ pub fn from_live_client(
         bans: existing.map(|d| d.bans.clone()).unwrap_or_default(),
         allies,
         enemies,
+        is_ban_phase: false,
+        local_ban_completed: true,
+        recent_bans: crate::data::store::get_recent_ban_suggestions(),
     })
 }
 

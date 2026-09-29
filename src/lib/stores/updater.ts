@@ -2,7 +2,7 @@ import { writable, get } from "svelte/store";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
-export const APP_VERSION = "0.2.1";
+export const APP_VERSION = "0.2.2";
 
 export const updateAvailable = writable<boolean>(false);
 export const availableUpdate = writable<Update | null>(null);
@@ -37,7 +37,7 @@ export async function checkForAppUpdate(interactive = false): Promise<boolean> {
       updateVersion.set(update.version);
       updateNotes.set(
         update.body ||
-          "### What's New in v0.2.1\n* **Match History Role Sorting:** Participants in match scoreboards are now automatically sorted in standard role order: Top, Jungle, Mid, ADC, and Support, with smart detection for Smite and support quest items.\n* **Scoreboard Layout Polish:** KDA is now stacked vertically above the damage number and role icons were removed, freeing up ~80px of horizontal space so summoner names are clearly readable without truncation.\n* **Reliable League Launch Detection:** Stale League client lockfiles are now verified against active OS processes, and foreground transitions are tracked per session so the app stays safely in the system tray when closed without repeated popups.\n* **Settings Modal Consistency:** Close Button behavior and Startup Behavior button groups now share matching three-column grid dimensions for a unified, clean layout."
+          "### What's New in v0.2.2\n* **Custom Wallpaper Framing & Persistence:** Interactive 16:9 area framing tool for custom wallpapers (portrait and ultrawide), with automatic persistence and restoration of framing state across sessions and re-edits.\n* **Adjustable Glass Panel Blur Slider:** Continuous backdrop blur slider (0 to 30 px) with instant presets (0, 6, 12, 20 px) allowing customized wallpaper transparency through UI glass panels.\n* **Recent Bans Memory:** Intelligently tracks and remembers the most recent champion bans across champ select sessions to advise real-time draft and ban suggestions.\n* **Settings UI Polish:** Full English localization, refined Live Preview accurately reflecting the client landing page, and clean theme styling."
       );
       if (interactive) {
         showUpdateModal.set(true);

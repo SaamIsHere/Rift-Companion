@@ -8,6 +8,7 @@ import { recommendations } from "../stores/recommendations";
 import { preselectedChampionId } from "../stores/preselect";
 import { scoringMode } from "../stores/scoring";
 import { settings, activationOpen } from "../stores/settings";
+import { recentBans, banHistory } from "../stores/bans";
 import type {
   ChampionBuildStats,
   ChampionOverviewData,
@@ -65,7 +66,13 @@ export async function initIpc(): Promise<void> {
       preselectedChampionId.set(null);
     }
     prevDraftEmpty = isNowEmpty;
+    if (e.payload?.recent_bans) {
+      recentBans.set(e.payload.recent_bans);
+    }
     draft.set(e.payload);
+  });
+  await listen<number[]>("bans://updated", (e) => {
+    recentBans.set(e.payload);
   });
   await listen<ScoringMode>("scoring-mode://update", (e) =>
     scoringMode.set(e.payload),
@@ -92,7 +99,16 @@ export async function initIpc(): Promise<void> {
     profile.set(await invoke<Summoner | null>("get_profile"));
     const initialDraft = await invoke<DraftState | null>("get_draft_state");
     prevDraftEmpty = !initialDraft;
+    if (initialDraft?.recent_bans) {
+      recentBans.set(initialDraft.recent_bans);
+    }
     draft.set(initialDraft);
+    try {
+      const initialBans = await invoke<number[]>("get_recent_bans");
+      if (initialBans && initialBans.length) {
+        recentBans.set(initialBans);
+      }
+    } catch (_) {}
     recommendations.set(await invoke<Recommendation[]>("get_recommendations"));
     try {
       const mode = await invoke<ScoringMode>("get_scoring_mode");
@@ -149,6 +165,78 @@ export async function hoverChampion(championId: number): Promise<boolean> {
   } catch (err) {
     console.warn("Failed to hover champion in League client", err);
     return false;
+  }
+}
+
+/**
+ * Hover or lock in a champion ban in League of Legends client during champ select.
+ */
+export async function banChampion(championId: number, lockIn: boolean = false): Promise<boolean> {
+  if (!isTauri) return false;
+  try {
+    return await invoke<boolean>("ban_champion", { championId, lockIn });
+  } catch (err) {
+    console.warn("Failed to ban champion in League client", err);
+    return false;
+  }
+}
+
+/**
+ * Get top 5 most recent distinct ban suggestions.
+ */
+export async function getRecentBans(): Promise<number[]> {
+  if (!isTauri) return [];
+  try {
+    const bans = await invoke<number[]>("get_recent_bans");
+    recentBans.set(bans);
+    return bans;
+  } catch (err) {
+    console.warn("Failed to fetch recent bans", err);
+    return [];
+  }
+}
+
+/**
+ * Get full recorded ban history (up to 20 bans).
+ */
+export async function getBanHistory(): Promise<number[]> {
+  if (!isTauri) return [];
+  try {
+    const history = await invoke<number[]>("get_ban_history");
+    banHistory.set(history);
+    return history;
+  } catch (err) {
+    console.warn("Failed to fetch ban history", err);
+    return [];
+  }
+}
+
+/**
+ * Manually record a ban into FIFO history.
+ */
+export async function recordBan(championId: number): Promise<number[]> {
+  if (!isTauri) return [];
+  try {
+    const updated = await invoke<number[]>("record_ban", { championId });
+    recentBans.set(updated);
+    return updated;
+  } catch (err) {
+    console.warn("Failed to record ban", err);
+    return [];
+  }
+}
+
+/**
+ * Clear recorded ban history.
+ */
+export async function clearBanHistory(): Promise<void> {
+  if (!isTauri) return;
+  try {
+    await invoke("clear_ban_history");
+    recentBans.set([]);
+    banHistory.set([]);
+  } catch (err) {
+    console.warn("Failed to clear ban history", err);
   }
 }
 

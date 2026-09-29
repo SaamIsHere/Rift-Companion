@@ -6,12 +6,18 @@
     activeTheme,
     customWallpaper,
     wallpaperScope,
+    backdropBlur,
+    setBackdropBlur,
+    getRawWallpaper,
+    saveCustomWallpaperData,
     selectTheme,
     shuffleTheme,
     setWallpaperScope,
     uploadCustomWallpaper,
     clearCustomWallpaper,
   } from "../stores/theme";
+  import WallpaperCropModal from "./WallpaperCropModal.svelte";
+  import { clearWallpaperCropState } from "../utils/wallpaperDb";
   import { THEMES } from "../themes";
   import type { CloseBehavior, StartupBehavior, ThemeId, WallpaperScope } from "../types";
   import {
@@ -24,6 +30,8 @@
     showUpdateModal,
     updateVersion,
   } from "../stores/updater";
+  import { banHistory } from "../stores/bans";
+  import { getBanHistory, clearBanHistory } from "../ipc/tauri";
 
   let testing = false;
   let testResult: { success: boolean; message: string } | null = null;
@@ -32,6 +40,22 @@
   let uploadError: string | null = null;
   let selfHostingOpen = false;
   let showApiKey = false;
+
+  let showCropModal = false;
+  let cropSourceData = "";
+  let cropSourceFileName = "";
+
+  let banStatusMessage: string | null = null;
+
+  $: if ($settingsOpen) {
+    void getBanHistory();
+  }
+
+  async function handleClearBans() {
+    await clearBanHistory();
+    banStatusMessage = "Ban history cleared";
+    setTimeout(() => { banStatusMessage = null; }, 2500);
+  }
 
   $: isCustomServer =
     Boolean($settings.server_url) &&
@@ -118,14 +142,85 @@
 
     isUploading = true;
     uploadError = null;
+    clearWallpaperCropState();
     try {
-      await uploadCustomWallpaper(file);
+      const reader = new FileReader();
+      reader.onerror = () => {
+        uploadError = "Failed to read image file";
+        isUploading = false;
+      };
+      reader.onload = () => {
+        const rawDataUrl = reader.result as string;
+        const img = new Image();
+        img.onerror = () => {
+          uploadError = "Could not parse image";
+          isUploading = false;
+        };
+        img.onload = async () => {
+          isUploading = false;
+          const ratio = img.naturalWidth / img.naturalHeight;
+          const is16by9 = Math.abs(ratio - (16 / 9)) < 0.03;
+
+          if (!is16by9) {
+            // Aspect ratio deviates from 16:9 (especially portrait or ultrawide):
+            // Open interactive cropping modal so user can choose the perfect area
+            cropSourceData = rawDataUrl;
+            cropSourceFileName = file.name;
+            showCropModal = true;
+          } else {
+            // Already standard 16:9: save immediately & keep original for future adjustments
+            const ext = file.name.split(".").pop() || "jpg";
+            await saveCustomWallpaperData(rawDataUrl, rawDataUrl, ext);
+          }
+        };
+        img.src = rawDataUrl;
+      };
+      reader.readAsDataURL(file);
     } catch (err: any) {
-      uploadError = `Failed to save image: ${err?.message || err}`;
-    } finally {
+      uploadError = `Failed to process image: ${err?.message || err}`;
       isUploading = false;
+    } finally {
       input.value = "";
     }
+  }
+
+  async function handleAdjustCrop() {
+    uploadError = null;
+    isUploading = true;
+    try {
+      const raw = await getRawWallpaper();
+      if (raw) {
+        cropSourceData = raw;
+        cropSourceFileName = "custom_wallpaper.jpg";
+        showCropModal = true;
+      }
+    } catch (err: any) {
+      uploadError = `Failed to load original image: ${err?.message || err}`;
+    } finally {
+      isUploading = false;
+    }
+  }
+
+  async function onCropApplied(e: CustomEvent<{ croppedDataUrl: string; rawDataUrl: string }>) {
+    showCropModal = false;
+    isUploading = true;
+    try {
+      const ext = cropSourceFileName.split(".").pop() || "jpg";
+      await saveCustomWallpaperData(e.detail.croppedDataUrl, e.detail.rawDataUrl, ext);
+    } catch (err: any) {
+      uploadError = `Failed to save cropped image: ${err?.message || err}`;
+    } finally {
+      isUploading = false;
+    }
+  }
+
+  function onCropClosed() {
+    showCropModal = false;
+  }
+
+  function onBlurSliderInput(e: Event) {
+    const val = parseInt((e.target as HTMLInputElement).value, 10);
+    setBackdropBlur(val);
   }
 
   async function handleClearWallpaper() {
@@ -262,16 +357,7 @@
         <!-- SECTION 2: BACKGROUND & WALLPAPER -->
         <section class="rounded-xl border border-purple-500/15 bg-purple-950/20 p-3.5">
           <div class="mb-3 flex items-center justify-between">
-            <h3 class="text-xs font-bold uppercase tracking-wide text-purple-300">Background & Wallpaper</h3>
-            {#if $customWallpaper}
-              <span class="rounded bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-300 border border-emerald-500/30">
-                Custom Image Active
-              </span>
-            {:else}
-              <span class="rounded bg-purple-900/50 px-2 py-0.5 text-[10px] font-semibold text-purple-300/80">
-                Theme Artwork Active
-              </span>
-            {/if}
+            <h3 class="text-xs font-bold uppercase tracking-wide text-purple-300">Background &amp; Wallpaper</h3>
           </div>
 
           <!-- Scope: Landing only vs. All tabs -->
@@ -286,7 +372,7 @@
                   : 'border-purple-500/20 bg-purple-950/30 text-slate-300 hover:bg-purple-900/30 hover:text-white' }"
               >
                 <div class="font-bold">Entire Application</div>
-                <div class="text-[10px] opacity-70">Subtle backdrop across all panels & tabs</div>
+                <div class="text-[10px] opacity-70">Subtle backdrop across all panels &amp; tabs</div>
               </button>
 
               <button
@@ -303,7 +389,7 @@
           </div>
 
           <!-- Custom Wallpaper Upload Box -->
-          <div class="flex items-center gap-3">
+          <div class="flex items-start gap-3">
             <!-- Hidden native file input -->
             <input
               type="file"
@@ -313,30 +399,43 @@
               class="hidden"
             />
 
-            <!-- Thumbnail Preview -->
-            <div class="relative h-14 w-24 shrink-0 overflow-hidden rounded-lg border border-purple-500/30 bg-black/40 shadow-inner">
+            <!-- Thumbnail Preview Column with Reset Button underneath -->
+            <div class="flex flex-col items-center gap-1.5 shrink-0">
+              <div class="relative h-14 w-24 overflow-hidden rounded-lg border border-purple-500/30 bg-black/40 shadow-inner">
+                {#if $customWallpaper}
+                  <img
+                    src={$customWallpaper}
+                    alt="Custom Wallpaper"
+                    class="h-full w-full object-cover"
+                  />
+                {:else}
+                  <div class="relative h-full w-full overflow-hidden">
+                    <div
+                      class="h-full w-full bg-cover bg-center opacity-85"
+                      style="background-image: url('/landing-bg.jpg'); filter: {$activeTheme.bgFilter};"
+                    ></div>
+                    <div
+                      class="absolute inset-0 pointer-events-none"
+                      style="background: {$activeTheme.tintGradient}; mix-blend-mode: {$activeTheme.tintBlendMode}; opacity: 0.9;"
+                    ></div>
+                  </div>
+                {/if}
+              </div>
+
               {#if $customWallpaper}
-                <img
-                  src={$customWallpaper}
-                  alt="Custom Wallpaper"
-                  class="h-full w-full object-cover"
-                />
-              {:else}
-                <div class="relative h-full w-full overflow-hidden">
-                  <div
-                    class="h-full w-full bg-cover bg-center opacity-85"
-                    style="background-image: url('/landing-bg.jpg'); filter: {$activeTheme.bgFilter};"
-                  ></div>
-                  <div
-                    class="absolute inset-0 pointer-events-none"
-                    style="background: {$activeTheme.tintGradient}; mix-blend-mode: {$activeTheme.tintBlendMode}; opacity: 0.9;"
-                  ></div>
-                </div>
+                <button
+                  type="button"
+                  on:click={handleClearWallpaper}
+                  class="w-full rounded-md border border-rose-500/30 bg-rose-950/30 py-1 text-[11px] font-semibold text-rose-300 transition hover:bg-rose-900/50 hover:text-white text-center"
+                  title="Remove custom image and restore theme artwork"
+                >
+                  Reset
+                </button>
               {/if}
             </div>
 
-            <!-- Upload / Reset Action Buttons -->
-            <div class="flex flex-1 flex-col gap-1.5">
+            <!-- Action Buttons and Help text -->
+            <div class="flex flex-1 flex-col gap-1.5 pt-0.5">
               <div class="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
@@ -350,16 +449,21 @@
                 {#if $customWallpaper}
                   <button
                     type="button"
-                    on:click={handleClearWallpaper}
-                    class="rounded-lg border border-rose-500/30 bg-rose-950/30 px-2.5 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-900/50 hover:text-white"
-                    title="Remove custom image and restore theme artwork"
+                    on:click={handleAdjustCrop}
+                    disabled={isUploading}
+                    class="group flex items-center gap-1.5 rounded-lg border border-purple-400/40 bg-purple-900/40 px-2.5 py-1.5 text-xs font-semibold text-purple-200 transition hover:bg-purple-800/60 hover:border-purple-300 hover:text-white disabled:opacity-50"
+                    title="Adjust crop framing to 16:9 HD"
                   >
-                    Reset
+                    <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M6 2v14a2 2 0 0 0 2 2h14" />
+                      <path d="M18 22V8a2 2 0 0 0-2-2H2" />
+                    </svg>
+                    <span>Adjust Framing</span>
                   </button>
                 {/if}
               </div>
-              <span class="text-[10px] text-slate-400">
-                Supports JPG, PNG, WebP up to 25 MB. Stored locally.
+              <span class="text-[10px] text-slate-400 leading-normal">
+                Supports JPG, PNG, WebP up to 25 MB with interactive 16:9 framing for portrait and wide images. Stored locally.
               </span>
             </div>
           </div>
@@ -369,6 +473,77 @@
               {uploadError}
             </div>
           {/if}
+
+          <!-- Frosted Glass / Panel Backdrop Blur Slider -->
+          <div class="mt-4 border-t border-purple-500/15 pt-3.5">
+            <div class="mb-2 flex items-center justify-between">
+              <div class="flex flex-col">
+                <span class="text-xs font-semibold text-slate-200">Frosted Glass &amp; Panel Blur</span>
+                <span class="text-[11px] text-slate-400">
+                  Blur intensity when the wallpaper shines through panels &amp; windows
+                </span>
+              </div>
+              <span class="font-mono text-xs font-semibold text-purple-300">
+                {$backdropBlur} px
+              </span>
+            </div>
+
+            <!-- Continuous Live Range Slider -->
+            <div class="flex items-center gap-3">
+              <span class="text-[10px] text-slate-400 font-medium w-8">0 px</span>
+              <input
+                type="range"
+                min="0"
+                max="30"
+                step="1"
+                value={$backdropBlur}
+                on:input={onBlurSliderInput}
+                class="flex-1 accent-purple-500 cursor-pointer h-2 rounded-lg bg-void-950 border border-purple-500/20"
+                aria-label="Panel blur intensity"
+              />
+              <span class="text-[10px] text-slate-400 font-medium w-8 text-right">30 px</span>
+            </div>
+
+            <!-- Quick Presets as Unified Segmented Control -->
+            <div class="mt-2.5 grid grid-cols-4 w-full rounded-lg border border-purple-500/25 bg-void-950/80 p-0.5 shadow-inner">
+              <button
+                type="button"
+                on:click={() => setBackdropBlur(0)}
+                class="flex items-center justify-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-all duration-150 {$backdropBlur === 0
+                  ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
+              >
+                0 px (Off)
+              </button>
+              <button
+                type="button"
+                on:click={() => setBackdropBlur(6)}
+                class="flex items-center justify-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-all duration-150 {$backdropBlur === 6
+                  ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
+              >
+                6 px (Subtle)
+              </button>
+              <button
+                type="button"
+                on:click={() => setBackdropBlur(12)}
+                class="flex items-center justify-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-all duration-150 {$backdropBlur === 12
+                  ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
+              >
+                12 px (Default)
+              </button>
+              <button
+                type="button"
+                on:click={() => setBackdropBlur(20)}
+                class="flex items-center justify-center rounded-md px-2 py-1 text-xs font-medium whitespace-nowrap transition-all duration-150 {$backdropBlur === 20
+                  ? 'bg-purple-600/50 text-white shadow-sm border border-purple-400/40 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border border-transparent'}"
+              >
+                20 px (Strong)
+              </button>
+            </div>
+          </div>
         </section>
 
         <!-- SECTION 3: BEHAVIOR -->
@@ -482,6 +657,35 @@
                 class="h-4 w-4 accent-purple-500 cursor-pointer"
               />
             </label>
+          </div>
+        </section>
+
+        <!-- BAN HISTORY -->
+        <section class="rounded-xl border border-purple-500/15 bg-purple-950/20 p-3.5">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex flex-col">
+              <h3 class="text-xs font-bold uppercase tracking-wide text-purple-300">Ban History</h3>
+              <span class="text-[11px] text-slate-400">
+                {$banHistory.length > 0
+                  ? `Clear ${$banHistory.length} recorded ban${$banHistory.length === 1 ? '' : 's'} used for draft suggestions`
+                  : 'Clear recorded bans used for draft suggestions'}
+              </span>
+            </div>
+            <div class="flex items-center gap-2">
+              {#if banStatusMessage}
+                <span class="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded animate-fade-in">
+                  {banStatusMessage}
+                </span>
+              {/if}
+              <button
+                type="button"
+                on:click={handleClearBans}
+                disabled={$banHistory.length === 0}
+                class="rounded-lg border border-rose-500/30 bg-rose-950/30 px-3 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-900/50 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer active:scale-95"
+              >
+                Clear Ban History
+              </button>
+            </div>
           </div>
         </section>
 
@@ -717,3 +921,12 @@
     </div>
   </div>
 {/if}
+
+<!-- Wallpaper Crop & Framing Modal -->
+<WallpaperCropModal
+  isOpen={showCropModal}
+  imageSrc={cropSourceData}
+  on:apply={onCropApplied}
+  on:close={onCropClosed}
+/>
+

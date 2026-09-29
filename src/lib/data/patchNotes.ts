@@ -246,6 +246,19 @@ export const LATEST_PATCH_DATA: PatchNotesData = {
 
     // Rift Companion Updates
     {
+      id: "app-update-022",
+      type: "app",
+      category: "app",
+      title: "Rift Companion v0.2.2 Updates",
+      summary: "Custom wallpaper framing & persistence, adjustable glass panel blur slider with presets, and intelligent recent bans memory for draft suggestions.",
+      details: [
+        "Custom Wallpaper Framing & Persistence: Interactive 16:9 area framing tool for custom portrait and ultrawide wallpapers, with automatic persistence and restoration of framing state across sessions and re-edits.",
+        "Adjustable Backdrop Blur: Configurable frosted glass blur slider (0 to 30 px) with instant presets (0, 6, 12, 20 px) allowing customized wallpaper transparency through UI panels.",
+        "Recent Bans Memory: Automatically tracks and remembers the most recent champion bans across champ select sessions to advise intelligent ban and pick suggestions during draft.",
+        "Settings & Preview Polish: Complete English localization, streamlined preview matching the client landing page, and clean theme styling.",
+      ],
+    },
+    {
       id: "app-update-021",
       type: "app",
       category: "app",

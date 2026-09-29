@@ -112,6 +112,9 @@ pub struct Settings {
     /// Live Match import: preferred flash key ("D" or "F").
     #[serde(default = "default_flash_key")]
     pub flash_key: String,
+    /// Background/glass backdrop blur in pixels (default 12)
+    #[serde(default = "default_backdrop_blur")]
+    pub backdrop_blur: u32,
 }
 
 fn default_close_behavior() -> String {
@@ -158,6 +161,10 @@ fn default_flash_key() -> String {
     "D".to_string()
 }
 
+fn default_backdrop_blur() -> u32 {
+    12
+}
+
 impl Default for Settings {
     fn default() -> Self {
         Settings {
@@ -177,6 +184,7 @@ impl Default for Settings {
             auto_import_spells: default_auto_import_spells(),
             auto_import_items: default_auto_import_items(),
             flash_key: default_flash_key(),
+            backdrop_blur: default_backdrop_blur(),
         }
     }
 }
@@ -222,6 +230,86 @@ pub fn write_cached_profile(profile: &crate::lcu::client::Summoner) -> std::io::
     std::fs::write(profile_path(), serde_json::to_string_pretty(profile).unwrap_or_default())
 }
 
+pub const MAX_BAN_HISTORY: usize = 20;
+pub const MAX_BAN_SUGGESTIONS: usize = 5;
+
+fn bans_path() -> PathBuf {
+    let mut p = default_data_path();
+    p.set_file_name("recent_bans.json");
+    p
+}
+
+/// Read the recorded ban history (up to 20 recorded bans) from disk.
+pub fn read_ban_history() -> Vec<u32> {
+    if let Ok(data) = std::fs::read_to_string(bans_path()) {
+        if let Ok(bans) = serde_json::from_str::<Vec<u32>>(&data) {
+            return bans;
+        }
+    }
+    Vec::new()
+}
+
+/// Persist the recorded ban history to disk.
+pub fn write_ban_history(bans: &[u32]) -> std::io::Result<()> {
+    if let Some(parent) = bans_path().parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    std::fs::write(bans_path(), serde_json::to_string_pretty(bans).unwrap_or_default())
+}
+
+/// Extract up to 5 most recent unique ban suggestions from the history.
+/// Iterates backwards from newest to oldest ban:
+/// 1st unique item = most recent ban (#1)
+/// 2nd unique item = champion banned before that (#2)
+/// ...
+/// Up to 5 unique champions.
+pub fn extract_recent_suggestions(history: &[u32]) -> Vec<u32> {
+    let mut suggestions = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    for &champ_id in history.iter().rev() {
+        if champ_id > 0 && seen.insert(champ_id) {
+            suggestions.push(champ_id);
+            if suggestions.len() >= MAX_BAN_SUGGESTIONS {
+                break;
+            }
+        }
+    }
+    suggestions
+}
+
+/// Get the up to 5 most recent distinct ban suggestions.
+pub fn get_recent_ban_suggestions() -> Vec<u32> {
+    let history = read_ban_history();
+    extract_recent_suggestions(&history)
+}
+
+/// Record a newly completed player ban into the FIFO history:
+/// - Appends to the end of the history.
+/// - If length exceeds 20, trims oldest items from the start (FIFO).
+/// - Persists to disk.
+/// - Returns updated top 5 unique ban suggestions.
+pub fn record_ban(champion_id: u32) -> Vec<u32> {
+    if champion_id == 0 {
+        return get_recent_ban_suggestions();
+    }
+    let mut history = read_ban_history();
+    history.push(champion_id);
+    if history.len() > MAX_BAN_HISTORY {
+        let excess = history.len() - MAX_BAN_HISTORY;
+        history.drain(0..excess);
+    }
+    let _ = write_ban_history(&history);
+    extract_recent_suggestions(&history)
+}
+
+/// Clear recorded ban history.
+pub fn clear_ban_history() -> std::io::Result<()> {
+    let empty: Vec<u32> = Vec::new();
+    write_ban_history(&empty)
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -236,6 +324,7 @@ mod tests {
         assert_eq!(s.auto_import_spells, false);
         assert_eq!(s.auto_import_items, false);
         assert_eq!(s.flash_key, "D");
+        assert_eq!(s.backdrop_blur, 12);
     }
 
     #[test]
@@ -249,6 +338,7 @@ mod tests {
         assert_eq!(s.auto_import_spells, false);
         assert_eq!(s.auto_import_items, false);
         assert_eq!(s.flash_key, "D");
+        assert_eq!(s.backdrop_blur, 12);
     }
 
     #[test]
@@ -260,7 +350,8 @@ mod tests {
             "auto_import_runes": true,
             "auto_import_spells": true,
             "auto_import_items": true,
-            "flash_key": "F"
+            "flash_key": "F",
+            "backdrop_blur": 20
         }"#;
         let s: Settings = serde_json::from_str(json).expect("should deserialize");
         assert_eq!(s.close_behavior, "minimize");
@@ -270,6 +361,38 @@ mod tests {
         assert_eq!(s.auto_import_spells, true);
         assert_eq!(s.auto_import_items, true);
         assert_eq!(s.flash_key, "F");
+        assert_eq!(s.backdrop_blur, 20);
+    }
+
+    #[test]
+    fn test_extract_recent_suggestions_ordering_and_deduplication() {
+        // Oldest bans at the start, newest at the end
+        // Order of bans: Zed (238), Yasuo (157), Zed (238), Blitzcrank (53), Morgana (25), Zed (238)
+        let history = vec![238, 157, 238, 53, 25, 238];
+        let suggestions = extract_recent_suggestions(&history);
+        // Most recent is 238 (#1), then 25 (#2), then 53 (#3), then 157 (#4)
+        assert_eq!(suggestions, vec![238, 25, 53, 157]);
+    }
+
+    #[test]
+    fn test_extract_recent_suggestions_fewer_than_five_distinct() {
+        // 20 games with only 3 distinct champions banned
+        let history = vec![
+            238, 157, 238, 157, 238, 157, 238, 157, 238, 157,
+            238, 157, 238, 157, 238, 157, 238, 157, 84, 238,
+        ];
+        let suggestions = extract_recent_suggestions(&history);
+        // Most recent is 238, then 84, then 157
+        assert_eq!(suggestions, vec![238, 84, 157]);
+    }
+
+    #[test]
+    fn test_extract_recent_suggestions_caps_at_five() {
+        // 7 distinct champions
+        let history = vec![1, 2, 3, 4, 5, 6, 7];
+        let suggestions = extract_recent_suggestions(&history);
+        assert_eq!(suggestions, vec![7, 6, 5, 4, 3]);
     }
 }
+
 

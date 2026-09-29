@@ -11,6 +11,7 @@
   import { preselectedChampionId, referenceChampionId } from "../stores/preselect";
   import RecommendationCard from "./RecommendationCard.svelte";
   import ChampionImporter from "./ChampionImporter.svelte";
+  import BanSuggestionsBanner from "./BanSuggestionsBanner.svelte";
 
   const dispatch = createEventDispatcher<{
     selectOverview: number;
@@ -326,9 +327,11 @@
     </div>
   </div>
 
-  <!-- Hovered Champion Card or Role Indicator Banner -->
+  <!-- Ban Phase Banner or Hovered Champion Card or Role Indicator Banner -->
   {#if inChampSelect}
-    {#if activePreviewId}
+    {#if $draft?.is_ban_phase}
+      <BanSuggestionsBanner on:selectOverview={(e) => dispatch("selectOverview", e.detail)} />
+    {:else if activePreviewId}
       <!-- Hovered / Preselected Champion Banner -->
       <div class="mb-3 flex flex-col rounded-xl border border-purple-500/20 bg-void-950/20 p-3 shadow-md relative overflow-hidden shrink-0">
         <div class="flex items-center gap-2 mb-2">

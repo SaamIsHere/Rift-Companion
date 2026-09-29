@@ -6,6 +6,7 @@
 const DB_NAME = "rift_companion_db";
 const STORE_NAME = "user_media";
 const KEY_WALLPAPER = "custom_wallpaper";
+const KEY_RAW_WALLPAPER = "custom_wallpaper_raw";
 
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -55,6 +56,37 @@ export async function loadWallpaperFromDb(): Promise<string | null> {
   }
 }
 
+export async function saveRawWallpaperToDb(dataUrl: string): Promise<void> {
+  try {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+      const putReq = store.put(dataUrl, KEY_RAW_WALLPAPER);
+      putReq.onsuccess = () => resolve();
+      putReq.onerror = () => reject(putReq.error);
+    });
+  } catch (err) {
+    console.warn("Could not save raw wallpaper to IndexedDB", err);
+  }
+}
+
+export async function loadRawWallpaperFromDb(): Promise<string | null> {
+  try {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const store = tx.objectStore(STORE_NAME);
+      const getReq = store.get(KEY_RAW_WALLPAPER);
+      getReq.onsuccess = () => resolve((getReq.result as string) || null);
+      getReq.onerror = () => reject(getReq.error);
+    });
+  } catch (err) {
+    console.warn("Could not load raw wallpaper from IndexedDB", err);
+    return null;
+  }
+}
+
 export async function deleteWallpaperFromDb(): Promise<void> {
   clearWallpaperCacheSync();
   try {
@@ -62,9 +94,10 @@ export async function deleteWallpaperFromDb(): Promise<void> {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
-      const delReq = store.delete(KEY_WALLPAPER);
-      delReq.onsuccess = () => resolve();
-      delReq.onerror = () => reject(delReq.error);
+      store.delete(KEY_WALLPAPER);
+      store.delete(KEY_RAW_WALLPAPER);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
     });
   } catch (err) {
     console.warn("Could not delete wallpaper from IndexedDB", err);
@@ -99,6 +132,51 @@ export function hasCustomWallpaperSync(): boolean {
   }
 }
 
+export interface WallpaperCropState {
+  xNorm: number;
+  yNorm: number;
+  wNorm: number;
+  hNorm: number;
+  zoomScale: number;
+}
+
+const CROP_STATE_STORAGE_KEY = "rift_wallpaper_crop_state";
+
+/**
+ * Persist normalized crop framing coordinates across sessions and modal re-openings.
+ */
+export function saveWallpaperCropState(state: WallpaperCropState): void {
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(CROP_STATE_STORAGE_KEY, JSON.stringify(state));
+    }
+  } catch {}
+}
+
+/**
+ * Retrieve last saved crop framing coordinates if available.
+ */
+export function loadWallpaperCropState(): WallpaperCropState | null {
+  try {
+    if (typeof localStorage !== "undefined") {
+      const raw = localStorage.getItem(CROP_STATE_STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    }
+  } catch {}
+  return null;
+}
+
+/**
+ * Clear stored crop framing coordinates.
+ */
+export function clearWallpaperCropState(): void {
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem(CROP_STATE_STORAGE_KEY);
+    }
+  } catch {}
+}
+
 /**
  * Synchronously clear the fast wallpaper cache from localStorage.
  */
@@ -107,6 +185,7 @@ export function clearWallpaperCacheSync(): void {
   try {
     localStorage.removeItem(CACHE_KEY_WALLPAPER);
     localStorage.removeItem(CACHE_KEY_HAS_CUSTOM);
+    clearWallpaperCropState();
   } catch {}
 }
 

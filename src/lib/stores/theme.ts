@@ -7,6 +7,8 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   saveWallpaperToDb,
   loadWallpaperFromDb,
+  saveRawWallpaperToDb,
+  loadRawWallpaperFromDb,
   deleteWallpaperFromDb,
   getCachedWallpaperSync,
   hasCustomWallpaperSync,
@@ -48,13 +50,40 @@ const initialScope: WallpaperScope = (() => {
 
 export const wallpaperScope = writable<WallpaperScope>(initialScope);
 
+// Synchronously read last saved backdrop blur (default 12px)
+const initialBackdropBlur: number = (() => {
+  if (typeof localStorage !== "undefined") {
+    try {
+      const saved = localStorage.getItem("rift_backdrop_blur");
+      if (saved !== null) {
+        const val = parseInt(saved, 10);
+        if (!isNaN(val) && val >= 0 && val <= 40) return val;
+      }
+    } catch {}
+  }
+  return 12;
+})();
+
+export const backdropBlur = writable<number>(initialBackdropBlur);
+
+export function applyBackdropBlur(blur: number): void {
+  if (typeof document !== "undefined") {
+    const root = document.documentElement;
+    root.style.setProperty("--theme-glass-blur", `${blur}px`);
+    root.style.setProperty("--theme-glass-blur-sm", `${Math.round(blur * 0.33)}px`);
+    root.style.setProperty("--theme-glass-blur-lg", `${Math.round(blur * 1.33)}px`);
+    root.style.setProperty("--theme-glass-blur-xl", `${Math.round(blur * 2)}px`);
+  }
+}
+
 // Synchronously restore custom wallpaper and custom flag so frame 0 renders the custom image
 export const hasCustomWallpaper = writable<boolean>(hasCustomWallpaperSync());
 export const customWallpaper = writable<string | null>(getCachedWallpaperSync());
 
-// Apply theme CSS variables immediately upon module evaluation
+// Apply theme CSS variables and backdrop blur immediately upon module evaluation
 if (typeof document !== "undefined") {
   applyTheme(getTheme(initialThemeId));
+  applyBackdropBlur(initialBackdropBlur);
 }
 
 let initialized = false;
@@ -111,6 +140,16 @@ export async function initTheme(): Promise<void> {
       if (typeof localStorage !== "undefined") {
         try {
           localStorage.setItem("rift_active_theme", themeId);
+        } catch {}
+      }
+    }
+
+    if (typeof $settings.backdrop_blur === "number" && $settings.backdrop_blur !== get(backdropBlur)) {
+      backdropBlur.set($settings.backdrop_blur);
+      applyBackdropBlur($settings.backdrop_blur);
+      if (typeof localStorage !== "undefined") {
+        try {
+          localStorage.setItem("rift_backdrop_blur", String($settings.backdrop_blur));
         } catch {}
       }
     }
@@ -199,6 +238,76 @@ export function setWallpaperScope(scope: WallpaperScope): void {
 }
 
 /**
+ * Set backdrop blur strength (0 to 30px) and persist to settings.
+ */
+export function setBackdropBlur(blur: number): void {
+  const clamped = Math.max(0, Math.min(30, Math.round(blur)));
+  backdropBlur.set(clamped);
+  applyBackdropBlur(clamped);
+
+  if (typeof localStorage !== "undefined") {
+    try {
+      localStorage.setItem("rift_backdrop_blur", String(clamped));
+    } catch {}
+  }
+
+  settings.update((s) => ({ ...s, backdrop_blur: clamped }));
+  void setSettings(get(settings));
+}
+
+/**
+ * Retrieve raw uncropped wallpaper data URL if available, falling back to current wallpaper.
+ */
+export async function getRawWallpaper(): Promise<string | null> {
+  try {
+    const raw = await loadRawWallpaperFromDb();
+    if (raw) return raw;
+  } catch {}
+  return get(customWallpaper);
+}
+
+/**
+ * Save custom wallpaper data URL, optionally caching the raw original for re-cropping.
+ */
+export async function saveCustomWallpaperData(
+  croppedDataUrl: string,
+  rawSourceDataUrl?: string,
+  extension: string = "jpg"
+): Promise<string> {
+  // 1. Set immediately in Svelte store for instant 0ms preview
+  hasCustomWallpaper.set(true);
+  customWallpaper.set(croppedDataUrl);
+
+  // 2. Persist in synchronous fast cache for instant 0ms restoration across restarts
+  setWallpaperCacheSync(croppedDataUrl);
+
+  // 3. Persist cropped wallpaper in IndexedDB
+  await saveWallpaperToDb(croppedDataUrl);
+
+  // 4. Also persist raw uncropped version if provided so user can re-adjust anytime
+  if (rawSourceDataUrl) {
+    await saveRawWallpaperToDb(rawSourceDataUrl);
+  }
+
+  // 5. Also persist file to disk via Tauri IPC if running in desktop app
+  if (isTauri) {
+    try {
+      await invoke<string>("save_custom_wallpaper", {
+        base64Data: croppedDataUrl,
+        extension,
+      });
+    } catch (ipcErr) {
+      console.warn("Could not save to app data directory via IPC", ipcErr);
+    }
+  }
+
+  // 6. Update settings to indicate custom wallpaper is active
+  settings.update((s) => ({ ...s, custom_wallpaper: "custom" }));
+  await setSettings(get(settings));
+  return croppedDataUrl;
+}
+
+/**
  * Upload and save a custom wallpaper image.
  */
 export async function uploadCustomWallpaper(file: File): Promise<string> {
@@ -208,33 +317,8 @@ export async function uploadCustomWallpaper(file: File): Promise<string> {
     reader.onload = async () => {
       try {
         const dataUrl = reader.result as string;
-
-        // 1. Set immediately in Svelte store for instant 0ms preview
-        hasCustomWallpaper.set(true);
-        customWallpaper.set(dataUrl);
-
-        // 2. Persist in synchronous fast cache for instant 0ms restoration across restarts
-        setWallpaperCacheSync(dataUrl);
-
-        // 3. Persist in IndexedDB (survives app restarts without file path issues)
-        await saveWallpaperToDb(dataUrl);
-
-        // 4. Also persist file to disk via Tauri IPC if running in desktop app
-        if (isTauri) {
-          try {
-            const ext = file.name.split(".").pop() || "jpg";
-            await invoke<string>("save_custom_wallpaper", {
-              base64Data: dataUrl,
-              extension: ext,
-            });
-          } catch (ipcErr) {
-            console.warn("Could not save to app data directory via IPC", ipcErr);
-          }
-        }
-
-        // 5. Update settings to indicate custom wallpaper is active
-        settings.update((s) => ({ ...s, custom_wallpaper: "custom" }));
-        await setSettings(get(settings));
+        const ext = file.name.split(".").pop() || "jpg";
+        await saveCustomWallpaperData(dataUrl, dataUrl, ext);
         resolve(dataUrl);
       } catch (err) {
         reject(err);

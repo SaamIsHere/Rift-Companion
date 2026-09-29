@@ -304,6 +304,7 @@ pub async fn check_liveclient_data(app: &AppHandle, shared: &Shared) -> bool {
 fn clear_session(app: &AppHandle, shared: &Shared) {
     *shared.latest_draft.lock().unwrap() = None;
     *shared.gameflow_phase.lock().unwrap() = "None".to_string();
+    *shared.last_recorded_ban_action_id.lock().unwrap() = None;
     shared.weights.lock().unwrap().mode = crate::engine::weights::ScoringMode::Default;
     shared.enemy_role_overrides.lock().unwrap().clear();
     shared.ally_role_overrides.lock().unwrap().clear();
@@ -433,6 +434,26 @@ fn handle_session(app: &AppHandle, shared: &Shared, data: serde_json::Value) {
     if is_new_session {
         shared.weights.lock().unwrap().mode = crate::engine::weights::ScoringMode::Default;
         let _ = app.emit("scoring-mode://update", crate::engine::weights::ScoringMode::Default);
+    }
+
+    // Track local player's ban if completed in this session
+    let local_cell = session.local_player_cell_id;
+    for round in &session.actions {
+        for a in round {
+            if a.actor_cell_id == local_cell && a.action_type == "ban" && a.completed && a.champion_id > 0 {
+                let action_id = a.id;
+                let already_recorded = {
+                    let last = shared.last_recorded_ban_action_id.lock().unwrap();
+                    *last == Some(action_id)
+                };
+                if !already_recorded {
+                    *shared.last_recorded_ban_action_id.lock().unwrap() = Some(action_id);
+                    tracing::info!(champion_id = a.champion_id, action_id, "recording completed player ban");
+                    let suggestions = crate::data::store::record_ban(a.champion_id as u32);
+                    let _ = app.emit("bans://updated", &suggestions);
+                }
+            }
+        }
     }
 
     let repo = shared.repo.lock().unwrap().clone();

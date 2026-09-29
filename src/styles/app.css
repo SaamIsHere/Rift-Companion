@@ -37,6 +37,11 @@
   --theme-glass-soft-border: rgba(168, 85, 247, 0.12);
   --theme-glass-purple-bg: rgba(20, 12, 43, 0.55);
   --theme-glass-purple-border: rgba(168, 85, 247, 0.35);
+
+  --theme-glass-blur: 12px;
+  --theme-glass-blur-sm: 4px;
+  --theme-glass-blur-lg: 16px;
+  --theme-glass-blur-xl: 24px;
 }
 
 html,
@@ -65,8 +70,8 @@ body {
   .glass {
     background-color: var(--theme-glass-bg);
     border: 1px solid var(--theme-glass-border);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(var(--theme-glass-blur, 12px));
+    -webkit-backdrop-filter: blur(var(--theme-glass-blur, 12px));
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
     transition: background-color 0.3s ease, border-color 0.3s ease;
   }
@@ -74,16 +79,16 @@ body {
   .glass-soft {
     background-color: var(--theme-glass-soft-bg);
     border: 1px solid var(--theme-glass-soft-border);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(var(--theme-glass-blur, 12px));
+    -webkit-backdrop-filter: blur(var(--theme-glass-blur, 12px));
     transition: background-color 0.3s ease, border-color 0.3s ease;
   }
   /* Accent border container */
   .glass-purple {
     background-color: var(--theme-glass-purple-bg);
     border: 1px solid var(--theme-glass-purple-border);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(var(--theme-glass-blur-lg, 16px));
+    -webkit-backdrop-filter: blur(var(--theme-glass-blur-lg, 16px));
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.55);
     transition: background-color 0.3s ease, border-color 0.3s ease;
   }

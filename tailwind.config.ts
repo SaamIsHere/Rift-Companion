@@ -7,6 +7,15 @@ const config: Config = {
       borderColor: {
         DEFAULT: "rgb(var(--theme-primary-500, 168 85 247) / 0.15)",
       },
+      backdropBlur: {
+        none: '0',
+        sm: 'var(--theme-glass-blur-sm, 4px)',
+        DEFAULT: 'var(--theme-glass-blur, 8px)',
+        md: 'var(--theme-glass-blur, 12px)',
+        lg: 'var(--theme-glass-blur-lg, 16px)',
+        xl: 'var(--theme-glass-blur-xl, 24px)',
+        '2xl': 'calc(var(--theme-glass-blur, 12px) * 2.5)',
+      },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
       },

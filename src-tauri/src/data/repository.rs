@@ -147,6 +147,7 @@ mod tests {
             bans: vec![],
             allies: vec![DraftPick { champion_id: 64, role: Some(Role::Jungle), is_local: false, is_hover: false, spell1_id: None, spell2_id: None, player_name: None }],
             enemies: vec![DraftPick { champion_id: 122, role: Some(Role::Top), is_local: false, is_hover: false, spell1_id: None, spell2_id: None, player_name: None }],
+            ..Default::default()
         };
         let recs = recommend(&repo, &draft, &Weights::default());
         let expected = repo
