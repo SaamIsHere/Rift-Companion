@@ -28,7 +28,27 @@ function normalizeTier(tier) {
   }
 }
 
-export function createApiRouter(scheduler, dataDir) {
+function sanitizeId(id: any): string {
+  return String(id || "").trim().replace(/[^a-zA-Z0-9_\-\.]/g, "_");
+}
+
+function getMatchesDir(dataDir: string): string {
+  const dir = path.join(dataDir, "matches");
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
+
+function getProfilesDir(dataDir: string): string {
+  const dir = path.join(dataDir, "profiles");
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
+
+export function createApiRouter(scheduler: any, dataDir: string) {
   const router = express.Router();
 
   const apiKey = process.env.RIFT_API_KEY ? String(process.env.RIFT_API_KEY).trim() : null;
@@ -94,6 +114,125 @@ export function createApiRouter(scheduler, dataDir) {
       }
       res.status(404).json({ error: "No custom patch notes stored for this patch" });
     } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Fetch cached match detail (immutable game detail)
+  router.get("/api/match/:id", async (req, res) => {
+    try {
+      const matchId = sanitizeId(req.params.id);
+      if (!matchId) {
+        return res.status(400).json({ error: "Missing or invalid match ID" });
+      }
+
+      const matchesDir = getMatchesDir(dataDir);
+      const targetFile = path.join(matchesDir, `${matchId}.json`);
+      if (!fs.existsSync(targetFile)) {
+        return res.status(404).json({ error: `Match '${matchId}' not found in server cache` });
+      }
+
+      res.setHeader("Content-Type", "application/json");
+      res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      const stream = fs.createReadStream(targetFile);
+      stream.pipe(res);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Store/log match detail on the server
+  router.post("/api/match/:id", async (req, res) => {
+    try {
+      const matchId = sanitizeId(req.params.id);
+      if (!matchId) {
+        return res.status(400).json({ error: "Missing or invalid match ID" });
+      }
+
+      const data = req.body;
+      if (!data || (typeof data === "object" && Object.keys(data).length === 0)) {
+        return res.status(400).json({ error: "Empty request body" });
+      }
+
+      const matchesDir = getMatchesDir(dataDir);
+      const targetFile = path.join(matchesDir, `${matchId}.json`);
+      await fsp.writeFile(targetFile, JSON.stringify(data), "utf-8");
+      res.json({ status: "saved", id: matchId });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Fetch cached player profile and match history
+  router.get("/api/profile", async (req, res) => {
+    try {
+      const gn = String(req.query.name || req.query.game_name || "").trim();
+      const tl = String(req.query.tag || req.query.tag_line || "").trim();
+      const reg = String(req.query.region || "EUW").trim().toUpperCase();
+
+      if (!gn) {
+        return res.status(400).json({ error: "Missing name or game_name query parameter" });
+      }
+
+      const safeName = sanitizeId(gn.toLowerCase());
+      const safeTag = sanitizeId(tl.toLowerCase() || reg.toLowerCase());
+      const safeReg = sanitizeId(reg.toLowerCase());
+      const filename = `${safeReg}_${safeName}_${safeTag}.json`;
+
+      const profilesDir = getProfilesDir(dataDir);
+      const targetFile = path.join(profilesDir, filename);
+
+      if (!fs.existsSync(targetFile)) {
+        return res.status(404).json({ error: `Profile '${gn}#${tl}' not found in server cache` });
+      }
+
+      const raw = await fsp.readFile(targetFile, "utf-8");
+      const parsed = JSON.parse(raw);
+      const now = Date.now();
+      const cachedAt = parsed.cached_at || now;
+      const ageSeconds = Math.max(0, Math.floor((now - cachedAt) / 1000));
+
+      res.json({
+        ...parsed,
+        age_seconds: ageSeconds,
+        is_stale: ageSeconds > 600, // 10 minutes default staleness
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Store/log player profile and match history on the server
+  router.post("/api/profile", async (req, res) => {
+    try {
+      const gn = String(req.body?.game_name || req.body?.name || "").trim();
+      const tl = String(req.body?.tag_line || req.body?.tag || "").trim();
+      const reg = String(req.body?.region || "EUW").trim().toUpperCase();
+
+      if (!gn) {
+        return res.status(400).json({ error: "Missing game_name in request body" });
+      }
+
+      const safeName = sanitizeId(gn.toLowerCase());
+      const safeTag = sanitizeId(tl.toLowerCase() || reg.toLowerCase());
+      const safeReg = sanitizeId(reg.toLowerCase());
+      const filename = `${safeReg}_${safeName}_${safeTag}.json`;
+
+      const profilesDir = getProfilesDir(dataDir);
+      const targetFile = path.join(profilesDir, filename);
+
+      const payload = {
+        game_name: gn,
+        tag_line: tl,
+        region: reg,
+        profile: req.body.profile || null,
+        matches: req.body.matches || [],
+        cached_at: req.body.cached_at || Date.now(),
+      };
+
+      await fsp.writeFile(targetFile, JSON.stringify(payload), "utf-8");
+      res.json({ status: "saved", cached_at: payload.cached_at });
+    } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
   });

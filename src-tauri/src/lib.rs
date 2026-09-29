@@ -187,6 +187,8 @@ pub fn run() {
             commands::get_player_profile,
             commands::get_player_matches,
             commands::get_match_detail,
+            commands::get_cached_player_profile,
+            commands::save_cached_player_profile,
             commands::simulate_draft,
             commands::simulate_champion_recommendation,
             commands::simulate_match_analysis,

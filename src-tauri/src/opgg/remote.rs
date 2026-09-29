@@ -106,4 +106,81 @@ pub async fn fetch_build(
     body.build.ok_or_else(|| anyhow::anyhow!("no build found in response"))
 }
 
+/// Query the Rift Server for a previously saved match detail.
+pub async fn get_cached_match(
+    server_url: &str,
+    game_id: &str,
+    api_key: Option<&str>,
+) -> Result<Option<serde_json::Value>> {
+    let clean_id = game_id.trim();
+    let url = format!("{}/api/match/{}", server_url.trim_end_matches('/'), clean_id);
+    let client = client_with_auth(3, api_key)?;
+    let res = client.get(&url).send().await?;
+    if res.status().as_u16() == 404 {
+        return Ok(None);
+    }
+    if !res.status().is_success() {
+        bail!("server returned error {}: {}", res.status(), res.text().await.unwrap_or_default());
+    }
+    let data: serde_json::Value = res.json().await?;
+    Ok(Some(data))
+}
+
+/// Store/log a match detail on the Rift Server.
+pub async fn save_cached_match(
+    server_url: &str,
+    game_id: &str,
+    detail: &serde_json::Value,
+    api_key: Option<&str>,
+) -> Result<()> {
+    let clean_id = game_id.trim();
+    let url = format!("{}/api/match/{}", server_url.trim_end_matches('/'), clean_id);
+    let client = client_with_auth(5, api_key)?;
+    let res = client.post(&url).json(detail).send().await?;
+    if !res.status().is_success() {
+        bail!("failed to save match to server {}: {}", res.status(), res.text().await.unwrap_or_default());
+    }
+    Ok(())
+}
+
+/// Query the Rift Server for a previously saved player profile & matches.
+pub async fn get_cached_profile(
+    server_url: &str,
+    game_name: &str,
+    tag_line: &str,
+    region: &str,
+    api_key: Option<&str>,
+) -> Result<Option<serde_json::Value>> {
+    let url = format!("{}/api/profile", server_url.trim_end_matches('/'));
+    let client = client_with_auth(3, api_key)?;
+    let res = client
+        .get(&url)
+        .query(&[("name", game_name), ("tag", tag_line), ("region", region)])
+        .send()
+        .await?;
+    if res.status().as_u16() == 404 {
+        return Ok(None);
+    }
+    if !res.status().is_success() {
+        bail!("server returned error {}: {}", res.status(), res.text().await.unwrap_or_default());
+    }
+    let data: serde_json::Value = res.json().await?;
+    Ok(Some(data))
+}
+
+/// Store/log a player profile & matches on the Rift Server.
+pub async fn save_cached_profile(
+    server_url: &str,
+    payload: &serde_json::Value,
+    api_key: Option<&str>,
+) -> Result<()> {
+    let url = format!("{}/api/profile", server_url.trim_end_matches('/'));
+    let client = client_with_auth(5, api_key)?;
+    let res = client.post(&url).json(payload).send().await?;
+    if !res.status().is_success() {
+        bail!("failed to save profile to server {}: {}", res.status(), res.text().await.unwrap_or_default());
+    }
+    Ok(())
+}
+
 

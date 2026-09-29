@@ -58,6 +58,7 @@ export const viewedProfile = writable<FullPlayerProfile | null>(null);
 export const viewedMatches = writable<PlayerMatch[]>([]);
 export const viewedProfileLoading = writable<boolean>(false);
 export const viewedMatchesLoading = writable<boolean>(false);
+export const viewedProfileRefreshing = writable<boolean>(false);
 export const viewedProfileError = writable<string | null>(null);
 export const recentSearches = writable<RecentSearchItem[]>(getInitialRecentSearches());
 export const lastSyncedAt = writable<number | null>(null);
@@ -70,20 +71,12 @@ export const isExplicitSearch = writable<boolean>(false);
 /** Auto-refresh time-to-live: 3 hours in milliseconds */
 export const AUTO_REFRESH_TTL_MS = 3 * 60 * 60 * 1000;
 
-const CACHE_PREFIX = "rift_profile_v5_cache_";
-
-// Automatically purge corrupted or outdated cache entries from earlier versions
+// Automatically purge any cached profiles from localStorage so no data accumulates on the client PC
 try {
   if (typeof localStorage !== "undefined") {
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const k = localStorage.key(i);
-      if (
-        k &&
-        (k.startsWith("rift_profile_cache_") ||
-          k.startsWith("rift_profile_v2_cache_") ||
-          k.startsWith("rift_profile_v3_cache_") ||
-          k.startsWith("rift_profile_v4_cache_"))
-      ) {
+      if (k && k.startsWith("rift_profile_")) {
         localStorage.removeItem(k);
       }
     }
@@ -142,20 +135,18 @@ export function getLastRefreshTime(gn?: string, tl?: string, region = "EUW"): nu
     if (inMemory) return inMemory;
     if (viewed.updated_at) return viewed.updated_at;
   }
-  if (inMemory) return inMemory;
+  return inMemory || viewed?.updated_at || null;
+}
 
-  if (gn && typeof localStorage !== "undefined") {
-    try {
-      const cacheKey = `${CACHE_PREFIX}${region.toLowerCase()}_${gn.toLowerCase()}_${(tl || region).toLowerCase()}`;
-      const saved = localStorage.getItem(cacheKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed?.cached_at) return parsed.cached_at;
-        if (parsed?.profile?.updated_at) return parsed.profile.updated_at;
+function prefetchRecentMatches(matches: PlayerMatch[], region: string, focusRiotId?: string) {
+  if (!matches || matches.length === 0) return;
+  setTimeout(() => {
+    for (const m of matches.slice(0, 3)) {
+      if (!m.participants || m.participants.length < 2) {
+        loadMatchDetail(m.id, region, m.raw_created_at || m.game_creation, focusRiotId).catch(() => {});
       }
-    } catch {}
-  }
-  return viewed?.updated_at || null;
+    }
+  }, 1200);
 }
 
 export async function loadPlayerProfile(
@@ -181,6 +172,7 @@ export async function loadPlayerProfile(
     viewedMatches.set([]);
     viewedProfileLoading.set(false);
     viewedMatchesLoading.set(false);
+    viewedProfileRefreshing.set(false);
     viewedProfileError.set(null);
     lastSyncedAt.set(null);
     return;
@@ -189,37 +181,63 @@ export async function loadPlayerProfile(
   // Determine lookup key
   const gn = gameName || local?.game_name || local?.display_name.split("#")[0] || "Summoner";
   const tl = tagLine || local?.tag_line || local?.display_name.split("#")[1] || region;
-  const cacheKey = `${CACHE_PREFIX}${region.toLowerCase()}_${gn.toLowerCase()}_${tl.toLowerCase()}`;
 
-  // 1. Check local cache
+  // 1. Check in-memory store if this summoner is already loaded
   let cachedData: { profile: FullPlayerProfile; matches: PlayerMatch[]; cached_at: number } | null = null;
-  try {
-    if (typeof localStorage !== "undefined") {
-      const saved = localStorage.getItem(cacheKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed?.profile) {
-          const profileGameName = (parsed.profile.game_name || "").toLowerCase();
-          const profileDispName = (parsed.profile.display_name || "").toLowerCase();
-          const targetGn = gn.toLowerCase();
-          // STRICT VALIDATION: Ensure the cached profile actually belongs to the searched summoner!
-          const isMatch =
-            !gameName ||
-            profileGameName === targetGn ||
-            profileDispName === `${targetGn}#${tl.toLowerCase()}` ||
-            profileDispName.startsWith(`${targetGn}#`);
-          if (isMatch) {
-            cachedData = parsed;
-            viewedProfile.set(parsed.profile);
-            viewedMatches.set(parsed.matches || []);
-            if (parsed.cached_at) {
-              lastSyncedAt.set(parsed.cached_at);
-            }
-          }
-        }
+  const currentViewed = get(viewedProfile);
+  const currentMatches = get(viewedMatches);
+  if (
+    currentViewed &&
+    currentViewed.game_name.toLowerCase() === gn.toLowerCase() &&
+    (!tl || currentViewed.tag_line.toLowerCase() === tl.toLowerCase())
+  ) {
+    cachedData = {
+      profile: currentViewed,
+      matches: currentMatches || [],
+      cached_at: get(lastSyncedAt) || currentViewed.updated_at || Date.now(),
+    };
+  }
+
+  // 2. Query the central Rift Server (no local disk storage)
+  if (!cachedData) {
+    try {
+      const serverCached = await invoke<any>("get_cached_player_profile", {
+        gameName: gn,
+        game_name: gn,
+        tagLine: tl,
+        tag_line: tl,
+        region,
+      });
+      if (serverCached?.profile) {
+        cachedData = {
+          profile: serverCached.profile,
+          matches: serverCached.matches || [],
+          cached_at: serverCached.cached_at || Date.now(),
+        };
       }
+    } catch (err) {
+      console.warn("Rift Server profile cache lookup:", err);
     }
-  } catch {}
+  }
+
+  // 3. Stale-While-Revalidate: If cached data exists, display it IMMEDIATELY! (0ms perception)
+  if (cachedData) {
+    viewedProfile.set(cachedData.profile);
+    viewedMatches.set(cachedData.matches || []);
+    if (cachedData.cached_at) {
+      lastSyncedAt.set(cachedData.cached_at);
+    }
+    viewedProfileLoading.set(false);
+    viewedMatchesLoading.set(false);
+    viewedProfileError.set(null);
+  } else {
+    // Brand new lookup: clear previous player's stats to show loading skeletons/spinner
+    viewedProfile.set(null);
+    viewedMatches.set([]);
+    viewedProfileLoading.set(true);
+    viewedMatchesLoading.set(true);
+    viewedProfileError.set(null);
+  }
 
   const cacheAge = cachedData ? Date.now() - (cachedData.cached_at || 0) : Infinity;
 
@@ -229,25 +247,16 @@ export async function loadPlayerProfile(
     (!cachedData.profile.top_champions_flex || cachedData.profile.top_champions_flex.length === 0) &&
     (Boolean(cachedData.profile.solo_rank) || Boolean(cachedData.profile.flex_rank));
 
-  // If cache was updated within 10 minutes or is fresh (< 3 hours) and not a force refresh, DO NOT trigger network reload!
-  const isRecentRefresh = cacheAge < MATCH_REFRESH_COOLDOWN_MS;
-  if (cachedData && !forceRefresh && (isRecentRefresh || (cacheAge < AUTO_REFRESH_TTL_MS && !isCacheMissingQueueStats))) {
-    viewedProfileLoading.set(false);
-    viewedMatchesLoading.set(false);
-    viewedProfileError.set(null);
+  // If cached data was retrieved and is super fresh (< 90 seconds) and not a forced refresh, no need to re-query network
+  const isSuperFresh = cacheAge < 90 * 1000;
+  if (cachedData && !forceRefresh && isSuperFresh && !isCacheMissingQueueStats) {
+    prefetchRecentMatches(cachedData.matches, region, cachedData.profile.display_name);
     return;
   }
 
-  // 2. Fetch fresh data from backend
-  viewedProfileLoading.set(true);
-  viewedMatchesLoading.set(true);
-  viewedProfileError.set(null);
-
-  // If no cached data exists for this player, clear the view so we display a loading spinner
-  // rather than keeping the previous player's stats on screen
-  if (!cachedData) {
-    viewedProfile.set(null);
-    viewedMatches.set([]);
+  // 4. Background Revalidation / Fresh Network Fetch
+  if (cachedData) {
+    viewedProfileRefreshing.set(true);
   }
 
   try {
@@ -259,38 +268,41 @@ export async function loadPlayerProfile(
       tag_line: tagLine ? tl : undefined,
     };
 
-    const rawProfile = await invoke<any>("get_player_profile", profileArgs);
+    const matchesArgs: Record<string, any> = {
+      region,
+      limit: 20,
+      gameName: gameName ? gn : undefined,
+      game_name: gameName ? gn : undefined,
+      tagLine: tagLine ? tl : undefined,
+      tag_line: tagLine ? tl : undefined,
+    };
 
-    // Extract exact resolved game name, tagline, and region (e.g. from OP.GG or LCU)
+    // Parallel execution: fetch profile and matches concurrently!
+    const profilePromise = invoke<any>("get_player_profile", profileArgs);
+    const matchesPromise = invoke<any>("get_player_matches", matchesArgs).catch((matchErr) => {
+      console.warn("Failed to fetch matches in parallel:", matchErr);
+      return null;
+    });
+
+    const [rawProfile, rawMatches] = await Promise.all([profilePromise, matchesPromise]);
+
     const targetGameName = rawProfile?.data?.summoner?.game_name || rawProfile?.summoner?.game_name || gn;
     const targetTagLine = rawProfile?.data?.summoner?.tagline || rawProfile?.summoner?.tag_line || tl;
     const targetRegion = rawProfile?.region || region;
 
-    // Fetch matches using the exact resolved player identity
-    const matchesArgs: Record<string, any> = {
-      region: targetRegion,
-      limit: 20,
-      gameName: gameName ? targetGameName : undefined,
-      game_name: gameName ? targetGameName : undefined,
-      tagLine: tagLine ? targetTagLine : undefined,
-      tag_line: tagLine ? targetTagLine : undefined,
-    };
-
     let normalizedMatches: PlayerMatch[] = [];
-    try {
-      const rawMatches = await invoke<any>("get_player_matches", matchesArgs);
+    if (rawMatches) {
       normalizedMatches = normalizeMatches(rawMatches, targetGameName);
-      viewedMatches.set(normalizedMatches);
-    } catch (matchErr) {
-      console.warn("Failed to fetch matches for player:", matchErr);
-      viewedMatches.set([]);
-    } finally {
-      viewedMatchesLoading.set(false);
+    } else if (cachedData?.matches?.length) {
+      normalizedMatches = cachedData.matches;
     }
+    viewedMatches.set(normalizedMatches);
+    viewedMatchesLoading.set(false);
 
     const normalizedProfile = normalizeProfile(rawProfile, targetRegion, normalizedMatches);
     viewedProfile.set(normalizedProfile);
     viewedProfileLoading.set(false);
+    viewedProfileRefreshing.set(false);
     viewedProfileError.set(null);
 
     const now = Date.now();
@@ -306,25 +318,28 @@ export async function loadPlayerProfile(
       tier: normalizedProfile.solo_rank?.tier || normalizedProfile.flex_rank?.tier,
     });
 
-    // Save to cache under both query key and resolved key
+    // Persist to central Rift Server (no profile files on local client disk)
     try {
-      if (typeof localStorage !== "undefined") {
-        const actualCacheKey = `${CACHE_PREFIX}${targetRegion.toLowerCase()}_${normalizedProfile.game_name.toLowerCase()}_${normalizedProfile.tag_line.toLowerCase()}`;
-        const cachePayload = JSON.stringify({
-          profile: normalizedProfile,
-          matches: normalizedMatches,
-          cached_at: now,
-        });
-        localStorage.setItem(actualCacheKey, cachePayload);
-        if (actualCacheKey !== cacheKey && gameName) {
-          localStorage.setItem(cacheKey, cachePayload);
-        }
-      }
+      invoke("save_cached_player_profile", {
+        gameName: normalizedProfile.game_name,
+        game_name: normalizedProfile.game_name,
+        tagLine: normalizedProfile.tag_line,
+        tag_line: normalizedProfile.tag_line,
+        region: targetRegion,
+        profile: normalizedProfile,
+        matches: normalizedMatches,
+        cachedAt: now,
+        cached_at: now,
+      }).catch((err) => console.warn("Failed to save cached profile to disk/server:", err));
     } catch {}
+
+    // Background prefetch match details for first 3 games
+    prefetchRecentMatches(normalizedMatches, targetRegion, normalizedProfile.display_name);
   } catch (err: any) {
     console.warn("Failed to load player profile:", err);
     viewedProfileLoading.set(false);
     viewedMatchesLoading.set(false);
+    viewedProfileRefreshing.set(false);
     if (!cachedData) {
       viewedProfile.set(null);
       viewedMatches.set([]);
@@ -339,6 +354,13 @@ export async function loadMatchDetail(
   createdAt?: number | string,
   focusRiotId?: string
 ): Promise<DetailedParticipant[] | null> {
+  // First check if viewedMatches already has participants for this match
+  const currentMatches = get(viewedMatches);
+  const existing = currentMatches.find((m) => m.id === matchId);
+  if (existing?.participants && existing.participants.length >= 2) {
+    return existing.participants;
+  }
+
   try {
     let crStr: string | undefined = undefined;
     if (createdAt) {
@@ -374,3 +396,4 @@ export async function loadMatchDetail(
   }
   return null;
 }
+

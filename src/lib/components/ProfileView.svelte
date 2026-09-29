@@ -7,6 +7,7 @@
     viewedMatches,
     viewedProfileLoading,
     viewedMatchesLoading,
+    viewedProfileRefreshing,
     viewedProfileError,
     recentSearches,
     lastSyncedAt,
@@ -732,16 +733,23 @@
                 Updated {formatTimeAgo($lastSyncedAt || $viewedProfile.updated_at)}
               </span>
 
+              {#if $viewedProfileRefreshing}
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-300 animate-pulse shadow-sm">
+                  <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
+                  Checking for updates…
+                </span>
+              {/if}
+
               <!-- Refresh button directly to the right of the Update-Timer -->
               <button
                 type="button"
                 on:click={handleManualRefresh}
-                disabled={$viewedProfileLoading}
+                disabled={$viewedProfileLoading || $viewedProfileRefreshing}
                 class="inline-flex items-center gap-1 rounded-lg border border-purple-500/30 bg-purple-950/40 px-2.5 py-0.5 text-[10px] font-bold text-purple-200 transition hover:border-purple-400/60 hover:bg-purple-900/50 hover:text-white active:scale-95 disabled:opacity-50"
-                title="Force fresh data sync (Auto-refreshes every 3 hours)"
+                title="Force fresh data sync"
               >
-                <span class="text-xs {$viewedProfileLoading ? 'animate-spin' : ''}">↻</span>
-                <span>Refresh</span>
+                <span class="text-xs {($viewedProfileLoading || $viewedProfileRefreshing) ? 'animate-spin' : ''}">↻</span>
+                <span>{$viewedProfileRefreshing ? 'Syncing…' : 'Refresh'}</span>
               </button>
             </div>
           </div>

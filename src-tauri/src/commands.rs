@@ -1365,16 +1365,30 @@ pub async fn get_player_matches(
 }
 
 /// Fetch full 10-player match detail for an expanded match view.
+/// Checks Rift Server first (10-30 ms), falls back to OP.GG MCP, and logs to the server.
+/// No data is persisted on the local client disk.
 #[tauri::command]
 pub async fn get_match_detail(
+    app: AppHandle,
+    state: State<'_, Shared>,
     game_id: String,
     region: Option<String>,
     created_at: Option<String>,
     focus_riot_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    // 1. If LCU is connected, try local game detail first
+    let clean_id = game_id.trim();
+
+    // Clean up any legacy disk cache to ensure zero disk footprint on user PC
+    if let Ok(app_dir) = app.path().app_data_dir() {
+        let legacy_cache = app_dir.join("cache");
+        if legacy_cache.exists() {
+            let _ = std::fs::remove_dir_all(legacy_cache);
+        }
+    }
+
+    // 1. If LCU is connected, try local game detail
     if let Some(lock) = crate::lcu::lockfile::find() {
-        if let Ok(gid) = game_id.parse::<u64>() {
+        if let Ok(gid) = clean_id.parse::<u64>() {
             if let Ok(Some(detail)) = crate::lcu::client::get_local_game_detail(&lock, gid).await {
                 return Ok(serde_json::json!({
                     "source": "lcu",
@@ -1384,27 +1398,42 @@ pub async fn get_match_detail(
         }
     }
 
-    // 2. Otherwise query OP.GG MCP lol_get_summoner_game_detail
+    // 2. Check Rift Server cache (~15-30 ms)
+    let (server_url, api_key) = {
+        let s = state.settings.lock().unwrap();
+        (s.server_url.clone(), s.api_key.clone())
+    };
+
+    if !server_url.trim().is_empty() {
+        let s_url = server_url.clone();
+        let a_key = api_key.clone();
+        let gid = clean_id.to_string();
+        if let Ok(Some(cached_from_server)) = opgg::remote::get_cached_match(&s_url, &gid, Some(&a_key)).await {
+            tracing::info!("get_match_detail: served {} from Rift Server cache", clean_id);
+            return Ok(cached_from_server);
+        }
+    }
+
+    // 3. Fall back to OP.GG MCP lol_get_summoner_game_detail
     let reg = region.unwrap_or_else(|| "EUW".to_string());
     let client = opgg::client::McpClient::new().map_err(|e| e.to_string())?;
     let cr = created_at.unwrap_or_default();
-    let gid = game_id.trim();
     let reg_trimmed = reg.trim();
     let cr_trimmed = cr.trim();
 
-    let detail = match opgg::summoner::fetch_game_detail(&client, gid, reg_trimmed, cr_trimmed, focus_riot_id.as_deref()).await {
+    let detail = match opgg::summoner::fetch_game_detail(&client, clean_id, reg_trimmed, cr_trimmed, focus_riot_id.as_deref()).await {
         Ok(d) => d,
         Err(e) => {
             if focus_riot_id.is_some() {
-                match opgg::summoner::fetch_game_detail(&client, gid, reg_trimmed, cr_trimmed, None).await {
+                match opgg::summoner::fetch_game_detail(&client, clean_id, reg_trimmed, cr_trimmed, None).await {
                     Ok(d) => d,
                     Err(e2) => {
-                        tracing::warn!("OP.GG fetch_game_detail failed for {} in {}: {}", gid, reg_trimmed, e2);
+                        tracing::warn!("OP.GG fetch_game_detail failed for {} in {}: {}", clean_id, reg_trimmed, e2);
                         return Err(e2.to_string());
                     }
                 }
             } else {
-                tracing::warn!("OP.GG fetch_game_detail failed for {} in {}: {}", gid, reg_trimmed, e);
+                tracing::warn!("OP.GG fetch_game_detail failed for {} in {}: {}", clean_id, reg_trimmed, e);
                 return Err(e.to_string());
             }
         }
@@ -1417,11 +1446,96 @@ pub async fn get_match_detail(
         detail_val
     };
 
-    Ok(serde_json::json!({
+    let res = serde_json::json!({
         "source": "opgg",
         "data": unwrapped_detail
-    }))
+    });
+
+    // Asynchronously log to Rift Server so all users / future sessions benefit
+    if !server_url.trim().is_empty() {
+        let s_url = server_url;
+        let a_key = api_key;
+        let gid = clean_id.to_string();
+        let res_clone = res.clone();
+        tokio::spawn(async move {
+            let _ = opgg::remote::save_cached_match(&s_url, &gid, &res_clone, Some(&a_key)).await;
+        });
+    }
+
+    Ok(res)
 }
+
+/// Retrieve a cached player profile and match history directly from the Rift Server.
+/// No profile data is stored on the client disk.
+#[tauri::command]
+pub async fn get_cached_player_profile(
+    state: State<'_, Shared>,
+    game_name: String,
+    tag_line: String,
+    region: Option<String>,
+) -> Result<Option<serde_json::Value>, String> {
+    let reg = region.unwrap_or_else(|| "EUW".to_string()).to_uppercase();
+
+    let (server_url, api_key) = {
+        let s = state.settings.lock().unwrap();
+        (s.server_url.clone(), s.api_key.clone())
+    };
+
+    if !server_url.trim().is_empty() {
+        if let Ok(Some(server_val)) = opgg::remote::get_cached_profile(&server_url, &game_name, &tag_line, &reg, Some(&api_key)).await {
+            tracing::info!("get_cached_player_profile: served {}#{} from Rift Server", game_name, tag_line);
+            return Ok(Some(server_val));
+        }
+    }
+
+    Ok(None)
+}
+
+/// Send player profile and match history to the Rift Server.
+/// No data is saved to the local client disk.
+#[tauri::command]
+pub async fn save_cached_player_profile(
+    state: State<'_, Shared>,
+    game_name: String,
+    tag_line: String,
+    region: Option<String>,
+    profile: serde_json::Value,
+    matches: serde_json::Value,
+    cached_at: Option<u64>,
+) -> Result<(), String> {
+    let reg = region.unwrap_or_else(|| "EUW".to_string()).to_uppercase();
+
+    let ts = cached_at.unwrap_or_else(|| {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0)
+    });
+
+    let payload = serde_json::json!({
+        "game_name": game_name,
+        "tag_line": tag_line,
+        "region": reg,
+        "profile": profile,
+        "matches": matches,
+        "cached_at": ts,
+    });
+
+    // Write ONLY to Rift Server asynchronously in the background
+    let (server_url, api_key) = {
+        let s = state.settings.lock().unwrap();
+        (s.server_url.clone(), s.api_key.clone())
+    };
+
+    if !server_url.trim().is_empty() {
+        tokio::spawn(async move {
+            let _ = opgg::remote::save_cached_profile(&server_url, &payload, Some(&api_key)).await;
+        });
+    }
+
+    Ok(())
+}
+
 
 fn compute(state: &Shared) -> Vec<Recommendation> {
     let draft = state.latest_draft.lock().unwrap().clone();
