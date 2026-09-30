@@ -107,7 +107,9 @@ export type ThemeId =
   | "shurima"
   | "ionia"
   | "spirit_blossom"
-  | "chemtech";
+  | "chemtech"
+  | "demacia"
+  | "darkin";
 
 export type WallpaperScope = "landing_only" | "all_tabs";
 
@@ -442,6 +444,144 @@ export interface SimulatedMatchAnalysis {
   synergies: SimulatedSynergy[];
   counters: SimulatedCounter[];
   insights: string[];
+}
+
+// Post Game Screen Models & Badges
+export type BadgeTier = "bronze" | "silver" | "gold";
+
+export type PostGameBadgeCategory =
+  | "combat"
+  | "damage"
+  | "farming"
+  | "vision"
+  | "defense"
+  | "objective"
+  | "special"
+  | "fun";
+
+export interface PostGameBadge {
+  id: string;
+  name: string;
+  category: PostGameBadgeCategory;
+  tier?: BadgeTier;
+  icon: string;
+  description: string;
+  valueDisplay?: string;
+  isHighlight?: boolean;
+  priority?: number; // Higher number = more prestigious, sorted first
+}
+
+export interface PostGameParticipant {
+  participantId: number;
+  summonerName: string;
+  gameName?: string;
+  tagLine?: string;
+  championId: number;
+  championName: string;
+  teamId: number; // 100 = Blue, 200 = Red
+  isLocal: boolean;
+  role: Role;
+  position?: string;
+  kills: number;
+  deaths: number;
+  assists: number;
+  kda: number;
+  killParticipation: number;
+  championLevel: number;
+  spells: number[];
+  items: number[];
+  primaryRuneId?: number;
+  secondaryStyleId?: number;
+
+  // Combat & Damage
+  totalDamage: number;
+  physicalDamage: number;
+  magicDamage: number;
+  trueDamage: number;
+  damageShare: number; // 0 - 1
+  dpm: number;
+
+  // Defense & Tanking
+  damageTaken: number;
+  damageSelfMitigated: number;
+  totalHeal: number;
+
+  // Farming & Economy
+  cs: number;
+  csPerMin: number;
+  goldEarned: number;
+  goldPerMin: number;
+  goldShare: number; // 0 - 1
+
+  // Vision
+  visionScore: number;
+  visionPerMin: number;
+  wardsPlaced: number;
+  wardsKilled: number;
+  controlWardsBought: number;
+
+  // Objectives & Structures
+  objectiveDamage: number;
+  turretDamage: number;
+  turretKills: number;
+  inhibitorKills: number;
+
+  // Utility & CC
+  ccTime: number;
+  timeCCingOthers: number;
+
+  // Special Milestones
+  firstBloodKill: boolean;
+  largestMultiKill: number;
+  largestKillingSpree: number;
+  enemyJungleCS: number;
+
+  // Match outcome
+  win: boolean;
+
+  // Post Game Scoring & Badges
+  rank: number; // 1 to 10
+  isMvp: boolean; // Best player on winning team (Rank 1)
+  isAce: boolean; // Legacy alias for SVP
+  isSvp: boolean; // Best player on losing team
+  overallScore: number; // 1.0 - 10.0
+  scoreCombat: number;
+  scoreDamage: number;
+  scoreFarming: number;
+  scoreVision: number;
+  scoreObjective: number;
+  badges: PostGameBadge[];
+}
+
+export interface PostGameTeam {
+  teamId: number;
+  win: boolean;
+  bans: number[];
+  totalKills: number;
+  totalDeaths: number;
+  totalDamage: number;
+  totalGold: number;
+  dragonKills?: number;
+  baronKills?: number;
+  towerKills?: number;
+  participants: PostGameParticipant[];
+}
+
+export interface PostGameMatch {
+  gameId: string;
+  gameDuration: number; // in seconds
+  gameCreation?: number;
+  gameMode: string;
+  queueId?: number;
+  queueLabel: string;
+  localPlayerWon: boolean;
+  mvp: PostGameParticipant;
+  ace?: PostGameParticipant | null;
+  svp?: PostGameParticipant | null;
+  localParticipant?: PostGameParticipant | null;
+  blueTeam: PostGameTeam;
+  redTeam: PostGameTeam;
+  allParticipants: PostGameParticipant[]; // sorted by rank 1..10
 }
 
 

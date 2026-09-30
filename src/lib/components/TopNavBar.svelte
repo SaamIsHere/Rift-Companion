@@ -8,14 +8,16 @@
   import { profileIconUrl } from "../utils/ddragon";
   import { settingsOpen } from "../stores/settings";
   import { updateAvailable, updateVersion, showUpdateModal } from "../stores/updater";
+  import { postGameMatch } from "../stores/postGame";
   import WindowControls from "./WindowControls.svelte";
 
   // Center navigation tabs in English
-  const tabs: { id: NavTab; label: string }[] = [
-    { id: "champions", label: "CHAMPIONS" },
-    { id: "ranglisten", label: "RANKINGS" },
-    { id: "simulation", label: "MATCH SIMULATION" },
-    { id: "live_match", label: "LIVE MATCH" },
+  $: navTabs = [
+    { id: "champions" as NavTab, label: "CHAMPIONS" },
+    { id: "ranglisten" as NavTab, label: "RANKINGS" },
+    { id: "simulation" as NavTab, label: "MATCH SIMULATION" },
+    { id: "live_match" as NavTab, label: "LIVE MATCH" },
+    { id: "post_game" as NavTab, label: "POST GAME" },
   ];
 
   function formatRank(tier: string): string {
@@ -57,7 +59,7 @@
 
   <!-- Center: Main Navigation Tabs -->
   <nav class="flex h-full items-center gap-0.5" data-tauri-drag-region>
-    {#each tabs as tab (tab.id)}
+    {#each navTabs as tab (tab.id)}
       {@const isActive = $activeTab === tab.id}
       <button
         type="button"

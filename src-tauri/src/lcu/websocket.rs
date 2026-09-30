@@ -20,6 +20,7 @@ pub type WsStream = WebSocketStream<MaybeTlsStream<tokio::net::TcpStream>>;
 const CHAMP_SELECT_EVENT: &str = "OnJsonApiEvent_lol-champ-select_v1_session";
 const GAMEFLOW_PHASE_EVENT: &str = "OnJsonApiEvent_lol-gameflow_v1_gameflow-phase";
 const GAMEFLOW_SESSION_EVENT: &str = "OnJsonApiEvent_lol-gameflow_v1_session";
+const EOG_STATS_EVENT: &str = "OnJsonApiEvent_lol-end-of-game_v1_eog-stats-block";
 
 pub async fn connect(lock: &Lockfile) -> Result<WsStream> {
     let url = format!("wss://127.0.0.1:{}/", lock.port);
@@ -38,7 +39,7 @@ pub async fn connect(lock: &Lockfile) -> Result<WsStream> {
     let (mut ws, _resp) =
         connect_async_tls_with_config(request, None, false, Some(connector)).await?;
 
-    // Subscribe to champ-select session and gameflow events.
+    // Subscribe to champ-select session, gameflow and end-of-game events.
     use futures_util::SinkExt;
     let subscribe_cs = format!("[5, \"{CHAMP_SELECT_EVENT}\"]");
     ws.send(Message::Text(subscribe_cs.into())).await?;
@@ -48,6 +49,9 @@ pub async fn connect(lock: &Lockfile) -> Result<WsStream> {
 
     let subscribe_gfs = format!("[5, \"{GAMEFLOW_SESSION_EVENT}\"]");
     ws.send(Message::Text(subscribe_gfs.into())).await?;
+
+    let subscribe_eog = format!("[5, \"{EOG_STATS_EVENT}\"]");
+    ws.send(Message::Text(subscribe_eog.into())).await?;
 
     Ok(ws)
 }

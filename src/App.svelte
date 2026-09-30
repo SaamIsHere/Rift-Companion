@@ -14,6 +14,7 @@
   import RankingsView from "./lib/components/RankingsView.svelte";
   import LiveMatchView from "./lib/components/LiveMatchView.svelte";
   import MatchSimulationView from "./lib/components/MatchSimulationView.svelte";
+  import PostGameView from "./lib/components/PostGameView.svelte";
   import SettingsModal from "./lib/components/SettingsModal.svelte";
   import UpdateModal from "./lib/components/UpdateModal.svelte";
   import ActivationModal from "./lib/components/ActivationModal.svelte";
@@ -116,6 +117,8 @@
         <RankingsView />
       {:else if $activeTab === "simulation"}
         <MatchSimulationView />
+      {:else if $activeTab === "post_game"}
+        <PostGameView />
       {/if}
     </div>
   {/if}

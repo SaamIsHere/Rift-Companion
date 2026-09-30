@@ -68,6 +68,8 @@ pub struct Shared {
     pub gameflow_phase: Arc<Mutex<String>>,
     /// ID of the local player's ban action that has already been recorded for the current session
     pub last_recorded_ban_action_id: Arc<Mutex<Option<i64>>>,
+    /// Latest finished match data for post-game screen
+    pub latest_post_game: Arc<Mutex<Option<serde_json::Value>>>,
 }
 
 /// CLI entry point: install a normalized champion-stats JSON (the `Champion[]`
@@ -137,6 +139,7 @@ pub fn run() {
         settings: Arc::new(Mutex::new(settings)),
         gameflow_phase: Arc::new(Mutex::new("None".to_string())),
         last_recorded_ban_action_id: Arc::new(Mutex::new(None)),
+        latest_post_game: Arc::new(Mutex::new(None)),
     };
 
     tauri::Builder::default()
@@ -153,6 +156,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_connection_status,
             commands::get_gameflow_phase,
+            commands::get_post_game_data,
+            commands::clear_post_game_data,
+            commands::fetch_latest_post_game,
             commands::get_profile,
             commands::get_draft_state,
             commands::get_recommendations,

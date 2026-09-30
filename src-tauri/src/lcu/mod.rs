@@ -186,6 +186,9 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
 
                                         if phase == "ChampSelect" {
                                             tracing::info!(phase, "entered champ select");
+                                            // Reset post-game screen when a new champ select starts
+                                            *shared.latest_post_game.lock().unwrap() = None;
+                                            let _ = app.emit("post-game://update", serde_json::Value::Null);
                                         } else if phase == "GameStart" || phase == "InProgress" || phase == "Reconnect" {
                                             tracing::info!(phase, "match active / in-progress; preserving match state");
                                             let got_live = check_liveclient_data(&app, &shared).await;
@@ -208,11 +211,67 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                                                     }
                                                 }
                                             });
+                                        } else if phase == "WaitingForStats" || phase == "PreEndOfGame" || phase == "EndOfGame" {
+                                            tracing::info!(phase, "entered post-game phase; fetching match results");
+                                            clear_session(&app, &shared);
+
+                                            let app_clone = app.clone();
+                                            let shared_clone = shared.clone();
+                                            let lock_clone = lock.clone();
+                                            tauri::async_runtime::spawn(async move {
+                                                for retry in 0..5 {
+                                                    if retry > 0 {
+                                                        tokio::time::sleep(Duration::from_millis(1500)).await;
+                                                    }
+                                                    if let Ok(Some(matches_val)) = client::get_local_matches(&lock_clone, 0, 1).await {
+                                                        if let Some(game) = matches_val
+                                                            .get("games")
+                                                            .and_then(|g| g.get("games"))
+                                                            .and_then(|g| g.as_array())
+                                                            .and_then(|a| a.first())
+                                                            .cloned()
+                                                        {
+                                                            let res = serde_json::json!({
+                                                                "source": "lcu",
+                                                                "game": game,
+                                                            });
+                                                            *shared_clone.latest_post_game.lock().unwrap() = Some(res.clone());
+                                                            let _ = app_clone.emit("post-game://update", &res);
+                                                            tracing::info!("emitted post-game update from local match history");
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            });
                                         } else if !is_in_match(phase) {
                                             tracing::info!(phase, "gameflow phase is not an active match; clearing session");
                                             clear_session(&app, &shared);
                                         }
                                     }
+                                } else if ev.uri.contains("eog-stats-block") {
+                                    tracing::info!("received eog-stats-block event; fetching latest finished match");
+                                    let app_clone = app.clone();
+                                    let shared_clone = shared.clone();
+                                    let lock_clone = lock.clone();
+                                    tauri::async_runtime::spawn(async move {
+                                        tokio::time::sleep(Duration::from_millis(500)).await;
+                                        if let Ok(Some(matches_val)) = client::get_local_matches(&lock_clone, 0, 1).await {
+                                            if let Some(game) = matches_val
+                                                .get("games")
+                                                .and_then(|g| g.get("games"))
+                                                .and_then(|g| g.as_array())
+                                                .and_then(|a| a.first())
+                                                .cloned()
+                                            {
+                                                let res = serde_json::json!({
+                                                    "source": "lcu",
+                                                    "game": game,
+                                                });
+                                                *shared_clone.latest_post_game.lock().unwrap() = Some(res.clone());
+                                                let _ = app_clone.emit("post-game://update", &res);
+                                            }
+                                        }
+                                    });
                                 } else if ev.uri.contains("gameflow") && ev.uri.contains("session") {
                                     let current_phase = shared.gameflow_phase.lock().unwrap().clone();
                                     if is_in_match(&current_phase) {
@@ -303,13 +362,11 @@ pub async fn check_liveclient_data(app: &AppHandle, shared: &Shared) -> bool {
 
 fn clear_session(app: &AppHandle, shared: &Shared) {
     *shared.latest_draft.lock().unwrap() = None;
-    *shared.gameflow_phase.lock().unwrap() = "None".to_string();
     *shared.last_recorded_ban_action_id.lock().unwrap() = None;
     shared.weights.lock().unwrap().mode = crate::engine::weights::ScoringMode::Default;
     shared.enemy_role_overrides.lock().unwrap().clear();
     shared.ally_role_overrides.lock().unwrap().clear();
     let _ = app.emit("champ-select://update", None::<DraftState>);
-    let _ = app.emit("gameflow://phase", "None");
     let _ = app.emit("recommendations://update", Vec::<crate::engine::Recommendation>::new());
     let _ = app.emit("scoring-mode://update", crate::engine::weights::ScoringMode::Default);
 }

@@ -1,8 +1,9 @@
 import { writable, get } from "svelte/store";
 import { draft, gameflowPhase } from "./draft";
+import { postGameMatch } from "./postGame";
 import type { Role } from "../types";
 
-export type NavTab = "startseite" | "profil" | "champions" | "ranglisten" | "simulation" | "live_match";
+export type NavTab = "startseite" | "profil" | "champions" | "ranglisten" | "simulation" | "live_match" | "post_game";
 
 // Always start on startseite on cold launch
 export const activeTab = writable<NavTab>("startseite");
@@ -17,7 +18,7 @@ try {
 let previousDraftState: boolean = false;
 
 // Automatically navigate to LIVE MATCH when champion select or match begins,
-// and return to STARTSEITE only when the active match fully ends.
+// and transition to POST GAME (instead of kicking to startseite) when match ends.
 draft.subscribe((d) => {
   const isInDraft = d !== null;
   const phase = get(gameflowPhase);
@@ -26,7 +27,7 @@ draft.subscribe((d) => {
   if (isMatchActive && !previousDraftState) {
     activeTab.set("live_match");
   } else if (!isMatchActive && previousDraftState) {
-    activeTab.update((current) => (current === "live_match" ? "startseite" : current));
+    activeTab.update((current) => (current === "live_match" ? "post_game" : current));
   }
   previousDraftState = isMatchActive;
 });
@@ -37,7 +38,8 @@ gameflowPhase.subscribe((phase) => {
     activeTab.set("live_match");
     previousDraftState = true;
   } else if (!isMatchActive && previousDraftState && get(draft) === null) {
-    activeTab.update((current) => (current === "live_match" ? "startseite" : current));
+    // When game concludes, transition to post_game screen rather than dumping to startseite!
+    activeTab.update((current) => (current === "live_match" ? "post_game" : current));
     previousDraftState = false;
   }
 });

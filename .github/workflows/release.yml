@@ -81,10 +81,10 @@ jobs:
             ## Rift Companion Release ${{ steps.get_version.outputs.tag }}
 
             ### Highlights
-            * **Custom Wallpaper Framing & Persistence:** Interactive 16:9 area framing tool for custom portrait and ultrawide wallpapers, seamlessly saving and restoring exact framing coordinates upon re-editing without resetting.
-            * **Adjustable Frosted Glass & Panel Blur:** Configurable backdrop blur slider (0px to 30px) with instant presets (0, 6, 12, 20 px) controlling wallpaper transparency and frosted glass diffusion across application panels.
-            * **Recent Bans Memory:** Intelligently tracks and remembers the most recent champion bans across champ select sessions to advise real-time ban recommendations and draft suggestions.
-            * **Settings UI Polish:** Full English localization, unified segmented button groups, refined Live Preview accurately reflecting the client landing page, and clean theme styling.
+            * **Faster Profile, History Loading & Logging:** Significantly accelerated player profile and match history retrieval via parallel fetching, optimized caching, and refined backend logging.
+            * **Post Game Screen:** In-depth match review view featuring full scoreboard stats, team damage/gold breakdowns, neutral objective logs, MVP/SVP calculation, and automated achievement badges.
+            * **2 New Regional Themes:** Added **Demacia** (sterile petricite white with cool slate gray accents) and **Darkin** (volcanic obsidian black with subtle corrupted crimson embers).
+            * **Champions Tab Polish:** Added a clear magnifying glass icon and instant clear button to the Champions search bar.
 
             ### Download & Installation
             * **Windows Installer:** Download `Rift-Companion_${{ steps.get_version.outputs.version }}_x64-setup.exe` below and double-click to install.

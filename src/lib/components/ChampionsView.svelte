@@ -146,13 +146,16 @@
     <!-- Top Navigation Toolbar matching Listenansicht.png -->
     <div class="mb-5 flex flex-wrap items-center gap-3">
       <!-- Search Input (h-11, w-60) -->
-      <div class="relative h-11 w-60">
+      <div class="relative flex h-11 w-60 items-center">
         <svg
-          class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-purple-300/60"
+          class="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 z-10 text-purple-300/70"
+          xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          stroke-width="2"
+          stroke-width="2.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
         >
           <circle cx="11" cy="11" r="7" />
           <path d="m21 21-4.3-4.3" />
@@ -161,8 +164,20 @@
           type="text"
           bind:value={query}
           placeholder="Search champion…"
-          class="h-full w-full rounded-xl border border-purple-500/20 bg-void-950/40 backdrop-blur-md pl-10 pr-3 text-xs text-slate-100 placeholder:text-slate-500 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400/40 shadow-inner"
+          class="h-full w-full rounded-xl border border-purple-500/20 bg-void-950/40 backdrop-blur-md pl-10 pr-8 text-xs text-slate-100 placeholder:text-slate-500 focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400/40 shadow-inner transition"
         />
+        {#if query}
+          <button
+            type="button"
+            on:click={() => (query = "")}
+            aria-label="Clear search"
+            class="absolute right-2.5 top-1/2 -translate-y-1/2 z-10 text-slate-400 hover:text-white transition p-1"
+          >
+            <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        {/if}
       </div>
 
       <!-- Role Tabs (h-11, Icons only: All, Top, Jungle, Middle, Bottom, Support) -->

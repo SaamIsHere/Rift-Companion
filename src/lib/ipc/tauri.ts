@@ -9,6 +9,7 @@ import { preselectedChampionId } from "../stores/preselect";
 import { scoringMode } from "../stores/scoring";
 import { settings, activationOpen } from "../stores/settings";
 import { recentBans, banHistory } from "../stores/bans";
+import { postGameMatch, loadPostGameFromRaw } from "../stores/postGame";
 import type {
   ChampionBuildStats,
   ChampionOverviewData,
@@ -88,6 +89,13 @@ export async function initIpc(): Promise<void> {
   await listen<{ done: number; total: number }>("rank-refresh://progress", (e) =>
     rankRefreshProgress.set(e.payload),
   );
+  await listen<any>("post-game://update", (e) => {
+    if (e.payload && e.payload.game) {
+      loadPostGameFromRaw(e.payload, true);
+    } else if (!e.payload) {
+      postGameMatch.set(null);
+    }
+  });
 
   // Prime with whatever the backend already knows (e.g. app opened mid-draft).
   try {
@@ -113,6 +121,12 @@ export async function initIpc(): Promise<void> {
     try {
       const mode = await invoke<ScoringMode>("get_scoring_mode");
       if (mode) scoringMode.set(mode);
+    } catch (_) {}
+    try {
+      const postGame = await invoke<any>("get_post_game_data");
+      if (postGame && postGame.game) {
+        loadPostGameFromRaw(postGame, false);
+      }
     } catch (_) {}
     const s = await invoke<Settings>("get_settings");
     if (typeof localStorage !== "undefined") {

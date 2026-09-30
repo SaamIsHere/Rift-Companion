@@ -90,6 +90,26 @@ pub async fn get_gameflow_session(lock: &Lockfile) -> Result<Option<serde_json::
     }
 }
 
+/// Fetch end-of-game stats block from LCU, if available.
+pub async fn get_eog_stats(lock: &Lockfile) -> Result<Option<serde_json::Value>> {
+    let client = http_client()?;
+    let url = format!(
+        "https://127.0.0.1:{}/lol-end-of-game/v1/eog-stats-block",
+        lock.port
+    );
+    let resp = client
+        .get(url)
+        .header("Authorization", auth_header(lock))
+        .send()
+        .await?;
+
+    if resp.status().is_success() {
+        Ok(Some(resp.json().await?))
+    } else {
+        Ok(None)
+    }
+}
+
 /// Fetch active live match player list directly from League of Legends game client (`https://127.0.0.1:2999`).
 pub async fn get_liveclient_playerlist() -> Result<Option<Vec<crate::lcu::models::LiveClientPlayer>>> {
     let client = http_client()?;

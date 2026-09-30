@@ -268,7 +268,7 @@
     role="presentation"
   >
     <div
-      class="glass w-[540px] max-w-[94vw] max-h-[90vh] flex flex-col animate-fade-in rounded-2xl p-6 shadow-2xl overflow-hidden"
+      class="glass w-[560px] max-w-[94vw] max-h-[90vh] flex flex-col animate-fade-in rounded-2xl p-6 shadow-2xl overflow-hidden"
       on:click|stopPropagation
       on:keydown|stopPropagation
       role="dialog"
@@ -318,35 +318,36 @@
           </div>
 
           <!-- Theme Grid -->
-          <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div class="grid grid-cols-2 gap-2 sm:grid-cols-5">
             {#each THEMES as t (t.id)}
               {@const isSelected = $activeThemeId === t.id}
               <button
                 type="button"
                 on:click={() => selectTheme(t.id)}
-                class="group relative flex flex-col justify-between rounded-xl border p-2.5 text-left transition-all duration-150 {isSelected
+                title="{t.name} ({t.subtitle}) - {t.description}"
+                class="group relative flex flex-col justify-between rounded-xl border p-2 sm:p-2.5 text-left transition-all duration-150 {isSelected
                   ? 'border-purple-400 bg-purple-900/40 ring-1 ring-purple-400/80 shadow-sm'
                   : 'border-purple-500/20 bg-void-950/40 hover:border-purple-400/50 hover:bg-purple-950/40'}"
               >
                 <!-- Top: Color Swatches (2 distinct theme colors) -->
                 <div class="mb-2 flex items-center gap-1.5">
                   <div
-                    class="h-3.5 w-3.5 rounded-full ring-1 ring-white/20 shadow-sm"
+                    class="h-3.5 w-3.5 rounded-full ring-1 ring-white/20 shadow-sm shrink-0"
                     style="background-color: {t.swatch[0]};"
                   ></div>
                   <div
-                    class="h-2.5 w-2.5 rounded-full ring-1 ring-white/10"
+                    class="h-2.5 w-2.5 rounded-full ring-1 ring-white/10 shrink-0"
                     style="background-color: {t.swatch[1]};"
                   ></div>
                 </div>
 
                 <!-- Bottom: Name -->
-                <div class="flex items-center justify-between">
-                  <span class="text-xs font-bold {isSelected ? 'text-white' : 'text-slate-200 group-hover:text-purple-200'}">
+                <div class="flex items-center justify-between gap-1">
+                  <span class="text-xs font-bold leading-tight truncate {isSelected ? 'text-white' : 'text-slate-200 group-hover:text-purple-200'}">
                     {t.name}
                   </span>
                   {#if isSelected}
-                    <span class="h-1.5 w-1.5 rounded-full bg-purple-400"></span>
+                    <span class="h-1.5 w-1.5 rounded-full bg-purple-400 shrink-0"></span>
                   {/if}
                 </div>
               </button>

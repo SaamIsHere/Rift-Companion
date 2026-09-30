@@ -42,6 +42,51 @@ pub fn get_gameflow_phase(state: State<Shared>) -> String {
     state.gameflow_phase.lock().unwrap().clone()
 }
 
+/// Retrieve the latest finished match post-game summary data.
+#[tauri::command]
+pub fn get_post_game_data(state: State<Shared>) -> Option<serde_json::Value> {
+    state.latest_post_game.lock().unwrap().clone()
+}
+
+/// Dismiss / clear current post-game summary.
+#[tauri::command]
+pub fn clear_post_game_data(state: State<Shared>, app: AppHandle) {
+    *state.latest_post_game.lock().unwrap() = None;
+    let _ = app.emit("post-game://update", serde_json::Value::Null);
+}
+
+/// On-demand fetch of the most recently finished match directly from local LCU match history.
+#[tauri::command]
+pub async fn fetch_latest_post_game(
+    state: State<'_, Shared>,
+    app: AppHandle,
+) -> Result<Option<serde_json::Value>, String> {
+    let lock = match crate::lcu::lockfile::find() {
+        Some(l) => l,
+        None => return Ok(None),
+    };
+
+    if let Ok(Some(matches_val)) = crate::lcu::client::get_local_matches(&lock, 0, 1).await {
+        if let Some(game) = matches_val
+            .get("games")
+            .and_then(|g| g.get("games"))
+            .and_then(|g| g.as_array())
+            .and_then(|a| a.first())
+            .cloned()
+        {
+            let res = serde_json::json!({
+                "source": "lcu",
+                "game": game,
+            });
+            *state.latest_post_game.lock().unwrap() = Some(res.clone());
+            let _ = app.emit("post-game://update", &res);
+            return Ok(Some(res));
+        }
+    }
+
+    Ok(None)
+}
+
 #[tauri::command]
 pub fn set_weights(state: State<Shared>, weights: Weights, app: AppHandle) -> Vec<Recommendation> {
     *state.weights.lock().unwrap() = weights;
