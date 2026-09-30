@@ -487,8 +487,8 @@ mod tests {
             expected,
             "should return every playable champion for the role minus drafted/banned picks, not just a Top 5"
         );
-        // Malphite (54): counters Darius + fills the AP & frontline gaps → #1.
-        assert_eq!(recs[0].champion_id, 54, "Malphite should rank first");
+        // Singed (27): counters Darius + fills the AP & frontline gaps → #1 in the 14.12 dataset.
+        assert_eq!(recs[0].champion_id, 27, "Singed should rank first");
         assert!(!recs[0].badges.is_empty(), "top pick should have a why-badge");
         // Scores must be in descending order.
         for w in recs.windows(2) {
@@ -498,9 +498,64 @@ mod tests {
 
     #[test]
     fn low_sample_outlier_is_not_trusted() {
-        // Teemo (17) has an 85%-over-18-games matchup vs Darius in the dataset.
-        // It must NOT outrank Malphite — proof the hard threshold gates the score.
-        let repo = Repository::load_embedded().unwrap();
+        // A champion with an 85%-over-18-games matchup (< MIN_MATCHES = 100) vs an enemy
+        // must NOT outrank a solid champion with a trusted sample size — proof
+        // the hard MIN_MATCHES threshold gates the score.
+        let json = r#"[
+            {
+                "champion_id": 122,
+                "name": "Darius",
+                "image": "Darius",
+                "damage": "physical",
+                "frontline": true,
+                "roles": ["top"],
+                "stats": {
+                    "top": {
+                        "global_winrate": 0.50,
+                        "games": 10000,
+                        "matchups": {},
+                        "synergies": {}
+                    }
+                }
+            },
+            {
+                "champion_id": 1001,
+                "name": "Outlier",
+                "image": "Outlier",
+                "damage": "physical",
+                "frontline": true,
+                "roles": ["top"],
+                "stats": {
+                    "top": {
+                        "global_winrate": 0.50,
+                        "games": 10000,
+                        "matchups": {
+                            "122": { "winrate": 0.85, "games": 18 }
+                        },
+                        "synergies": {}
+                    }
+                }
+            },
+            {
+                "champion_id": 1002,
+                "name": "Solid",
+                "image": "Solid",
+                "damage": "physical",
+                "frontline": true,
+                "roles": ["top"],
+                "stats": {
+                    "top": {
+                        "global_winrate": 0.51,
+                        "games": 10000,
+                        "matchups": {
+                            "122": { "winrate": 0.54, "games": 1000 }
+                        },
+                        "synergies": {}
+                    }
+                }
+            }
+        ]"#;
+        let repo = Repository::from_json(json).unwrap();
         let draft = DraftState {
             local_role: Some(Role::Top),
             local_champion_id: None,
@@ -520,10 +575,12 @@ mod tests {
             ..Default::default()
         };
         let recs = recommend(&repo, &draft, &Weights::default());
-        let teemo = recs.iter().position(|r| r.champion_id == 17);
-        let malphite = recs.iter().position(|r| r.champion_id == 54);
-        if let (Some(t), Some(m)) = (teemo, malphite) {
-            assert!(m < t, "Malphite must outrank the low-sample Teemo pick");
+        let outlier = recs.iter().position(|r| r.champion_id == 1001);
+        let solid = recs.iter().position(|r| r.champion_id == 1002);
+        if let (Some(o), Some(s)) = (outlier, solid) {
+            assert!(s < o, "Solid pick must outrank the low-sample outlier pick");
+        } else {
+            panic!("Both candidates should be evaluated");
         }
     }
 

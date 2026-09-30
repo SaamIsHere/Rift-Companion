@@ -6,6 +6,7 @@ pub mod lockfile;
 pub mod models;
 pub mod websocket;
 
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use futures_util::StreamExt;
@@ -186,8 +187,9 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
 
                                         if phase == "ChampSelect" {
                                             tracing::info!(phase, "entered champ select");
-                                            // Reset post-game screen when a new champ select starts
+                                            // Reset post-game screen and active game ID when a new champ select starts
                                             *shared.latest_post_game.lock().unwrap() = None;
+                                            *shared.active_game_id.lock().unwrap() = None;
                                             let _ = app.emit("post-game://update", serde_json::Value::Null);
                                         } else if phase == "GameStart" || phase == "InProgress" || phase == "Reconnect" {
                                             tracing::info!(phase, "match active / in-progress; preserving match state");
@@ -219,29 +221,7 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                                             let shared_clone = shared.clone();
                                             let lock_clone = lock.clone();
                                             tauri::async_runtime::spawn(async move {
-                                                for retry in 0..5 {
-                                                    if retry > 0 {
-                                                        tokio::time::sleep(Duration::from_millis(1500)).await;
-                                                    }
-                                                    if let Ok(Some(matches_val)) = client::get_local_matches(&lock_clone, 0, 1).await {
-                                                        if let Some(game) = matches_val
-                                                            .get("games")
-                                                            .and_then(|g| g.get("games"))
-                                                            .and_then(|g| g.as_array())
-                                                            .and_then(|a| a.first())
-                                                            .cloned()
-                                                        {
-                                                            let res = serde_json::json!({
-                                                                "source": "lcu",
-                                                                "game": game,
-                                                            });
-                                                            *shared_clone.latest_post_game.lock().unwrap() = Some(res.clone());
-                                                            let _ = app_clone.emit("post-game://update", &res);
-                                                            tracing::info!("emitted post-game update from local match history");
-                                                            break;
-                                                        }
-                                                    }
-                                                }
+                                                fetch_and_emit_post_game(app_clone, shared_clone, lock_clone, None).await;
                                             });
                                         } else if !is_in_match(phase) {
                                             tracing::info!(phase, "gameflow phase is not an active match; clearing session");
@@ -250,29 +230,24 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                                     }
                                 } else if ev.uri.contains("eog-stats-block") {
                                     tracing::info!("received eog-stats-block event; fetching latest finished match");
+                                    let hint_id = ev.data.get("gameId").and_then(|id| id.as_u64());
+                                    if let Some(id) = hint_id {
+                                        if id > 0 {
+                                            *shared.active_game_id.lock().unwrap() = Some(id);
+                                        }
+                                    }
                                     let app_clone = app.clone();
                                     let shared_clone = shared.clone();
                                     let lock_clone = lock.clone();
                                     tauri::async_runtime::spawn(async move {
-                                        tokio::time::sleep(Duration::from_millis(500)).await;
-                                        if let Ok(Some(matches_val)) = client::get_local_matches(&lock_clone, 0, 1).await {
-                                            if let Some(game) = matches_val
-                                                .get("games")
-                                                .and_then(|g| g.get("games"))
-                                                .and_then(|g| g.as_array())
-                                                .and_then(|a| a.first())
-                                                .cloned()
-                                            {
-                                                let res = serde_json::json!({
-                                                    "source": "lcu",
-                                                    "game": game,
-                                                });
-                                                *shared_clone.latest_post_game.lock().unwrap() = Some(res.clone());
-                                                let _ = app_clone.emit("post-game://update", &res);
-                                            }
-                                        }
+                                        fetch_and_emit_post_game(app_clone, shared_clone, lock_clone, hint_id).await;
                                     });
                                 } else if ev.uri.contains("gameflow") && ev.uri.contains("session") {
+                                    if let Some(game_id) = ev.data.get("gameData").and_then(|g| g.get("gameId")).and_then(|id| id.as_u64()) {
+                                        if game_id > 0 {
+                                            *shared.active_game_id.lock().unwrap() = Some(game_id);
+                                        }
+                                    }
                                     let current_phase = shared.gameflow_phase.lock().unwrap().clone();
                                     if is_in_match(&current_phase) {
                                         let got_live = check_liveclient_data(&app, &shared).await;
@@ -400,6 +375,9 @@ async fn handle_gameflow_session(
     ) {
         // Resolve summoner names for picks missing player_name
         if let Some(gd) = &session.game_data {
+            if gd.game_id > 0 {
+                *shared.active_game_id.lock().unwrap() = Some(gd.game_id);
+            }
             let mut champ_puuids: std::collections::HashMap<u32, String> = std::collections::HashMap::new();
             for p in gd.team_one.iter().chain(gd.team_two.iter()) {
                 if p.champion_id > 0 && !p.puuid.is_empty() {
@@ -575,3 +553,78 @@ fn set_status(app: &AppHandle, shared: &Shared, status: ConnectionStatus) {
     *shared.connection.lock().unwrap() = status.clone();
     let _ = app.emit("lcu://connection", &status);
 }
+
+async fn fetch_and_emit_post_game(
+    app: AppHandle,
+    shared: Shared,
+    lock: lockfile::Lockfile,
+    hint_game_id: Option<u64>,
+) {
+    if shared.post_game_fetching.swap(true, Ordering::SeqCst) {
+        tracing::debug!("post-game fetch task already in progress; skipping duplicate trigger");
+        return;
+    }
+
+    struct FetchGuard(std::sync::Arc<std::sync::atomic::AtomicBool>);
+    impl Drop for FetchGuard {
+        fn drop(&mut self) {
+            self.0.store(false, Ordering::SeqCst);
+        }
+    }
+    let _guard = FetchGuard(shared.post_game_fetching.clone());
+
+    let target_game_id = hint_game_id.or_else(|| *shared.active_game_id.lock().unwrap());
+    tracing::info!(?target_game_id, "starting post-game match fetch loop");
+
+    // Retry up to 10 times with 2-second intervals (total ~20s) to wait for Riot LCU match ingestion
+    for retry in 0..10 {
+        if retry > 0 {
+            tokio::time::sleep(Duration::from_millis(2000)).await;
+        } else {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+
+        if let Ok(Some(matches_val)) = client::get_local_matches(&lock, 0, 5).await {
+            let games = matches_val
+                .get("games")
+                .and_then(|g| g.get("games"))
+                .and_then(|g| g.as_array());
+
+            if let Some(games_list) = games {
+                let found_game = if let Some(target_id) = target_game_id {
+                    games_list.iter().find(|g| {
+                        g.get("gameId").and_then(|id| id.as_u64()) == Some(target_id)
+                    }).cloned()
+                } else {
+                    // Fallback if no specific target ID is known: take the most recent match
+                    games_list.first().cloned()
+                };
+
+                if let Some(game) = found_game {
+                    let game_id = game.get("gameId").and_then(|id| id.as_u64());
+
+                    let already_emitted = {
+                        let current = shared.latest_post_game.lock().unwrap();
+                        if let Some(ref cur) = *current {
+                            cur.get("game").and_then(|g| g.get("gameId")).and_then(|id| id.as_u64()) == game_id
+                        } else {
+                            false
+                        }
+                    };
+
+                    if !already_emitted {
+                        let res = serde_json::json!({
+                            "source": "lcu",
+                            "game": game,
+                        });
+                        *shared.latest_post_game.lock().unwrap() = Some(res.clone());
+                        let _ = app.emit("post-game://update", &res);
+                        tracing::info!(?game_id, "emitted post-game update from local match history");
+                    }
+                    break;
+                }
+            }
+        }
+    }
+}
+

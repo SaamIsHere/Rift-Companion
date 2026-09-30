@@ -68,6 +68,10 @@ pub struct Shared {
     pub gameflow_phase: Arc<Mutex<String>>,
     /// ID of the local player's ban action that has already been recorded for the current session
     pub last_recorded_ban_action_id: Arc<Mutex<Option<i64>>>,
+    /// Active in-game match ID tracked from gameflow session
+    pub active_game_id: Arc<Mutex<Option<u64>>>,
+    /// Guard to ensure only one post-game fetcher task runs at a time
+    pub post_game_fetching: Arc<AtomicBool>,
     /// Latest finished match data for post-game screen
     pub latest_post_game: Arc<Mutex<Option<serde_json::Value>>>,
 }
@@ -139,6 +143,8 @@ pub fn run() {
         settings: Arc::new(Mutex::new(settings)),
         gameflow_phase: Arc::new(Mutex::new("None".to_string())),
         last_recorded_ban_action_id: Arc::new(Mutex::new(None)),
+        active_game_id: Arc::new(Mutex::new(None)),
+        post_game_fetching: Arc::new(AtomicBool::new(false)),
         latest_post_game: Arc::new(Mutex::new(None)),
     };
 

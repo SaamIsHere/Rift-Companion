@@ -47,6 +47,11 @@
   $: mvp = match?.mvp;
   $: ace = match?.ace;
   $: svp = match?.svp ?? match?.ace;
+  $: maxMatchDamage = Math.max(
+    1,
+    match?.mvp?.totalDamage ??
+      (match?.allParticipants?.length ? Math.max(...match.allParticipants.map((p) => p.totalDamage || 0)) : 1)
+  );
 
   onMount(() => {
     // If no match loaded and LCU is available, attempt to fetch the latest match
@@ -683,7 +688,7 @@
                     <div class="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
                       <div
                         class="h-full rounded-full bg-gradient-to-r from-purple-600 via-purple-500 to-purple-400"
-                        style="width: {Math.min(100, (p.totalDamage / Math.max(1, match.mvp.totalDamage)) * 100)}%"
+                        style="width: {Math.min(100, (p.totalDamage / maxMatchDamage) * 100)}%"
                       ></div>
                     </div>
                   </div>
@@ -847,7 +852,7 @@
                     <div class="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
                       <div
                         class="h-full rounded-full bg-gradient-to-r from-purple-600 via-purple-500 to-purple-400"
-                        style="width: {Math.min(100, (p.totalDamage / Math.max(1, match.mvp.totalDamage)) * 100)}%"
+                        style="width: {Math.min(100, (p.totalDamage / maxMatchDamage) * 100)}%"
                       ></div>
                     </div>
                   </div>
@@ -915,7 +920,7 @@
 
           <div class="flex flex-col gap-3 pt-2">
             {#each match.allParticipants as p (p.participantId)}
-              {@const maxDmg = Math.max(1, match.mvp.totalDamage)}
+              {@const maxDmg = maxMatchDamage}
               {@const totalPct = Math.min(100, (p.totalDamage / maxDmg) * 100)}
               {@const physPct = p.totalDamage > 0 ? (p.physicalDamage / p.totalDamage) * 100 : 0}
               {@const magPct = p.totalDamage > 0 ? (p.magicDamage / p.totalDamage) * 100 : 0}

@@ -768,15 +768,26 @@ export function normalizePostGameMatch(raw: any, localNameOrPuuid?: string): Pos
 
     const spells = [p.spell1Id, p.spell2Id].filter(Boolean);
 
-    // Resolve role from timeline/position
+    // Resolve role from timeline/position and items/spells
     let role: Role = ROLE_LIST[idx % 5];
-    const pos = p.timeline?.lane || p.selectedPosition || p.teamPosition || "";
-    const pRole = p.timeline?.role || "";
-    if (pos === "TOP") role = "top";
-    else if (pos === "JUNGLE" || spells.includes(11)) role = "jungle";
-    else if (pos === "MIDDLE" || pos === "MID") role = "mid";
-    else if (pos === "BOTTOM" && pRole === "DUO_SUPPORT") role = "support";
-    else if (pos === "BOTTOM") role = "adc";
+    const pos = (p.teamPosition || p.selectedPosition || p.individualPosition || p.timeline?.lane || "").toUpperCase();
+    const pRole = (p.timeline?.role || "").toUpperCase();
+    const hasSmite = spells.includes(11);
+    const hasSupportItem = items.some((id) =>
+      [3850, 3851, 3853, 3854, 3855, 3857, 3858, 3859, 3860, 3862, 3863, 3864, 3865, 3866, 3867, 3869, 3870, 3871, 3876, 3877].includes(id)
+    );
+
+    if (pos === "TOP") {
+      role = "top";
+    } else if (pos === "JUNGLE" || hasSmite) {
+      role = "jungle";
+    } else if (pos === "MIDDLE" || pos === "MID") {
+      role = "mid";
+    } else if (pos === "UTILITY" || pos === "SUPPORT" || hasSupportItem || (pos === "BOTTOM" && pRole === "DUO_SUPPORT")) {
+      role = "support";
+    } else if (pos === "BOTTOM" || pos === "BOT" || pos === "ADC" || (pos === "BOTTOM" && pRole === "DUO_CARRY")) {
+      role = "adc";
+    }
 
     const totalDamage = Number(s.totalDamageDealtToChampions || 0);
     const physicalDamage = Number(s.physicalDamageDealtToChampions || Math.round(totalDamage * 0.7));

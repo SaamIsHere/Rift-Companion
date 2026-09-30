@@ -166,8 +166,10 @@
 
   // Compute recommendations and analysis on state changes
   let draftUpdateDebounce: ReturnType<typeof setTimeout> | null = null;
+  let recomputeSeq = 0;
   function triggerEngineRecompute() {
     if (draftUpdateDebounce) clearTimeout(draftUpdateDebounce);
+    const seq = ++recomputeSeq;
     draftUpdateDebounce = setTimeout(async () => {
       isRecsLoading = true;
       isAnalysisLoading = true;
@@ -176,13 +178,19 @@
           simulateDraft(currentDraftState, $scoringMode),
           simulateMatchAnalysis(currentDraftState),
         ]);
-        recommendations = recs;
-        matchAnalysis = analysis;
+        if (seq === recomputeSeq) {
+          recommendations = recs;
+          matchAnalysis = analysis;
+        }
       } catch (err) {
-        console.error("Simulation recompute error", err);
+        if (seq === recomputeSeq) {
+          console.error("Simulation recompute error", err);
+        }
       } finally {
-        isRecsLoading = false;
-        isAnalysisLoading = false;
+        if (seq === recomputeSeq) {
+          isRecsLoading = false;
+          isAnalysisLoading = false;
+        }
       }
     }, 50);
   }
@@ -249,6 +257,7 @@
     }
 
     closePicker();
+    triggerEngineRecompute();
   }
 
   function clearSlot(type: "ally" | "enemy", role: Role) {
@@ -259,27 +268,37 @@
       enemies[role] = null;
       enemies = { ...enemies };
     }
+    triggerEngineRecompute();
   }
 
   function removeBan(index: number) {
     bans.splice(index, 1);
     bans = [...bans];
+    triggerEngineRecompute();
+  }
+
+  function clearBans() {
+    bans = [];
+    triggerEngineRecompute();
   }
 
   function selectUserRole(role: Role) {
     userRole = role;
+    triggerEngineRecompute();
   }
 
   function lockInRecommendation(rec: Recommendation) {
     allies[userRole] = rec.champion_id;
     allies = { ...allies };
     activeRightTab = "match_analysis";
+    triggerEngineRecompute();
   }
 
   function unlockUserChampion() {
     allies[userRole] = null;
     allies = { ...allies };
     activeRightTab = "recommendations";
+    triggerEngineRecompute();
   }
 
   function openChampionBuild(champId: number, role: Role) {
@@ -937,7 +956,7 @@
             {#if bans.length > 0}
               <button
                 type="button"
-                on:click={() => { bans = []; }}
+                on:click={clearBans}
                 class="text-[9px] text-rose-400 hover:underline"
               >
                 Clear Bans

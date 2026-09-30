@@ -158,7 +158,7 @@ mod tests {
             .count();
         assert_eq!(recs.len(), expected, "should return every playable champion minus drafted/banned picks");
         // Same result as the embedded-path test → the file-backed store is transparent.
-        assert_eq!(recs[0].champion_id, 54, "Malphite still ranks #1");
+        assert_eq!(recs[0].champion_id, 27, "Singed still ranks #1");
     }
 
     #[test]
