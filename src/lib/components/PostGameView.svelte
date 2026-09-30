@@ -47,6 +47,8 @@
   $: mvp = match?.mvp;
   $: ace = match?.ace;
   $: svp = match?.svp ?? match?.ace;
+  $: showSvpInSpotlight = Boolean(localPart?.isMvp && svp);
+  $: spotlight2Part = showSvpInSpotlight ? svp : localPart;
   $: maxMatchDamage = Math.max(
     1,
     match?.mvp?.totalDamage ??
@@ -389,13 +391,13 @@
           </div>
         {/if}
 
-        <!-- Spotlight 2: YOUR PERFORMANCE -->
-        {#if localPart}
-          <div class="glass relative flex flex-col justify-between overflow-hidden rounded-2xl border border-purple-500/30 p-5 shadow-xl transition hover:border-purple-400/50">
+        <!-- Spotlight 2: YOUR PERFORMANCE (OR MATCH SVP IF USER WAS MVP) -->
+        {#if spotlight2Part}
+          <div class="glass relative flex flex-col justify-between overflow-hidden rounded-2xl border {showSvpInSpotlight ? 'border-indigo-500/30 hover:border-indigo-400/50' : 'border-purple-500/30 hover:border-purple-400/50'} p-5 shadow-xl transition">
             <!-- Ambient Champion Splash Artwork with Soft Gradient Fade -->
             <div
               class="absolute inset-0 bg-cover bg-center opacity-15 pointer-events-none scale-105 filter blur-[1px]"
-              style="background-image: url('{splashArtUrl(getChampKey(localPart.championId, localPart.championName))}');"
+              style="background-image: url('{splashArtUrl(getChampKey(spotlight2Part.championId, spotlight2Part.championName))}');"
             ></div>
             <div class="absolute inset-0 bg-gradient-to-t from-void-950/80 via-void-950/40 to-transparent pointer-events-none"></div>
 
@@ -405,35 +407,43 @@
                 <div class="flex items-center gap-3.5">
                   <div class="relative shrink-0">
                     <img
-                      src={squareIconUrl(getChampKey(localPart.championId, localPart.championName), $ddragonVersion)}
-                      alt={getChampName(localPart.championId, localPart.championName)}
-                      class="h-14 w-14 rounded-xl object-cover ring-2 ring-purple-400/80 shadow-lg"
+                      src={squareIconUrl(getChampKey(spotlight2Part.championId, spotlight2Part.championName), $ddragonVersion)}
+                      alt={getChampName(spotlight2Part.championId, spotlight2Part.championName)}
+                      class="h-14 w-14 rounded-xl object-cover ring-2 {showSvpInSpotlight ? 'ring-indigo-400/80' : 'ring-purple-400/80'} shadow-lg"
                     />
-                    <span class="absolute -bottom-1 -right-1 rounded bg-void-950/90 px-1 text-[10px] font-bold text-purple-300 border border-purple-400/40">
-                      Lvl {localPart.championLevel}
+                    <span class="absolute -bottom-1 -right-1 rounded bg-void-950/90 px-1 text-[10px] font-bold {showSvpInSpotlight ? 'text-indigo-300 border-indigo-400/40' : 'text-purple-300 border-purple-400/40'} border">
+                      Lvl {spotlight2Part.championLevel}
                     </span>
                   </div>
 
                   <div class="flex flex-col min-w-0">
-                    <div class="flex items-center gap-2 text-xs font-bold tracking-wider uppercase text-purple-400">
-                      <span>Your Performance</span>
-                      <span class="text-slate-500">•</span>
-                      <span class="text-slate-400 font-semibold normal-case">Rank #{localPart.rank} of 10</span>
-                      {#if localPart.isMvp}
-                        <span class="text-amber-400 font-semibold inline-flex items-center gap-1 normal-case">
-                          <Crown class="h-3 w-3 stroke-[2.5]" /> MVP
-                        </span>
-                      {:else if localPart.isSvp || localPart.isAce}
-                        <span class="text-purple-300 font-semibold normal-case">SVP</span>
+                    <div class="flex items-center gap-2 text-xs font-bold tracking-wider uppercase {showSvpInSpotlight ? 'text-indigo-400' : 'text-purple-400'}">
+                      {#if showSvpInSpotlight}
+                        <Trophy class="h-3.5 w-3.5 text-indigo-400" />
+                        <span>Match SVP</span>
+                        <span class="text-slate-500">•</span>
+                        <span class="text-slate-400 font-semibold normal-case">Opponent Ace</span>
+                        <span class="text-indigo-300 font-semibold normal-case">(Enemy Team)</span>
+                      {:else}
+                        <span>Your Performance</span>
+                        <span class="text-slate-500">•</span>
+                        <span class="text-slate-400 font-semibold normal-case">Rank #{spotlight2Part.rank} of 10</span>
+                        {#if spotlight2Part.isMvp}
+                          <span class="text-amber-400 font-semibold inline-flex items-center gap-1 normal-case">
+                            <Crown class="h-3 w-3 stroke-[2.5]" /> MVP
+                          </span>
+                        {:else if spotlight2Part.isSvp || spotlight2Part.isAce}
+                          <span class="text-purple-300 font-semibold normal-case">SVP</span>
+                        {/if}
                       {/if}
                     </div>
                     <h3 class="text-base font-extrabold text-white mt-1 truncate">
-                      {localPart.summonerName}
+                      {spotlight2Part.summonerName}
                     </h3>
                     <div class="flex items-center gap-1.5 text-xs text-slate-300 mt-0.5">
-                      <span class="capitalize font-semibold text-purple-200">{getChampName(localPart.championId, localPart.championName)}</span>
+                      <span class="capitalize font-semibold {showSvpInSpotlight ? 'text-indigo-200' : 'text-purple-200'}">{getChampName(spotlight2Part.championId, spotlight2Part.championName)}</span>
                       <span class="text-slate-500">•</span>
-                      <span class="uppercase text-[11px] font-medium text-slate-400">{localPart.role}</span>
+                      <span class="uppercase text-[11px] font-medium text-slate-400">{spotlight2Part.role}</span>
                     </div>
                   </div>
                 </div>
@@ -441,7 +451,7 @@
                 <!-- Score & Rank Badge -->
                 <div class="flex flex-col items-end shrink-0">
                   <div class="flex items-baseline gap-1">
-                    <span class="text-3xl font-black {getScoreColor(localPart.overallScore)} tracking-tight">{localPart.overallScore.toFixed(1)}</span>
+                    <span class="text-3xl font-black {getScoreColor(spotlight2Part.overallScore)} tracking-tight">{spotlight2Part.overallScore.toFixed(1)}</span>
                     <span class="text-xs font-bold text-slate-400">/ 10</span>
                   </div>
                   <span class="text-[11px] font-semibold text-slate-400">Overall Rating</span>
@@ -452,34 +462,34 @@
               <div class="grid grid-cols-4 gap-2 rounded-xl bg-white/[0.03] border border-white/5 p-2.5 text-center text-xs">
                 <div>
                   <div class="text-[10px] font-semibold text-slate-400 uppercase">KDA</div>
-                  <div class="font-black text-slate-100">{localPart.kills}/{localPart.deaths}/{localPart.assists}</div>
-                  <div class="text-[10px] text-purple-300 font-bold">{localPart.kda} KDA</div>
+                  <div class="font-black text-slate-100">{spotlight2Part.kills}/{spotlight2Part.deaths}/{spotlight2Part.assists}</div>
+                  <div class="text-[10px] {showSvpInSpotlight ? 'text-indigo-300' : 'text-purple-300'} font-bold">{spotlight2Part.kda} KDA</div>
                 </div>
                 <div>
                   <div class="text-[10px] font-semibold text-slate-400 uppercase">Damage</div>
-                  <div class="font-black text-slate-100">{(localPart.totalDamage / 1000).toFixed(1)}k</div>
-                  <div class="text-[10px] text-slate-400">{Math.round(localPart.damageShare * 100)}% Share</div>
+                  <div class="font-black text-slate-100">{(spotlight2Part.totalDamage / 1000).toFixed(1)}k</div>
+                  <div class="text-[10px] text-slate-400">{Math.round(spotlight2Part.damageShare * 100)}% Share</div>
                 </div>
                 <div>
                   <div class="text-[10px] font-semibold text-slate-400 uppercase">Farm</div>
-                  <div class="font-black text-slate-100">{localPart.cs} CS</div>
-                  <div class="text-[10px] text-slate-400">{localPart.csPerMin}/m</div>
+                  <div class="font-black text-slate-100">{spotlight2Part.cs} CS</div>
+                  <div class="text-[10px] text-slate-400">{spotlight2Part.csPerMin}/m</div>
                 </div>
                 <div>
                   <div class="text-[10px] font-semibold text-slate-400 uppercase">Team KP</div>
-                  <div class="font-black text-slate-100">{Math.round(localPart.killParticipation * 100)}%</div>
-                  <div class="text-[10px] text-slate-400">{localPart.visionScore} Vision</div>
+                  <div class="font-black text-slate-100">{Math.round(spotlight2Part.killParticipation * 100)}%</div>
+                  <div class="text-[10px] text-slate-400">{spotlight2Part.visionScore} Vision</div>
                 </div>
               </div>
 
-              <!-- Local Player Badges Row (ALL Badges displayed - NO extra details in pill) -->
-              {#if localPart.badges.length > 0}
+              <!-- Badges Row (ALL Badges displayed - NO extra details in pill) -->
+              {#if spotlight2Part.badges.length > 0}
                 <div class="flex flex-col gap-1.5 pt-1">
                   <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Earned Badges ({localPart.badges.length})
+                    Earned Badges ({spotlight2Part.badges.length})
                   </span>
                   <div class="flex items-center gap-1.5 flex-wrap">
-                    {#each sortBadgesByTier(localPart.badges) as badge (badge.id)}
+                    {#each sortBadgesByTier(spotlight2Part.badges) as badge (badge.id)}
                       {@const styles = getBadgeTierStyles(badge.tier)}
                       <button
                         type="button"

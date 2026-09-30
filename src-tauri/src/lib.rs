@@ -72,6 +72,8 @@ pub struct Shared {
     pub active_game_id: Arc<Mutex<Option<u64>>>,
     /// Guard to ensure only one post-game fetcher task runs at a time
     pub post_game_fetching: Arc<AtomicBool>,
+    /// Guard to ensure only one in-game live client poller task runs at a time (Issue #78)
+    pub live_poller_running: Arc<AtomicBool>,
     /// Latest finished match data for post-game screen
     pub latest_post_game: Arc<Mutex<Option<serde_json::Value>>>,
 }
@@ -145,6 +147,7 @@ pub fn run() {
         last_recorded_ban_action_id: Arc::new(Mutex::new(None)),
         active_game_id: Arc::new(Mutex::new(None)),
         post_game_fetching: Arc::new(AtomicBool::new(false)),
+        live_poller_running: Arc::new(AtomicBool::new(false)),
         latest_post_game: Arc::new(Mutex::new(None)),
     };
 
@@ -261,6 +264,14 @@ pub fn run() {
                         }
                     })
                     .build(app)?;
+            }
+
+            // Clean up any legacy disk cache to ensure zero disk footprint on user PC (Issue #82)
+            if let Ok(app_dir) = app.path().app_data_dir() {
+                let legacy_cache = app_dir.join("cache");
+                if legacy_cache.exists() {
+                    let _ = std::fs::remove_dir_all(legacy_cache);
+                }
             }
 
             // Apply the persisted always-on-top preference and attach close-behavior event handler

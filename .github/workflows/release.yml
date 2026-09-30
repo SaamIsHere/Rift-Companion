@@ -67,6 +67,14 @@ jobs:
         if: steps.check_tag.outputs.should_release == 'true'
         run: npm ci
 
+      - name: Run Svelte type-check
+        if: steps.check_tag.outputs.should_release == 'true'
+        run: npm run check
+
+      - name: Run Backend unit tests
+        if: steps.check_tag.outputs.should_release == 'true'
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
       - name: Build Tauri NSIS Installer & Updater Package
         if: steps.check_tag.outputs.should_release == 'true'
         uses: tauri-apps/tauri-action@v0

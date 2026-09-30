@@ -1414,7 +1414,7 @@ pub async fn get_player_matches(
 /// No data is persisted on the local client disk.
 #[tauri::command]
 pub async fn get_match_detail(
-    app: AppHandle,
+    _app: AppHandle,
     state: State<'_, Shared>,
     game_id: String,
     region: Option<String>,
@@ -1422,14 +1422,6 @@ pub async fn get_match_detail(
     focus_riot_id: Option<String>,
 ) -> Result<serde_json::Value, String> {
     let clean_id = game_id.trim();
-
-    // Clean up any legacy disk cache to ensure zero disk footprint on user PC
-    if let Ok(app_dir) = app.path().app_data_dir() {
-        let legacy_cache = app_dir.join("cache");
-        if legacy_cache.exists() {
-            let _ = std::fs::remove_dir_all(legacy_cache);
-        }
-    }
 
     // 1. If LCU is connected, try local game detail
     if let Some(lock) = crate::lcu::lockfile::find() {
@@ -1972,24 +1964,24 @@ pub fn simulate_match_analysis(state: State<Shared>, draft: DraftState) -> Simul
 
     let blue_win_chance = match_win_chance.clamp(20.0, 80.0);
 
-    // Dynamic high-level insights
+    // Dynamic high-level insights (standardized English matching comp analysis)
     let mut insights = Vec::new();
     if blue_win_chance >= 54.0 {
-        insights.push("Deutlicher Draft-Vorteil für dein Team (gute Lane-Matchups & Synergien).".to_string());
+        insights.push("Clear draft advantage for your team (favorable lane matchups & synergies).".to_string());
     } else if blue_win_chance <= 46.0 {
-        insights.push("Schwieriger Draft: Das Gegnerteam hat vorteilhafte Matchups oder bessere Team-Balance.".to_string());
+        insights.push("Tough draft: Enemy team has advantageous matchups or superior comp balance.".to_string());
     } else {
-        insights.push("Ausgeglichene Draft-Situation: Die individuelle Performance und Map-Control entscheiden.".to_string());
+        insights.push("Even draft matchup: Individual execution and map control will decide the game.".to_string());
     }
 
     if let Some(top_syn) = synergies.first() {
         if top_syn.delta >= 2.0 {
-            insights.push(format!("Starke Synergie: {} & {} harmonieren exzellent (+{:.1}% WR).", top_syn.champion_a_name, top_syn.champion_b_name, top_syn.delta));
+            insights.push(format!("Strong synergy: {} & {} synergize exceptionally well (+{:.1}% WR).", top_syn.champion_a_name, top_syn.champion_b_name, top_syn.delta));
         }
     }
 
     if let Some(bad_counter) = counters.iter().find(|c| c.winner_team == "red") {
-        insights.push(format!("Gefährlicher Counter: Gegners {} setzt {} unter Druck ({:.1}% WR).", bad_counter.winner_name, bad_counter.loser_name, bad_counter.winrate));
+        insights.push(format!("Dangerous counter: Enemy {} heavily pressures {} ({:.1}% WR).", bad_counter.winner_name, bad_counter.loser_name, bad_counter.winrate));
     }
 
     SimulatedMatchAnalysis {

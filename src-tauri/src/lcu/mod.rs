@@ -159,20 +159,7 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                             handle_gameflow_session(&app, &shared, Some(&lock), gf_val).await;
                         }
                     }
-                    let app_poller = app.clone();
-                    let shared_poller = shared.clone();
-                    tauri::async_runtime::spawn(async move {
-                        for _ in 0..1800 {
-                            tokio::time::sleep(Duration::from_secs(2)).await;
-                            let p = shared_poller.gameflow_phase.lock().unwrap().clone();
-                            if !is_in_match(&p) {
-                                break;
-                            }
-                            if p == "GameStart" || p == "InProgress" || p == "Reconnect" {
-                                check_liveclient_data(&app_poller, &shared_poller).await;
-                            }
-                        }
-                    });
+                    spawn_live_client_poller(&app, &shared);
                 }
 
                 while let Some(msg) = ws.next().await {
@@ -199,20 +186,7 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                                                     handle_gameflow_session(&app, &shared, Some(&lock), gf_val).await;
                                                 }
                                             }
-                                            let app_poller = app.clone();
-                                            let shared_poller = shared.clone();
-                                            tauri::async_runtime::spawn(async move {
-                                                for _ in 0..1800 {
-                                                    tokio::time::sleep(Duration::from_secs(2)).await;
-                                                    let p = shared_poller.gameflow_phase.lock().unwrap().clone();
-                                                    if !is_in_match(&p) {
-                                                        break;
-                                                    }
-                                                    if p == "GameStart" || p == "InProgress" || p == "Reconnect" {
-                                                        check_liveclient_data(&app_poller, &shared_poller).await;
-                                                    }
-                                                }
-                                            });
+                                            spawn_live_client_poller(&app, &shared);
                                         } else if phase == "WaitingForStats" || phase == "PreEndOfGame" || phase == "EndOfGame" {
                                             tracing::info!(phase, "entered post-game phase; fetching match results");
                                             clear_session(&app, &shared);
@@ -552,6 +526,36 @@ fn set_status(app: &AppHandle, shared: &Shared, status: ConnectionStatus) {
     // The last connected account is preserved across sessions until a new account logs in.
     *shared.connection.lock().unwrap() = status.clone();
     let _ = app.emit("lcu://connection", &status);
+}
+
+fn spawn_live_client_poller(app: &AppHandle, shared: &Shared) {
+    if shared.live_poller_running.swap(true, Ordering::SeqCst) {
+        tracing::debug!("live client poller already active; skipping duplicate spawn");
+        return;
+    }
+
+    let app_poller = app.clone();
+    let shared_poller = shared.clone();
+    tauri::async_runtime::spawn(async move {
+        struct PollerGuard(std::sync::Arc<std::sync::atomic::AtomicBool>);
+        impl Drop for PollerGuard {
+            fn drop(&mut self) {
+                self.0.store(false, Ordering::SeqCst);
+            }
+        }
+        let _guard = PollerGuard(shared_poller.live_poller_running.clone());
+
+        for _ in 0..1800 {
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            let p = shared_poller.gameflow_phase.lock().unwrap().clone();
+            if !is_in_match(&p) {
+                break;
+            }
+            if p == "GameStart" || p == "InProgress" || p == "Reconnect" {
+                check_liveclient_data(&app_poller, &shared_poller).await;
+            }
+        }
+    });
 }
 
 async fn fetch_and_emit_post_game(
