@@ -60,9 +60,166 @@
   let lastSyncedProfileName = "";
   let lastLoadedProfileKey = "";
 
+  let failedMatchDetailIds = new Set<string>();
+
   function resetExpandedMatches() {
     expandedMatchIds = new Set();
     loadingMatchDetailIds = new Set();
+    failedMatchDetailIds = new Set();
+  }
+
+  function isViewedPlayer(p: DetailedParticipant): boolean {
+    const curTarget = ($viewedProfile?.game_name || targetGameName || "").toLowerCase().trim();
+    if (!curTarget) return p.is_local;
+    const pName = (p.game_name || p.summoner_name || "").toLowerCase().trim();
+    if (pName !== curTarget) return false;
+    const curTag = ($viewedProfile?.tag_line || targetTagLine || "").toLowerCase().trim();
+    if (curTag && p.tag_line) {
+      return p.tag_line.toLowerCase().trim() === curTag;
+    }
+    return true;
+  }
+
+  function isArenaMatch(m: PlayerMatch): boolean {
+    if (!m) return false;
+    const q = (m.queue_label || "").toLowerCase();
+    const gt = (m.game_type || "").toLowerCase();
+    if (q.includes("arena") || gt.includes("arena") || gt.includes("cherry") || gt === "1700" || gt === "1710") {
+      return true;
+    }
+    if (m.participants && m.participants.length > 0) {
+      if (m.participants.length > 10) return true;
+      const distinctTeams = new Set(m.participants.map((p) => p.subteam_id || p.team_id));
+      if (distinctTeams.size > 2) return true;
+    }
+    return false;
+  }
+
+  interface ArenaTeamGroup {
+    key: string;
+    name: string;
+    placement: number;
+    isWin: boolean;
+    isViewedTeam: boolean;
+    kills: number;
+    gold: number;
+    participants: DetailedParticipant[];
+  }
+
+  function getOrdinalSuffix(n: number): string {
+    const s = ["th", "st", "nd", "rd"];
+    const v = n % 100;
+    return s[(v - 20) % 10] || s[v] || s[0];
+  }
+
+  function formatArenaPlacement(placement: number): string {
+    if (placement === 1) return "1st Place 🏆";
+    if (placement === 2) return "2nd Place 🥈";
+    if (placement === 3) return "3rd Place 🥉";
+    return `${placement}${getOrdinalSuffix(placement)} Place`;
+  }
+
+  function getArenaPlacementColor(placement: number, isWin: boolean): string {
+    if (placement === 1) return "text-amber-300 font-black";
+    if (placement === 2) return "text-slate-200 font-extrabold";
+    if (placement === 3) return "text-amber-500 font-extrabold";
+    if (placement === 4 || isWin) return "text-emerald-400 font-bold";
+    return "text-slate-400 font-semibold";
+  }
+
+  function getArenaTeamLabel(rawName: string): string {
+    if (!rawName) return "Team";
+    const clean = rawName.trim();
+    if (/^team\b/i.test(clean)) return clean;
+    return `Team ${clean}`;
+  }
+
+  function getArenaTeamGroups(m: PlayerMatch): ArenaTeamGroup[] {
+    if (!m.participants || m.participants.length === 0) return [];
+
+    let partsList = [...m.participants];
+
+    // Check if participants already have 3+ distinct teams
+    const distinctSubteams = new Set(
+      partsList
+        .map((p) => p.subteam_id || (p.team_id !== 100 && p.team_id !== 200 ? String(p.team_id) : undefined))
+        .filter(Boolean)
+    );
+
+    // If fewer than 3 distinct teams and more than 4 participants (e.g. 18 or 16 players compressed into Team 100 vs Team 200):
+    // Re-construct the actual 3-player (or 2-player) teams from the participant sequence:
+    if (distinctSubteams.size < 3 && partsList.length > 4) {
+      const firstTeamCount = partsList.filter((p) => p.team_id === 100 || p.subteam_id === "BLUE").length;
+      const teamSize = firstTeamCount === 3 || firstTeamCount === 2 ? firstTeamCount : (partsList.length % 3 === 0 ? 3 : 2);
+      const teamNames = ["PORO", "MINION", "SENTINEL", "KRUG", "SCUTTLE", "RAPTOR", "BARON", "DRAGON"];
+      partsList = partsList.map((p, idx) => {
+        const teamIndex = Math.floor(idx / teamSize);
+        const tName = teamNames[teamIndex] || `TEAM_${teamIndex + 1}`;
+        return {
+          ...p,
+          team_id: (teamIndex + 1) * 100,
+          subteam_id: tName,
+          subteam_name: tName,
+        };
+      });
+    }
+
+    const map = new Map<string, DetailedParticipant[]>();
+    for (const p of partsList) {
+      const key = String(p.subteam_id || p.team_id || "team_0");
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(p);
+    }
+
+    const groups: ArenaTeamGroup[] = [];
+    let idx = 1;
+
+    for (const [key, parts] of map.entries()) {
+      const isViewedTeam = parts.some((p) => isViewedPlayer(p));
+      const isWin = parts.some((p) => p.win);
+      const rawPlacement = parts.find((p) => p.placement != null)?.placement;
+      const teamKills = parts.reduce((sum, p) => sum + (p.kills || 0), 0);
+      const teamGold = parts.reduce((sum, p) => sum + (p.gold_earned || 0), 0);
+      const teamName = parts[0]?.subteam_name || (key.length > 2 && isNaN(Number(key)) ? key : `Team ${idx}`);
+
+      groups.push({
+        key,
+        name: teamName,
+        placement: rawPlacement != null ? rawPlacement : idx,
+        isWin,
+        isViewedTeam,
+        kills: teamKills,
+        gold: teamGold,
+        participants: parts,
+      });
+      idx++;
+    }
+
+    // Check if raw placements are distinct across all teams
+    const distinctPlacements = new Set(groups.map((g) => g.placement).filter((p) => p > 0));
+    const hasValidDistinctPlacements = distinctPlacements.size === groups.length;
+
+    // Sort: if valid distinct placements, sort by placement ascending
+    // Otherwise wins first, then by gold/kills
+    groups.sort((a, b) => {
+      if (hasValidDistinctPlacements) {
+        return a.placement - b.placement;
+      }
+      if (a.isWin !== b.isWin) {
+        return a.isWin ? -1 : 1;
+      }
+      if (a.gold !== b.gold) {
+        return b.gold - a.gold;
+      }
+      return b.kills - a.kills;
+    });
+
+    // Normalize placements to 1..N
+    groups.forEach((g, i) => {
+      g.placement = i + 1;
+    });
+
+    return groups;
   }
 
   // Ensure all matches start collapsed whenever a new profile starts loading or the profile identity changes
@@ -79,6 +236,10 @@
   $: if ($viewedProfileLoading) {
     resetExpandedMatches();
   }
+
+  $: currentTarget = $activeSearchQuery || searchQuery || $profile?.display_name || "";
+  $: targetGameName = currentTarget ? currentTarget.split("#")[0].trim() : "";
+  $: targetTagLine = currentTarget && currentTarget.includes("#") ? currentTarget.split("#")[1].trim() : selectedRegion;
 
   $: if ($ddragonVersion) {
     loadRunesReforged($ddragonVersion).then((map) => {
@@ -263,18 +424,39 @@
     } else {
       expandedMatchIds.add(match.id);
       expandedMatchIds = new Set(expandedMatchIds);
+      failedMatchDetailIds.delete(match.id);
+      failedMatchDetailIds = new Set(failedMatchDetailIds);
 
-      // If match has fewer than 2 participants (e.g. OP.GG match list summary), fetch full game detail
-      if (!match.participants || match.participants.length < 2) {
+      // If match has fewer than 2 participants (e.g. OP.GG match list summary),
+      // or if it's an Arena match with stale 2-team data (fewer than 3 distinct teams and > 4 players):
+      const isArena = isArenaMatch(match);
+      const isStaleArena =
+        isArena &&
+        match.participants &&
+        match.participants.length > 4 &&
+        new Set(
+          match.participants
+            .map((p) => p.subteam_id || (p.team_id !== 100 && p.team_id !== 200 ? String(p.team_id) : undefined))
+            .filter(Boolean)
+        ).size < 3;
+
+      if (!match.participants || match.participants.length < 2 || isStaleArena) {
         loadingMatchDetailIds.add(match.id);
         loadingMatchDetailIds = new Set(loadingMatchDetailIds);
         try {
-          await loadMatchDetail(
+          const res = await loadMatchDetail(
             match.id,
             selectedRegion,
             match.raw_created_at || match.game_creation,
-            $viewedProfile?.display_name
+            $viewedProfile?.display_name || targetGameName
           );
+          if (!res || res.length < 2) {
+            failedMatchDetailIds.add(match.id);
+            failedMatchDetailIds = new Set(failedMatchDetailIds);
+          }
+        } catch {
+          failedMatchDetailIds.add(match.id);
+          failedMatchDetailIds = new Set(failedMatchDetailIds);
         } finally {
           loadingMatchDetailIds.delete(match.id);
           loadingMatchDetailIds = new Set(loadingMatchDetailIds);
@@ -641,54 +823,7 @@
       </div>
     {/if}
 
-    {#if $viewedProfileLoading && !$viewedProfile}
-      <div class="glass flex min-h-[400px] flex-col items-center justify-center rounded-2xl p-8 text-center">
-        <div class="relative flex h-16 w-16 items-center justify-center">
-          <div class="absolute h-16 w-16 animate-ping rounded-full bg-purple-600/20"></div>
-          <div class="h-10 w-10 animate-spin rounded-full border-2 border-purple-400 border-t-transparent"></div>
-        </div>
-        <h2 class="mt-5 text-lg font-black tracking-wide text-white">Loading Summoner Profile…</h2>
-        <p class="mt-2 max-w-sm text-xs text-purple-300/70">
-          Querying OP.GG and compiling match history, rankings, and champion statistics…
-        </p>
-      </div>
-    {:else if $viewedProfileError && !$viewedProfile}
-      <div class="glass flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-rose-500/30 p-8 text-center">
-        <div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-500/40 bg-rose-950/40 text-2xl text-rose-400 shadow-md">
-          ⚠️
-        </div>
-        <h2 class="mt-4 text-lg font-black text-white">Summoner Not Found</h2>
-        <p class="mt-2 max-w-md text-xs font-semibold text-rose-300/80">
-          {$viewedProfileError}
-        </p>
-        <div class="mt-5 max-w-md rounded-xl border border-purple-500/20 bg-purple-950/30 p-4 text-left text-xs text-purple-300/80 space-y-1.5">
-          <p class="font-bold text-purple-200">Tips for searching:</p>
-          <p>• Include the tagline (e.g. <span class="font-mono font-bold text-white">Agurin#EUW</span> or <span class="font-mono font-bold text-white">Hide on bush#KR1</span>).</p>
-          <p>• Make sure the selected region matches the player's server.</p>
-          <p>• Pro players and streamers (e.g. <span class="font-mono font-bold text-purple-200">Agurin</span>, <span class="font-mono font-bold text-purple-200">Faker</span>, <span class="font-mono font-bold text-purple-200">Caps</span>, <span class="font-mono font-bold text-purple-200">Noway</span>) are automatically resolved to their official Riot IDs.</p>
-        </div>
-        <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <button
-            type="button"
-            on:click={() => handleSearch(true)}
-            class="inline-flex items-center gap-2 rounded-xl border border-purple-400/40 bg-purple-600/40 px-4 py-2 text-xs font-bold text-white transition hover:bg-purple-600/60 shadow-sm active:scale-95"
-          >
-            <span>↻</span>
-            <span>Try Again</span>
-          </button>
-          {#if $profile}
-            <button
-              type="button"
-              on:click={returnToMyAccount}
-              class="inline-flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-950/40 px-4 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-900/50 active:scale-95"
-            >
-              <span>★</span>
-              <span>Return to My Account</span>
-            </button>
-          {/if}
-        </div>
-      </div>
-    {:else if $viewedProfile}
+    {#if $viewedProfile}
       <div class="relative shrink-0 block glass mb-5 min-h-[150px] overflow-hidden rounded-2xl p-6">
       <!-- Ambient background decoration -->
       <div class="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-purple-600/10 blur-3xl"></div>
@@ -816,24 +951,111 @@
       </div>
     </div>
   {:else if $viewedProfileLoading}
-    <div class="glass mb-5 flex h-48 flex-col items-center justify-center rounded-2xl p-6">
-      <div class="h-8 w-8 animate-spin rounded-full border-2 border-purple-500 border-t-transparent"></div>
-      <p class="mt-3 text-xs font-semibold text-purple-300/80">Loading summoner profile…</p>
+    <!-- INSTANT SKELETON HEADER (0ms perception while loading) -->
+    <div class="relative shrink-0 block glass mb-5 min-h-[150px] overflow-hidden rounded-2xl p-6">
+      <div class="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-purple-600/10 blur-3xl"></div>
+      <div class="pointer-events-none absolute -left-20 -bottom-20 h-64 w-64 rounded-full bg-indigo-600/10 blur-3xl"></div>
+
+      <div class="relative z-10 flex flex-wrap items-center justify-between gap-6">
+        <!-- Identity Skeleton -->
+        <div class="flex items-center gap-4">
+          <div class="relative shrink-0">
+            <div class="h-20 w-20 rounded-2xl border-2 border-purple-500/30 bg-purple-950/60 animate-pulse flex items-center justify-center shadow-md">
+              <svg class="h-9 w-9 text-purple-400/40 animate-pulse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </div>
+            <div class="absolute -bottom-2 -right-2 h-4 w-8 rounded-lg border border-purple-400/30 bg-purple-950/90 animate-pulse"></div>
+          </div>
+
+          <div>
+            <div class="flex items-center gap-2.5">
+              {#if targetGameName}
+                <h1 class="text-2xl font-black text-white tracking-wide flex items-center gap-2">
+                  <span>{targetGameName}</span>
+                  <span class="text-lg font-bold text-purple-300/60">#{targetTagLine}</span>
+                </h1>
+                <span class="rounded-md border border-purple-500/30 bg-purple-950/40 px-2 py-0.5 text-[10px] font-bold uppercase text-purple-300">
+                  {selectedRegion}
+                </span>
+              {:else}
+                <div class="h-7 w-40 rounded-lg bg-purple-900/40 animate-pulse"></div>
+                <div class="h-5 w-12 rounded-md bg-purple-900/30 animate-pulse"></div>
+              {/if}
+            </div>
+
+            <div class="mt-2.5 flex flex-wrap items-center gap-2.5">
+              <span class="inline-flex items-center gap-2 rounded-full bg-purple-500/15 border border-purple-500/30 px-3 py-1 text-[11px] font-bold text-purple-200 shadow-sm">
+                <span class="h-2 w-2 rounded-full bg-purple-400 animate-ping"></span>
+                Loading summoner stats…
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ranked Cards Skeletons (Solo & Flex) -->
+        <div class="flex flex-wrap items-center gap-4">
+          <div class="glass-soft flex min-w-[200px] items-center gap-3.5 rounded-xl border border-purple-500/20 bg-purple-950/30 p-3.5 animate-pulse">
+            <div class="h-14 w-14 rounded-full bg-purple-900/30 border border-purple-500/20 shrink-0"></div>
+            <div class="space-y-1.5 flex-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-purple-300/70 block">
+                Ranked Solo
+              </span>
+              <div class="h-4 w-24 rounded bg-purple-800/40"></div>
+              <div class="h-3 w-16 rounded bg-purple-900/30"></div>
+            </div>
+          </div>
+
+          <div class="glass-soft flex min-w-[200px] items-center gap-3.5 rounded-xl border border-purple-500/20 bg-purple-950/30 p-3.5 animate-pulse">
+            <div class="h-14 w-14 rounded-full bg-purple-900/30 border border-purple-500/20 shrink-0"></div>
+            <div class="space-y-1.5 flex-1">
+              <span class="text-[10px] font-bold uppercase tracking-wider text-purple-300/70 block">
+                Ranked Flex
+              </span>
+              <div class="h-4 w-24 rounded bg-purple-800/40"></div>
+              <div class="h-3 w-16 rounded bg-purple-900/30"></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   {:else if $viewedProfileError}
-    <div class="glass mb-5 rounded-2xl border border-rose-500/30 bg-rose-950/20 p-6 text-center">
-      <span class="text-2xl">⚠️</span>
-      <h2 class="mt-2 text-base font-bold text-rose-300">Summoner Lookup</h2>
-      <p class="mt-1 text-xs text-rose-200/70">{$viewedProfileError}</p>
-      {#if $profile}
+    <!-- Summoner Not Found error box -->
+    <div class="glass flex min-h-[400px] flex-col items-center justify-center rounded-2xl border border-rose-500/30 p-8 text-center mb-5">
+      <div class="flex h-14 w-14 items-center justify-center rounded-2xl border border-rose-500/40 bg-rose-950/40 text-2xl text-rose-400 shadow-md">
+        ⚠️
+      </div>
+      <h2 class="mt-4 text-lg font-black text-white">Summoner Not Found</h2>
+      <p class="mt-2 max-w-md text-xs font-semibold text-rose-300/80">
+        {$viewedProfileError}
+      </p>
+      <div class="mt-5 max-w-md rounded-xl border border-purple-500/20 bg-purple-950/30 p-4 text-left text-xs text-purple-300/80 space-y-1.5">
+        <p class="font-bold text-purple-200">Tips for searching:</p>
+        <p>• Include the tagline (e.g. <span class="font-mono font-bold text-white">Agurin#EUW</span> or <span class="font-mono font-bold text-white">Hide on bush#KR1</span>).</p>
+        <p>• Make sure the selected region matches the player's server.</p>
+        <p>• Pro players and streamers (e.g. <span class="font-mono font-bold text-purple-200">Agurin</span>, <span class="font-mono font-bold text-purple-200">Faker</span>, <span class="font-mono font-bold text-purple-200">Caps</span>, <span class="font-mono font-bold text-purple-200">Noway</span>) are automatically resolved to their official Riot IDs.</p>
+      </div>
+      <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
         <button
           type="button"
-          on:click={returnToMyAccount}
-          class="mt-4 rounded-xl border border-purple-500/30 bg-purple-900/40 px-4 py-1.5 text-xs font-bold text-white transition hover:bg-purple-800/50"
+          on:click={() => handleSearch(true)}
+          class="inline-flex items-center gap-2 rounded-xl border border-purple-400/40 bg-purple-600/40 px-4 py-2 text-xs font-bold text-white transition hover:bg-purple-600/60 shadow-sm active:scale-95"
         >
-          Return to My Account
+          <span>↻</span>
+          <span>Try Again</span>
         </button>
-      {/if}
+        {#if $profile}
+          <button
+            type="button"
+            on:click={returnToMyAccount}
+            class="inline-flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-950/40 px-4 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-900/50 active:scale-95"
+          >
+            <span>★</span>
+            <span>Return to My Account</span>
+          </button>
+        {/if}
+      </div>
     </div>
   {:else}
     <!-- WELCOME & SEARCH HERO LANDING -->
@@ -902,7 +1124,7 @@
     </div>
   {/if}
 
-  {#if $viewedProfile}
+  {#if $viewedProfile || $viewedProfileLoading}
   <!-- MAIN CONTENT LAYOUT (TWO COLUMNS) -->
   <div class="grid grid-cols-1 lg:grid-cols-[310px_minmax(0,1fr)] gap-5 shrink-0 items-start">
     <!-- LEFT COLUMN: RECENT METRICS & TOP CHAMPIONS -->
@@ -942,6 +1164,17 @@
                 {recentStats.avgK} / <span class="text-rose-400">{recentStats.avgD}</span> / {recentStats.avgA}
               </span>
             </div>
+          </div>
+        </div>
+      {:else if $viewedMatchesLoading}
+        <div class="glass rounded-2xl p-4 animate-pulse">
+          <div class="flex items-center justify-between mb-3">
+            <div class="h-3.5 w-24 rounded bg-purple-800/40"></div>
+            <div class="h-3.5 w-16 rounded bg-purple-900/30"></div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="h-16 rounded-xl border border-purple-500/10 bg-purple-950/30"></div>
+            <div class="h-16 rounded-xl border border-purple-500/10 bg-purple-950/30"></div>
           </div>
         </div>
       {/if}
@@ -1054,10 +1287,23 @@
               </button>
             {/if}
           </div>
-        {:else if $viewedProfileLoading || $viewedMatchesLoading}
-          <div class="flex h-36 flex-col items-center justify-center gap-2">
-            <div class="h-5 w-5 animate-spin rounded-full border-2 border-purple-500 border-t-transparent"></div>
-            <p class="text-[11px] text-purple-300/70">Loading champions…</p>
+        {:else if $viewedProfileLoading || ($viewedMatchesLoading && !displayedChampions.length)}
+          <div class="flex flex-col gap-2">
+            {#each [1, 2, 3, 4, 5] as _}
+              <div class="flex items-center justify-between rounded-xl border border-purple-500/15 bg-purple-950/20 p-2 animate-pulse">
+                <div class="flex items-center gap-2.5">
+                  <div class="h-9 w-9 rounded-lg bg-purple-900/40 shrink-0"></div>
+                  <div class="space-y-1.5">
+                    <div class="h-3.5 w-20 rounded bg-purple-800/40"></div>
+                    <div class="h-2.5 w-12 rounded bg-purple-900/30"></div>
+                  </div>
+                </div>
+                <div class="space-y-1.5 text-right">
+                  <div class="h-3.5 w-10 rounded bg-purple-800/40 ml-auto"></div>
+                  <div class="h-2.5 w-14 rounded bg-purple-900/30 ml-auto"></div>
+                </div>
+              </div>
+            {/each}
           </div>
         {:else}
           <div class="rounded-xl border border-purple-500/15 bg-purple-950/20 p-5 text-center">
@@ -1130,15 +1376,51 @@
         </div>
 
         <span class="text-xs font-semibold text-slate-400">
-          Showing {filteredMatches.length} Matches
+          Showing {$viewedMatchesLoading && !$viewedMatches.length ? '…' : filteredMatches.length} Matches
         </span>
       </div>
 
       <!-- MATCHES FEED LIST -->
       {#if $viewedMatchesLoading && !$viewedMatches.length}
-        <div class="glass flex h-64 flex-col items-center justify-center rounded-2xl p-6">
-          <div class="h-8 w-8 animate-spin rounded-full border-2 border-purple-500 border-t-transparent"></div>
-          <p class="mt-3 text-xs font-semibold text-purple-300/80">Loading recent match history…</p>
+        <div class="flex flex-col gap-3">
+          {#each [1, 2, 3, 4, 5] as _}
+            <div class="glass relative overflow-hidden rounded-2xl border border-purple-500/20 bg-purple-950/20 p-3 sm:p-4 animate-pulse">
+              <div class="flex flex-wrap items-center justify-between gap-3 sm:gap-4 pl-1">
+                <!-- 1. Match Outcome & Queue Info skeleton -->
+                <div class="w-24 sm:w-28 space-y-1.5 shrink-0">
+                  <div class="h-3.5 w-14 rounded bg-purple-800/40"></div>
+                  <div class="h-3 w-20 rounded bg-purple-900/30"></div>
+                  <div class="h-2.5 w-16 rounded bg-purple-900/20"></div>
+                </div>
+
+                <!-- 2. Champion Portrait, Spells & Runes skeleton -->
+                <div class="flex items-center gap-2.5">
+                  <div class="h-11 w-11 rounded-lg bg-purple-900/40 shrink-0"></div>
+                  <div class="flex flex-col gap-1">
+                    <div class="h-5 w-5 rounded bg-purple-900/30"></div>
+                    <div class="h-5 w-5 rounded bg-purple-900/30"></div>
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <div class="h-5 w-5 rounded-full bg-purple-900/30"></div>
+                    <div class="h-5 w-5 rounded-full bg-purple-900/30"></div>
+                  </div>
+                </div>
+
+                <!-- 3. KDA skeleton -->
+                <div class="space-y-1.5 hidden sm:block w-24">
+                  <div class="h-3.5 w-16 rounded bg-purple-800/40"></div>
+                  <div class="h-2.5 w-20 rounded bg-purple-900/30"></div>
+                </div>
+
+                <!-- 4. Items skeleton -->
+                <div class="flex items-center gap-1">
+                  {#each [1, 2, 3, 4, 5, 6, 7] as _}
+                    <div class="h-6 w-6 sm:h-7 sm:w-7 rounded bg-purple-900/30"></div>
+                  {/each}
+                </div>
+              </div>
+            </div>
+          {/each}
         </div>
       {:else if filteredMatches.length > 0}
         <div class="flex flex-col gap-3">
@@ -1178,9 +1460,15 @@
                   >
                     {isRemake ? "Remake" : isWin ? "Victory" : "Defeat"}
                   </span>
-                  <span class="text-xs font-bold text-white block mt-0.5 truncate" title={match.queue_label}>
-                    {match.queue_label}
-                  </span>
+                  {#if isArenaMatch(match) && match.placement}
+                    <span class="block mt-0.5 text-[11px] uppercase tracking-wider {getArenaPlacementColor(match.placement, isWin)}">
+                      {formatArenaPlacement(match.placement)}
+                    </span>
+                  {:else}
+                    <span class="text-xs font-bold text-white block mt-0.5 truncate" title={match.queue_label}>
+                      {match.queue_label}
+                    </span>
+                  {/if}
                   <span class="text-[11px] text-slate-400 block mt-0.5">
                     {formatTimeAgo(match.game_creation)}
                   </span>
@@ -1341,263 +1629,553 @@
                     <span class="text-xs font-semibold text-purple-300">Loading full match scoreboard…</span>
                   </div>
                 {:else if match.participants && match.participants.length > 1}
-                  {@const blueParticipants = match.participants.filter((p) => p.team_id === 100 || p.team_id === 1)}
-                  {@const redParticipants = match.participants.filter((p) => p.team_id === 200 || p.team_id === 2)}
-                  {@const blueRaw = blueParticipants.length > 0 || redParticipants.length > 0 ? blueParticipants : match.participants.slice(0, Math.ceil(match.participants.length / 2))}
-                  {@const redRaw = blueParticipants.length > 0 || redParticipants.length > 0 ? redParticipants : match.participants.slice(Math.ceil(match.participants.length / 2))}
-                  {@const blueTeam = sortTeamByRole(blueRaw)}
-                  {@const redTeam = sortTeamByRole(redRaw)}
-                  <div class="border-t border-purple-500/20 bg-void-950/40 p-4 transition-all">
-                  <div class="grid grid-cols-1 min-[1180px]:grid-cols-2 gap-4">
-                    <!-- Blue Team (100) -->
-                    <div class="flex flex-col gap-1.5">
-                      <div class="flex items-center justify-between px-2 pb-1 border-b border-cyan-500/20 text-[11px] font-black uppercase text-cyan-300">
-                        <span class="flex items-center gap-1.5">
-                          <span>Blue Team</span>
-                          {#if blueTeam.length > 0 && blueTeam[0].win !== undefined}
-                            <span class="text-[9px] px-1.5 py-0.2 rounded font-bold {blueTeam[0].win ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-800 text-slate-400'}">
-                              {blueTeam[0].win ? 'Victory' : 'Defeat'}
-                            </span>
-                          {/if}
-                        </span>
-                      </div>
-                      {#each blueTeam as p}
-                        {@const pChamp = getChampInfo(p.champion_id)}
-                        <div
-                          role="button"
-                          tabindex="0"
-                          on:click={() => openPlayerProfile(p)}
-                          on:keydown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              openPlayerProfile(p);
-                            }
-                          }}
-                          class="flex items-center justify-between rounded-lg py-1.5 px-2 transition border {p.is_local
-                            ? 'bg-purple-900/30 border-purple-500/30 hover:bg-purple-900/50 hover:border-purple-400/50'
-                            : 'border-transparent hover:border-purple-500/40 hover:bg-purple-950/40'} cursor-pointer overflow-hidden text-left"
-                          title="Profil von {p.summoner_name} aufrufen"
-                        >
-                          <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
-                            <!-- Champion Avatar with Level Badge -->
-                            <div class="relative shrink-0">
-                              <img
-                                src={squareIconUrl(pChamp.key, $ddragonVersion)}
-                                alt={pChamp.name}
-                                class="h-8.5 w-8.5 rounded-lg border border-purple-500/30 object-cover bg-black shrink-0"
-                              />
-                              <span class="absolute -bottom-1 -right-1 rounded bg-void-950/90 border border-purple-400/40 px-1 text-[8px] font-black text-purple-200 leading-tight">
-                                {p.champion_level}
-                              </span>
-                            </div>
-                            <!-- Summoners & Runes -->
-                            <div class="flex items-center gap-0.5 shrink-0">
-                              {#if p.spells && p.spells.length >= 2}
-                                <div class="flex flex-col gap-0.5">
-                                  <img
-                                    src={summonerSpellIconUrl(p.spells[0], $ddragonVersion)}
-                                    alt="Spell"
-                                    class="h-4 w-4 rounded border border-purple-500/25 object-cover bg-black shrink-0"
-                                  />
-                                  <img
-                                    src={summonerSpellIconUrl(p.spells[1], $ddragonVersion)}
-                                    alt="Spell"
-                                    class="h-4 w-4 rounded border border-purple-500/25 object-cover bg-black shrink-0"
-                                  />
+                  {#if isArenaMatch(match)}
+                    {@const arenaGroups = getArenaTeamGroups(match)}
+                    {@const halfCount = Math.ceil(arenaGroups.length / 2)}
+                    {@const leftTeams = arenaGroups.slice(0, halfCount)}
+                    {@const rightTeams = arenaGroups.slice(halfCount)}
+                    <div class="border-t border-purple-500/20 bg-void-950/40 p-4 transition-all">
+                      <div class="grid grid-cols-1 min-[1180px]:grid-cols-2 gap-4 items-start">
+                        <!-- Left column: First half of teams in individual cards (e.g. 1st to 3rd Place) -->
+                        <div class="flex flex-col gap-3">
+                          {#each leftTeams as team}
+                            <div
+                              class="rounded-xl border transition-all p-3 flex flex-col gap-2 {team.isViewedTeam
+                                ? 'border-amber-400/80 bg-gradient-to-br from-purple-950/40 via-amber-950/20 to-void-950/80 shadow-lg shadow-amber-500/15 ring-2 ring-amber-400/60'
+                                : 'border-purple-500/20 bg-void-950/60 hover:border-purple-500/40'}"
+                            >
+                              <!-- Team Card Header -->
+                              <div class="flex items-center justify-between pb-1.5 border-b border-purple-500/15">
+                                <div class="flex items-center gap-2">
+                                  <span class="text-xs uppercase tracking-wider {getArenaPlacementColor(team.placement, team.isWin)}">
+                                    {formatArenaPlacement(team.placement)}
+                                  </span>
+                                  <span class="text-xs text-slate-600 font-bold">•</span>
+                                  <span class="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                    {getArenaTeamLabel(team.name)}
+                                  </span>
                                 </div>
-                              {/if}
-                              <div class="flex flex-col gap-0.5">
-                                {#if p.primary_rune_id}
-                                  <img
-                                    src={getRuneIconUrl(p.primary_rune_id, runesMap)}
-                                    alt="Keystone"
-                                    class="h-4 w-4 rounded-full border border-purple-500/30 object-contain bg-black/80 shrink-0"
-                                  />
-                                {:else}
-                                  <div class="h-4 w-4 rounded-full border border-purple-500/15 bg-purple-950/40 shrink-0"></div>
-                                {/if}
-                                {#if p.secondary_style_id}
-                                  <img
-                                    src={runeStyleIconUrl(p.secondary_style_id) || getRuneIconUrl(p.secondary_style_id, runesMap)}
-                                    alt="Secondary Style"
-                                    class="h-4 w-4 rounded-full border border-purple-500/30 object-contain bg-black/80 shrink-0"
-                                  />
-                                {:else}
-                                  <div class="h-4 w-4 rounded-full border border-purple-500/15 bg-purple-950/40 shrink-0"></div>
-                                {/if}
+                                <div class="flex items-center gap-2 text-[11px] font-semibold">
+                                  <span class="text-slate-400">
+                                    {team.kills} Kills{team.gold > 0 ? ` • ${Math.round(team.gold / 1000)}k Gold` : ''}
+                                  </span>
+                                </div>
                               </div>
-                            </div>
-                            <div class="min-w-0 flex-1">
-                              <span
-                                class="text-xs font-bold truncate block {p.is_local ? 'text-amber-300 font-extrabold' : 'text-white'}"
-                                title="{p.summoner_name} (Lv. {p.champion_level})"
-                              >
-                                {p.summoner_name}
-                              </span>
-                              <span class="text-[10px] font-medium text-slate-400 block truncate">
-                                Lv. {p.champion_level}
-                              </span>
-                            </div>
-                          </div>
-                          <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
-                            <div class="flex flex-col items-end text-right shrink-0">
-                              <span class="text-xs font-bold text-slate-100 leading-tight">
-                                {p.kills}/{p.deaths}/{p.assists}
-                              </span>
-                              <span class="text-[10px] font-medium text-rose-300/90 leading-tight">
-                                {p.total_damage > 0 ? (p.total_damage / 1000).toFixed(1) + "k" : "–"}
-                              </span>
-                            </div>
-                            <div class="flex items-center gap-0.5 sm:gap-1 shrink-0">
-                              {#each p.items.slice(0, 6) as itId}
-                                {#if itId > 0}
-                                  <img src={itemIconUrl(itId, $ddragonVersion)} alt="Item" class="h-5 w-5 sm:h-5.5 sm:w-5.5 rounded-md border border-purple-500/25 bg-black" />
-                                {:else}
-                                  <div class="h-5 w-5 sm:h-5.5 sm:w-5.5 rounded-md border border-purple-500/15 bg-purple-950/30"></div>
-                                {/if}
-                              {/each}
-                            </div>
-                          </div>
-                        </div>
-                      {/each}
-                    </div>
 
-                    <!-- Red Team (200) -->
-                    <div class="flex flex-col gap-1.5">
-                      <div class="flex items-center justify-between px-2 pb-1 border-b border-rose-500/20 text-[11px] font-black uppercase text-rose-300">
-                        <span class="flex items-center gap-1.5">
-                          <span>Red Team</span>
-                          {#if redTeam.length > 0 && redTeam[0].win !== undefined}
-                            <span class="text-[9px] px-1.5 py-0.2 rounded font-bold {redTeam[0].win ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800 text-slate-400'}">
-                              {redTeam[0].win ? 'Victory' : 'Defeat'}
-                            </span>
-                          {/if}
-                        </span>
-                      </div>
-                      {#each redTeam as p}
-                        {@const pChamp = getChampInfo(p.champion_id)}
-                        <div
-                          role="button"
-                          tabindex="0"
-                          on:click={() => openPlayerProfile(p)}
-                          on:keydown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              openPlayerProfile(p);
-                            }
-                          }}
-                          class="flex items-center justify-between rounded-lg py-1.5 px-2 transition border {p.is_local
-                            ? 'bg-purple-900/30 border-purple-500/30 hover:bg-purple-900/50 hover:border-purple-400/50'
-                            : 'border-transparent hover:border-purple-500/40 hover:bg-purple-950/40'} cursor-pointer overflow-hidden text-left"
-                          title="Profil von {p.summoner_name} aufrufen"
-                        >
-                          <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
-                            <!-- Champion Avatar with Level Badge -->
-                            <div class="relative shrink-0">
-                              <img
-                                src={squareIconUrl(pChamp.key, $ddragonVersion)}
-                                alt={pChamp.name}
-                                class="h-8.5 w-8.5 rounded-lg border border-purple-500/30 object-cover bg-black shrink-0"
-                              />
-                              <span class="absolute -bottom-1 -right-1 rounded bg-void-950/90 border border-purple-400/40 px-1 text-[8px] font-black text-purple-200 leading-tight">
-                                {p.champion_level}
-                              </span>
-                            </div>
-                            <!-- Summoners & Runes -->
-                            <div class="flex items-center gap-0.5 shrink-0">
-                              {#if p.spells && p.spells.length >= 2}
-                                <div class="flex flex-col gap-0.5">
-                                  <img
-                                    src={summonerSpellIconUrl(p.spells[0], $ddragonVersion)}
-                                    alt="Spell"
-                                    class="h-4 w-4 rounded border border-purple-500/25 object-cover bg-black shrink-0"
-                                  />
-                                  <img
-                                    src={summonerSpellIconUrl(p.spells[1], $ddragonVersion)}
-                                    alt="Spell"
-                                    class="h-4 w-4 rounded border border-purple-500/25 object-cover bg-black shrink-0"
-                                  />
-                                </div>
-                              {/if}
-                              <div class="flex flex-col gap-0.5">
-                                {#if p.primary_rune_id}
-                                  <img
-                                    src={getRuneIconUrl(p.primary_rune_id, runesMap)}
-                                    alt="Keystone"
-                                    class="h-4 w-4 rounded-full border border-purple-500/30 object-contain bg-black/80 shrink-0"
-                                  />
-                                {:else}
-                                  <div class="h-4 w-4 rounded-full border border-purple-500/15 bg-purple-950/40 shrink-0"></div>
-                                {/if}
-                                {#if p.secondary_style_id}
-                                  <img
-                                    src={runeStyleIconUrl(p.secondary_style_id) || getRuneIconUrl(p.secondary_style_id, runesMap)}
-                                    alt="Secondary Style"
-                                    class="h-4 w-4 rounded-full border border-purple-500/30 object-contain bg-black/80 shrink-0"
-                                  />
-                                {:else}
-                                  <div class="h-4 w-4 rounded-full border border-purple-500/15 bg-purple-950/40 shrink-0"></div>
-                                {/if}
+                              <!-- Team Participants -->
+                              <div class="flex flex-col gap-1.5">
+                                {#each team.participants as p}
+                                  {@const pChamp = getChampInfo(p.champion_id)}
+                                  <div
+                                    role="button"
+                                    tabindex="0"
+                                    on:click={() => openPlayerProfile(p)}
+                                    on:keydown={(e) => {
+                                      if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        openPlayerProfile(p);
+                                      }
+                                    }}
+                                    class="flex items-center justify-between rounded-lg py-1.5 px-2 transition border {isViewedPlayer(p)
+                                      ? 'bg-purple-900/40 border-purple-400/50 shadow-sm shadow-purple-500/20'
+                                      : 'border-transparent hover:border-purple-500/40 hover:bg-purple-950/40'} cursor-pointer overflow-hidden text-left"
+                                    title="View {p.summoner_name}'s profile"
+                                  >
+                                    <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                                      <!-- Champion Avatar with Level Badge -->
+                                      <div class="relative shrink-0">
+                                        <img
+                                          src={squareIconUrl(pChamp.key, $ddragonVersion)}
+                                          alt={pChamp.name}
+                                          class="h-8.5 w-8.5 rounded-lg border border-purple-500/30 object-cover bg-black shrink-0"
+                                        />
+                                        <span class="absolute -bottom-1 -right-1 rounded bg-void-950/90 border border-purple-400/40 px-1 text-[8px] font-black text-purple-200 leading-tight">
+                                          {p.champion_level}
+                                        </span>
+                                      </div>
+                                      <!-- Summoners & Runes -->
+                                      <div class="flex items-center gap-0.5 shrink-0">
+                                        {#if p.spells && p.spells.length >= 2}
+                                          <div class="flex flex-col gap-0.5">
+                                            <img
+                                              src={summonerSpellIconUrl(p.spells[0], $ddragonVersion)}
+                                              alt="Spell"
+                                              class="h-4 w-4 rounded border border-purple-500/25 object-cover bg-black shrink-0"
+                                            />
+                                            <img
+                                              src={summonerSpellIconUrl(p.spells[1], $ddragonVersion)}
+                                              alt="Spell"
+                                              class="h-4 w-4 rounded border border-purple-500/25 object-cover bg-black shrink-0"
+                                            />
+                                          </div>
+                                        {/if}
+                                        <div class="flex flex-col gap-0.5">
+                                          {#if p.primary_rune_id}
+                                            <img
+                                              src={getRuneIconUrl(p.primary_rune_id, runesMap)}
+                                              alt="Keystone"
+                                              class="h-4 w-4 rounded-full border border-purple-500/30 object-contain bg-black/80 shrink-0"
+                                            />
+                                          {:else}
+                                            <div class="h-4 w-4 rounded-full border border-purple-500/15 bg-purple-950/40 shrink-0"></div>
+                                          {/if}
+                                          {#if p.secondary_style_id}
+                                            <img
+                                              src={runeStyleIconUrl(p.secondary_style_id) || getRuneIconUrl(p.secondary_style_id, runesMap)}
+                                              alt="Secondary Style"
+                                              class="h-4 w-4 rounded-full border border-purple-500/30 object-contain bg-black/80 shrink-0"
+                                            />
+                                          {:else}
+                                            <div class="h-4 w-4 rounded-full border border-purple-500/15 bg-purple-950/40 shrink-0"></div>
+                                          {/if}
+                                        </div>
+                                      </div>
+                                      <div class="min-w-0 flex-1">
+                                        <span
+                                          class="text-xs font-bold truncate block {isViewedPlayer(p) ? 'text-amber-300 font-extrabold' : 'text-white'}"
+                                          title="{p.summoner_name} (Lv. {p.champion_level})"
+                                        >
+                                          {p.summoner_name}
+                                        </span>
+                                        <span class="text-[10px] font-medium text-slate-400 block truncate">
+                                          Lv. {p.champion_level}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
+                                      <div class="flex flex-col items-end text-right shrink-0">
+                                        <span class="text-xs font-bold text-slate-100 leading-tight">
+                                          {p.kills}/{p.deaths}/{p.assists}
+                                        </span>
+                                        <span class="text-[10px] font-medium text-rose-300/90 leading-tight">
+                                          {p.total_damage > 0 ? (p.total_damage / 1000).toFixed(1) + "k" : "–"}
+                                        </span>
+                                      </div>
+                                      <div class="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                                        {#each p.items.slice(0, 6) as itId}
+                                          {#if itId > 0}
+                                            <img src={itemIconUrl(itId, $ddragonVersion)} alt="Item" class="h-5 w-5 sm:h-5.5 sm:w-5.5 rounded-md border border-purple-500/25 bg-black" />
+                                          {:else}
+                                            <div class="h-5 w-5 sm:h-5.5 sm:w-5.5 rounded-md border border-purple-500/15 bg-purple-950/30"></div>
+                                          {/if}
+                                        {/each}
+                                      </div>
+                                    </div>
+                                  </div>
+                                {/each}
                               </div>
                             </div>
-                            <div class="min-w-0 flex-1">
-                              <span
-                                class="text-xs font-bold truncate block {p.is_local ? 'text-amber-300 font-extrabold' : 'text-white'}"
-                                title="{p.summoner_name} (Lv. {p.champion_level})"
-                              >
-                                {p.summoner_name}
-                              </span>
-                              <span class="text-[10px] font-medium text-slate-400 block truncate">
-                                Lv. {p.champion_level}
-                              </span>
-                            </div>
-                          </div>
-                          <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
-                            <div class="flex flex-col items-end text-right shrink-0">
-                              <span class="text-xs font-bold text-slate-100 leading-tight">
-                                {p.kills}/{p.deaths}/{p.assists}
-                              </span>
-                              <span class="text-[10px] font-medium text-rose-300/90 leading-tight">
-                                {p.total_damage > 0 ? (p.total_damage / 1000).toFixed(1) + "k" : "–"}
-                              </span>
-                            </div>
-                            <div class="flex items-center gap-0.5 sm:gap-1 shrink-0">
-                              {#each p.items.slice(0, 6) as itId}
-                                {#if itId > 0}
-                                  <img src={itemIconUrl(itId, $ddragonVersion)} alt="Item" class="h-5 w-5 sm:h-5.5 sm:w-5.5 rounded-md border border-purple-500/25 bg-black" />
-                                {:else}
-                                  <div class="h-5 w-5 sm:h-5.5 sm:w-5.5 rounded-md border border-purple-500/15 bg-purple-950/30"></div>
-                                {/if}
-                              {/each}
-                            </div>
-                          </div>
+                          {/each}
                         </div>
-                      {/each}
+
+                        <!-- Right column: Second half of teams in individual cards (e.g. 4th to 6th Place) -->
+                        <div class="flex flex-col gap-3">
+                          {#each rightTeams as team}
+                            <div
+                              class="rounded-xl border transition-all p-3 flex flex-col gap-2 {team.isViewedTeam
+                                ? 'border-amber-400/80 bg-gradient-to-br from-purple-950/40 via-amber-950/20 to-void-950/80 shadow-lg shadow-amber-500/15 ring-2 ring-amber-400/60'
+                                : 'border-purple-500/20 bg-void-950/60 hover:border-purple-500/40'}"
+                            >
+                              <!-- Team Card Header -->
+                              <div class="flex items-center justify-between pb-1.5 border-b border-purple-500/15">
+                                <div class="flex items-center gap-2">
+                                  <span class="text-xs uppercase tracking-wider {getArenaPlacementColor(team.placement, team.isWin)}">
+                                    {formatArenaPlacement(team.placement)}
+                                  </span>
+                                  <span class="text-xs text-slate-600 font-bold">•</span>
+                                  <span class="text-xs font-bold uppercase tracking-wider text-slate-300">
+                                    {getArenaTeamLabel(team.name)}
+                                  </span>
+                                </div>
+                                <div class="flex items-center gap-2 text-[11px] font-semibold">
+                                  <span class="text-slate-400">
+                                    {team.kills} Kills{team.gold > 0 ? ` • ${Math.round(team.gold / 1000)}k Gold` : ''}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <!-- Team Participants -->
+                              <div class="flex flex-col gap-1.5">
+                                {#each team.participants as p}
+                                  {@const pChamp = getChampInfo(p.champion_id)}
+                                  <div
+                                    role="button"
+                                    tabindex="0"
+                                    on:click={() => openPlayerProfile(p)}
+                                    on:keydown={(e) => {
+                                      if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        openPlayerProfile(p);
+                                      }
+                                    }}
+                                    class="flex items-center justify-between rounded-lg py-1.5 px-2 transition border {isViewedPlayer(p)
+                                      ? 'bg-purple-900/40 border-purple-400/50 shadow-sm shadow-purple-500/20'
+                                      : 'border-transparent hover:border-purple-500/40 hover:bg-purple-950/40'} cursor-pointer overflow-hidden text-left"
+                                    title="View {p.summoner_name}'s profile"
+                                  >
+                                    <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                                      <!-- Champion Avatar with Level Badge -->
+                                      <div class="relative shrink-0">
+                                        <img
+                                          src={squareIconUrl(pChamp.key, $ddragonVersion)}
+                                          alt={pChamp.name}
+                                          class="h-8.5 w-8.5 rounded-lg border border-purple-500/30 object-cover bg-black shrink-0"
+                                        />
+                                        <span class="absolute -bottom-1 -right-1 rounded bg-void-950/90 border border-purple-400/40 px-1 text-[8px] font-black text-purple-200 leading-tight">
+                                          {p.champion_level}
+                                        </span>
+                                      </div>
+                                      <!-- Summoners & Runes -->
+                                      <div class="flex items-center gap-0.5 shrink-0">
+                                        {#if p.spells && p.spells.length >= 2}
+                                          <div class="flex flex-col gap-0.5">
+                                            <img
+                                              src={summonerSpellIconUrl(p.spells[0], $ddragonVersion)}
+                                              alt="Spell"
+                                              class="h-4 w-4 rounded border border-purple-500/25 object-cover bg-black shrink-0"
+                                            />
+                                            <img
+                                              src={summonerSpellIconUrl(p.spells[1], $ddragonVersion)}
+                                              alt="Spell"
+                                              class="h-4 w-4 rounded border border-purple-500/25 object-cover bg-black shrink-0"
+                                            />
+                                          </div>
+                                        {/if}
+                                        <div class="flex flex-col gap-0.5">
+                                          {#if p.primary_rune_id}
+                                            <img
+                                              src={getRuneIconUrl(p.primary_rune_id, runesMap)}
+                                              alt="Keystone"
+                                              class="h-4 w-4 rounded-full border border-purple-500/30 object-contain bg-black/80 shrink-0"
+                                            />
+                                          {:else}
+                                            <div class="h-4 w-4 rounded-full border border-purple-500/15 bg-purple-950/40 shrink-0"></div>
+                                          {/if}
+                                          {#if p.secondary_style_id}
+                                            <img
+                                              src={runeStyleIconUrl(p.secondary_style_id) || getRuneIconUrl(p.secondary_style_id, runesMap)}
+                                              alt="Secondary Style"
+                                              class="h-4 w-4 rounded-full border border-purple-500/30 object-contain bg-black/80 shrink-0"
+                                            />
+                                          {:else}
+                                            <div class="h-4 w-4 rounded-full border border-purple-500/15 bg-purple-950/40 shrink-0"></div>
+                                          {/if}
+                                        </div>
+                                      </div>
+                                      <div class="min-w-0 flex-1">
+                                        <span
+                                          class="text-xs font-bold truncate block {isViewedPlayer(p) ? 'text-amber-300 font-extrabold' : 'text-white'}"
+                                          title="{p.summoner_name} (Lv. {p.champion_level})"
+                                        >
+                                          {p.summoner_name}
+                                        </span>
+                                        <span class="text-[10px] font-medium text-slate-400 block truncate">
+                                          Lv. {p.champion_level}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
+                                      <div class="flex flex-col items-end text-right shrink-0">
+                                        <span class="text-xs font-bold text-slate-100 leading-tight">
+                                          {p.kills}/{p.deaths}/{p.assists}
+                                        </span>
+                                        <span class="text-[10px] font-medium text-rose-300/90 leading-tight">
+                                          {p.total_damage > 0 ? (p.total_damage / 1000).toFixed(1) + "k" : "–"}
+                                        </span>
+                                      </div>
+                                      <div class="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                                        {#each p.items.slice(0, 6) as itId}
+                                          {#if itId > 0}
+                                            <img src={itemIconUrl(itId, $ddragonVersion)} alt="Item" class="h-5 w-5 sm:h-5.5 sm:w-5.5 rounded-md border border-purple-500/25 bg-black" />
+                                          {:else}
+                                            <div class="h-5 w-5 sm:h-5.5 sm:w-5.5 rounded-md border border-purple-500/15 bg-purple-950/30"></div>
+                                          {/if}
+                                        {/each}
+                                      </div>
+                                    </div>
+                                  </div>
+                                {/each}
+                              </div>
+                            </div>
+                          {/each}
+                        </div>
+                      </div>
+                    </div>
+                  {:else}
+                    {@const blueParticipants = match.participants.filter((p) => p.team_id === 100 || p.team_id === 1)}
+                    {@const redParticipants = match.participants.filter((p) => p.team_id === 200 || p.team_id === 2)}
+                    {@const blueRaw = blueParticipants.length > 0 || redParticipants.length > 0 ? blueParticipants : match.participants.slice(0, Math.ceil(match.participants.length / 2))}
+                    {@const redRaw = blueParticipants.length > 0 || redParticipants.length > 0 ? redParticipants : match.participants.slice(Math.ceil(match.participants.length / 2))}
+                    {@const blueTeam = sortTeamByRole(blueRaw)}
+                    {@const redTeam = sortTeamByRole(redRaw)}
+                    <div class="border-t border-purple-500/20 bg-void-950/40 p-4 transition-all">
+                    <div class="grid grid-cols-1 min-[1180px]:grid-cols-2 gap-4">
+                      <!-- Blue Team (100) -->
+                      <div class="flex flex-col gap-1.5">
+                        <div class="flex items-center justify-between px-2 pb-1 border-b border-cyan-500/20 text-[11px] font-black uppercase text-cyan-300">
+                          <span class="flex items-center gap-1.5">
+                            <span>Blue Team</span>
+                            {#if blueTeam.length > 0 && blueTeam[0].win !== undefined}
+                              <span class="text-[9px] px-1.5 py-0.2 rounded font-bold {blueTeam[0].win ? 'bg-cyan-500/20 text-cyan-300' : 'bg-slate-800 text-slate-400'}">
+                                {blueTeam[0].win ? 'Victory' : 'Defeat'}
+                              </span>
+                            {/if}
+                          </span>
+                        </div>
+                        {#each blueTeam as p}
+                          {@const pChamp = getChampInfo(p.champion_id)}
+                          <div
+                            role="button"
+                            tabindex="0"
+                            on:click={() => openPlayerProfile(p)}
+                            on:keydown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                openPlayerProfile(p);
+                              }
+                            }}
+                            class="flex items-center justify-between rounded-lg py-1.5 px-2 transition border {isViewedPlayer(p)
+                              ? 'bg-purple-900/30 border-purple-500/30 hover:bg-purple-900/50 hover:border-purple-400/50'
+                              : 'border-transparent hover:border-purple-500/40 hover:bg-purple-950/40'} cursor-pointer overflow-hidden text-left"
+                            title="View {p.summoner_name}'s profile"
+                          >
+                            <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                              <!-- Champion Avatar with Level Badge -->
+                              <div class="relative shrink-0">
+                                <img
+                                  src={squareIconUrl(pChamp.key, $ddragonVersion)}
+                                  alt={pChamp.name}
+                                  class="h-8.5 w-8.5 rounded-lg border border-purple-500/30 object-cover bg-black shrink-0"
+                                />
+                                <span class="absolute -bottom-1 -right-1 rounded bg-void-950/90 border border-purple-400/40 px-1 text-[8px] font-black text-purple-200 leading-tight">
+                                  {p.champion_level}
+                                </span>
+                              </div>
+                              <!-- Summoners & Runes -->
+                              <div class="flex items-center gap-0.5 shrink-0">
+                                {#if p.spells && p.spells.length >= 2}
+                                  <div class="flex flex-col gap-0.5">
+                                    <img
+                                      src={summonerSpellIconUrl(p.spells[0], $ddragonVersion)}
+                                      alt="Spell"
+                                      class="h-4 w-4 rounded border border-purple-500/25 object-cover bg-black shrink-0"
+                                    />
+                                    <img
+                                      src={summonerSpellIconUrl(p.spells[1], $ddragonVersion)}
+                                      alt="Spell"
+                                      class="h-4 w-4 rounded border border-purple-500/25 object-cover bg-black shrink-0"
+                                    />
+                                  </div>
+                                {/if}
+                                <div class="flex flex-col gap-0.5">
+                                  {#if p.primary_rune_id}
+                                    <img
+                                      src={getRuneIconUrl(p.primary_rune_id, runesMap)}
+                                      alt="Keystone"
+                                      class="h-4 w-4 rounded-full border border-purple-500/30 object-contain bg-black/80 shrink-0"
+                                    />
+                                  {:else}
+                                    <div class="h-4 w-4 rounded-full border border-purple-500/15 bg-purple-950/40 shrink-0"></div>
+                                  {/if}
+                                  {#if p.secondary_style_id}
+                                    <img
+                                      src={runeStyleIconUrl(p.secondary_style_id) || getRuneIconUrl(p.secondary_style_id, runesMap)}
+                                      alt="Secondary Style"
+                                      class="h-4 w-4 rounded-full border border-purple-500/30 object-contain bg-black/80 shrink-0"
+                                    />
+                                  {:else}
+                                    <div class="h-4 w-4 rounded-full border border-purple-500/15 bg-purple-950/40 shrink-0"></div>
+                                  {/if}
+                                </div>
+                              </div>
+                              <div class="min-w-0 flex-1">
+                                <span
+                                  class="text-xs font-bold truncate block {isViewedPlayer(p) ? 'text-amber-300 font-extrabold' : 'text-white'}"
+                                  title="{p.summoner_name} (Lv. {p.champion_level})"
+                                >
+                                  {p.summoner_name}
+                                </span>
+                                <span class="text-[10px] font-medium text-slate-400 block truncate">
+                                  Lv. {p.champion_level}
+                                </span>
+                              </div>
+                            </div>
+                            <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
+                              <div class="flex flex-col items-end text-right shrink-0">
+                                <span class="text-xs font-bold text-slate-100 leading-tight">
+                                  {p.kills}/{p.deaths}/{p.assists}
+                                </span>
+                                <span class="text-[10px] font-medium text-rose-300/90 leading-tight">
+                                  {p.total_damage > 0 ? (p.total_damage / 1000).toFixed(1) + "k" : "–"}
+                                </span>
+                              </div>
+                              <div class="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                                {#each p.items.slice(0, 6) as itId}
+                                  {#if itId > 0}
+                                    <img src={itemIconUrl(itId, $ddragonVersion)} alt="Item" class="h-5 w-5 sm:h-5.5 sm:w-5.5 rounded-md border border-purple-500/25 bg-black" />
+                                  {:else}
+                                    <div class="h-5 w-5 sm:h-5.5 sm:w-5.5 rounded-md border border-purple-500/15 bg-purple-950/30"></div>
+                                  {/if}
+                                {/each}
+                              </div>
+                            </div>
+                          </div>
+                        {/each}
+                      </div>
+
+                      <!-- Red Team (200) -->
+                      <div class="flex flex-col gap-1.5">
+                        <div class="flex items-center justify-between px-2 pb-1 border-b border-rose-500/20 text-[11px] font-black uppercase text-rose-300">
+                          <span class="flex items-center gap-1.5">
+                            <span>Red Team</span>
+                            {#if redTeam.length > 0 && redTeam[0].win !== undefined}
+                              <span class="text-[9px] px-1.5 py-0.2 rounded font-bold {redTeam[0].win ? 'bg-rose-500/20 text-rose-300' : 'bg-slate-800 text-slate-400'}">
+                                {redTeam[0].win ? 'Victory' : 'Defeat'}
+                              </span>
+                            {/if}
+                          </span>
+                        </div>
+                        {#each redTeam as p}
+                          {@const pChamp = getChampInfo(p.champion_id)}
+                          <div
+                            role="button"
+                            tabindex="0"
+                            on:click={() => openPlayerProfile(p)}
+                            on:keydown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                openPlayerProfile(p);
+                              }
+                            }}
+                            class="flex items-center justify-between rounded-lg py-1.5 px-2 transition border {isViewedPlayer(p)
+                              ? 'bg-purple-900/30 border-purple-500/30 hover:bg-purple-900/50 hover:border-purple-400/50'
+                              : 'border-transparent hover:border-purple-500/40 hover:bg-purple-950/40'} cursor-pointer overflow-hidden text-left"
+                            title="View {p.summoner_name}'s profile"
+                          >
+                            <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
+                              <!-- Champion Avatar with Level Badge -->
+                              <div class="relative shrink-0">
+                                <img
+                                  src={squareIconUrl(pChamp.key, $ddragonVersion)}
+                                  alt={pChamp.name}
+                                  class="h-8.5 w-8.5 rounded-lg border border-purple-500/30 object-cover bg-black shrink-0"
+                                />
+                                <span class="absolute -bottom-1 -right-1 rounded bg-void-950/90 border border-purple-400/40 px-1 text-[8px] font-black text-purple-200 leading-tight">
+                                  {p.champion_level}
+                                </span>
+                              </div>
+                              <!-- Summoners & Runes -->
+                              <div class="flex items-center gap-0.5 shrink-0">
+                                {#if p.spells && p.spells.length >= 2}
+                                  <div class="flex flex-col gap-0.5">
+                                    <img
+                                      src={summonerSpellIconUrl(p.spells[0], $ddragonVersion)}
+                                      alt="Spell"
+                                      class="h-4 w-4 rounded border border-purple-500/25 object-cover bg-black shrink-0"
+                                    />
+                                    <img
+                                      src={summonerSpellIconUrl(p.spells[1], $ddragonVersion)}
+                                      alt="Spell"
+                                      class="h-4 w-4 rounded border border-purple-500/25 object-cover bg-black shrink-0"
+                                    />
+                                  </div>
+                                {/if}
+                                <div class="flex flex-col gap-0.5">
+                                  {#if p.primary_rune_id}
+                                    <img
+                                      src={getRuneIconUrl(p.primary_rune_id, runesMap)}
+                                      alt="Keystone"
+                                      class="h-4 w-4 rounded-full border border-purple-500/30 object-contain bg-black/80 shrink-0"
+                                    />
+                                  {:else}
+                                    <div class="h-4 w-4 rounded-full border border-purple-500/15 bg-purple-950/40 shrink-0"></div>
+                                  {/if}
+                                  {#if p.secondary_style_id}
+                                    <img
+                                      src={runeStyleIconUrl(p.secondary_style_id) || getRuneIconUrl(p.secondary_style_id, runesMap)}
+                                      alt="Secondary Style"
+                                      class="h-4 w-4 rounded-full border border-purple-500/30 object-contain bg-black/80 shrink-0"
+                                    />
+                                  {:else}
+                                    <div class="h-4 w-4 rounded-full border border-purple-500/15 bg-purple-950/40 shrink-0"></div>
+                                  {/if}
+                                </div>
+                              </div>
+                              <div class="min-w-0 flex-1">
+                                <span
+                                  class="text-xs font-bold truncate block {isViewedPlayer(p) ? 'text-amber-300 font-extrabold' : 'text-white'}"
+                                  title="{p.summoner_name} (Lv. {p.champion_level})"
+                                >
+                                  {p.summoner_name}
+                                </span>
+                                <span class="text-[10px] font-medium text-slate-400 block truncate">
+                                  Lv. {p.champion_level}
+                                </span>
+                              </div>
+                            </div>
+                            <div class="flex items-center gap-2 sm:gap-2.5 shrink-0">
+                              <div class="flex flex-col items-end text-right shrink-0">
+                                <span class="text-xs font-bold text-slate-100 leading-tight">
+                                  {p.kills}/{p.deaths}/{p.assists}
+                                </span>
+                                <span class="text-[10px] font-medium text-rose-300/90 leading-tight">
+                                  {p.total_damage > 0 ? (p.total_damage / 1000).toFixed(1) + "k" : "–"}
+                                </span>
+                              </div>
+                              <div class="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                                {#each p.items.slice(0, 6) as itId}
+                                  {#if itId > 0}
+                                    <img src={itemIconUrl(itId, $ddragonVersion)} alt="Item" class="h-5 w-5 sm:h-5.5 sm:w-5.5 rounded-md border border-purple-500/25 bg-black" />
+                                  {:else}
+                                    <div class="h-5 w-5 sm:h-5.5 sm:w-5.5 rounded-md border border-purple-500/15 bg-purple-950/30"></div>
+                                  {/if}
+                                {/each}
+                              </div>
+                            </div>
+                          </div>
+                        {/each}
+                      </div>
                     </div>
                   </div>
-                </div>
-                {:else}
+                  {/if}
+                {:else if failedMatchDetailIds.has(match.id)}
                   <div class="flex h-16 items-center justify-center gap-3 border-t border-purple-500/20 bg-void-950/40 p-4 text-xs text-slate-400">
                     <span>Detailed scoreboard unavailable for this match.</span>
                     <button
                       type="button"
-                      on:click|stopPropagation={() => {
+                      on:click|stopPropagation={async () => {
+                        failedMatchDetailIds.delete(match.id);
+                        failedMatchDetailIds = new Set(failedMatchDetailIds);
                         loadingMatchDetailIds.add(match.id);
                         loadingMatchDetailIds = new Set(loadingMatchDetailIds);
-                        loadMatchDetail(
-                          match.id,
-                          selectedRegion,
-                          match.raw_created_at || match.game_creation,
-                          $viewedProfile?.display_name
-                        ).finally(() => {
+                        try {
+                          const res = await loadMatchDetail(
+                            match.id,
+                            selectedRegion,
+                            match.raw_created_at || match.game_creation,
+                            $viewedProfile?.display_name || targetGameName
+                          );
+                          if (!res || res.length < 2) {
+                            failedMatchDetailIds.add(match.id);
+                            failedMatchDetailIds = new Set(failedMatchDetailIds);
+                          }
+                        } catch {
+                          failedMatchDetailIds.add(match.id);
+                          failedMatchDetailIds = new Set(failedMatchDetailIds);
+                        } finally {
                           loadingMatchDetailIds.delete(match.id);
                           loadingMatchDetailIds = new Set(loadingMatchDetailIds);
-                        });
+                        }
                       }}
                       class="rounded border border-purple-500/30 bg-purple-950/40 px-2.5 py-1 text-[11px] font-semibold text-purple-200 transition hover:bg-purple-900/40 hover:text-white"
                     >
                       ↻ Retry
                     </button>
+                  </div>
+                {:else}
+                  <div class="flex h-20 items-center justify-center gap-2 border-t border-purple-500/20 bg-void-950/40 p-4">
+                    <div class="h-4 w-4 animate-spin rounded-full border-2 border-purple-400 border-t-transparent"></div>
+                    <span class="text-xs font-semibold text-purple-300">Loading full match scoreboard…</span>
                   </div>
                 {/if}
               {/if}

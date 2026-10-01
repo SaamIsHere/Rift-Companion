@@ -14,7 +14,7 @@
   $: localRole = $draft?.local_role || null;
   $: localChampName = localChampId ? $championCatalog.get(localChampId)?.name : null;
 
-  $: isInGame = ["GameStart", "InProgress", "Reconnect"].includes($gameflowPhase);
+  $: isInGame = ["GameStart", "InProgress", "Reconnect"].includes($gameflowPhase) && !!$draft && $draft.allies.length > 0;
 
   // Auto-transition to in-game live dashboard when match starts or if already in game
   $: if (isInGame && !userExplicitMode && viewMode === "draft") {

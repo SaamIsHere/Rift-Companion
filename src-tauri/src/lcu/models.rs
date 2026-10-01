@@ -75,12 +75,34 @@ pub struct GameflowSession {
     pub phase: String,
     #[serde(default, rename = "gameData")]
     pub game_data: Option<GameflowGameData>,
+    #[serde(default)]
+    pub map: Option<GameflowMap>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct GameflowMap {
+    #[serde(default, rename = "gameMode")]
+    pub game_mode: String,
+    #[serde(default)]
+    pub id: i64,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct GameflowQueue {
+    #[serde(default)]
+    pub id: i64,
+    #[serde(default, rename = "gameMode")]
+    pub game_mode: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
 pub struct GameflowGameData {
     #[serde(default, rename = "gameId")]
     pub game_id: u64,
+    #[serde(default, rename = "gameMode")]
+    pub game_mode: String,
+    #[serde(default, rename = "queue")]
+    pub queue: Option<GameflowQueue>,
     #[serde(default, rename = "teamOne")]
     pub team_one: Vec<GameflowPlayer>,
     #[serde(default, rename = "teamTwo")]
@@ -176,5 +198,16 @@ pub struct LiveClientActivePlayer {
     pub riot_id_game_name: String,
     #[serde(default)]
     pub riot_id_tag_line: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct LiveClientGameStats {
+    #[serde(default)]
+    pub game_mode: String,
+    #[serde(default)]
+    pub map_name: String,
+    #[serde(default)]
+    pub map_number: i64,
 }
 

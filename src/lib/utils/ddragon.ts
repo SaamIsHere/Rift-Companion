@@ -409,6 +409,7 @@ export function queueNameFromId(queue?: number | string | null): string {
     case 490:
       return "Quickplay";
     case 1700:
+    case 1710:
       return "Arena";
     case 700:
       return "Clash";

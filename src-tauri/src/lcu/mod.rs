@@ -145,21 +145,37 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                     Ok(Some(p)) => p,
                     _ => "None".to_string(),
                 };
-                *shared.gameflow_phase.lock().unwrap() = initial_phase.clone();
-                let _ = app.emit("gameflow://phase", &initial_phase);
 
-                if initial_phase == "ChampSelect" {
-                    if let Ok(Some(value)) = client::get_session(&lock).await {
-                        handle_session(&app, &shared, value);
-                    }
-                } else if is_in_match(&initial_phase) {
-                    let got_live = check_liveclient_data(&app, &shared).await;
-                    if !got_live {
-                        if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
-                            handle_gameflow_session(&app, &shared, Some(&lock), gf_val).await;
+                let mut is_tft_init = false;
+                if is_in_match(&initial_phase) {
+                    if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
+                        if let Ok(s) = serde_json::from_value::<models::GameflowSession>(gf_val.clone()) {
+                            is_tft_init = is_tft_session(&s);
                         }
                     }
-                    spawn_live_client_poller(&app, &shared);
+                }
+
+                if is_tft_init {
+                    tracing::info!(initial_phase, "initial active match is TFT; filtering out from Live Match");
+                    *shared.gameflow_phase.lock().unwrap() = "None".to_string();
+                    let _ = app.emit("gameflow://phase", "None");
+                } else {
+                    *shared.gameflow_phase.lock().unwrap() = initial_phase.clone();
+                    let _ = app.emit("gameflow://phase", &initial_phase);
+
+                    if initial_phase == "ChampSelect" {
+                        if let Ok(Some(value)) = client::get_session(&lock).await {
+                            handle_session(&app, &shared, value);
+                        }
+                    } else if is_in_match(&initial_phase) {
+                        let got_live = check_liveclient_data(&app, &shared).await;
+                        if !got_live {
+                            if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
+                                handle_gameflow_session(&app, &shared, Some(&lock), gf_val).await;
+                            }
+                        }
+                        spawn_live_client_poller(&app, &shared);
+                    }
                 }
 
                 while let Some(msg) = ws.next().await {
@@ -169,25 +185,46 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                                 if ev.uri.contains("gameflow-phase") {
                                     if let Some(phase) = ev.data.as_str() {
                                         tracing::info!(phase, "gameflow phase update");
-                                        *shared.gameflow_phase.lock().unwrap() = phase.to_string();
-                                        let _ = app.emit("gameflow://phase", phase);
 
                                         if phase == "ChampSelect" {
+                                            *shared.gameflow_phase.lock().unwrap() = phase.to_string();
+                                            let _ = app.emit("gameflow://phase", phase);
                                             tracing::info!(phase, "entered champ select");
                                             // Reset post-game screen and active game ID when a new champ select starts
                                             *shared.latest_post_game.lock().unwrap() = None;
                                             *shared.active_game_id.lock().unwrap() = None;
                                             let _ = app.emit("post-game://update", serde_json::Value::Null);
                                         } else if phase == "GameStart" || phase == "InProgress" || phase == "Reconnect" {
-                                            tracing::info!(phase, "match active / in-progress; preserving match state");
-                                            let got_live = check_liveclient_data(&app, &shared).await;
-                                            if !got_live {
-                                                if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
-                                                    handle_gameflow_session(&app, &shared, Some(&lock), gf_val).await;
+                                            let is_tft = if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
+                                                if let Ok(s) = serde_json::from_value::<models::GameflowSession>(gf_val) {
+                                                    is_tft_session(&s)
+                                                } else {
+                                                    false
                                                 }
+                                            } else {
+                                                false
+                                            };
+
+                                            if is_tft {
+                                                tracing::info!(phase, "active match is TFT; filtering out from Live Match");
+                                                clear_session(&app, &shared);
+                                                *shared.gameflow_phase.lock().unwrap() = "None".to_string();
+                                                let _ = app.emit("gameflow://phase", "None");
+                                            } else {
+                                                *shared.gameflow_phase.lock().unwrap() = phase.to_string();
+                                                let _ = app.emit("gameflow://phase", phase);
+                                                tracing::info!(phase, "match active / in-progress; preserving match state");
+                                                let got_live = check_liveclient_data(&app, &shared).await;
+                                                if !got_live {
+                                                    if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
+                                                        handle_gameflow_session(&app, &shared, Some(&lock), gf_val).await;
+                                                    }
+                                                }
+                                                spawn_live_client_poller(&app, &shared);
                                             }
-                                            spawn_live_client_poller(&app, &shared);
                                         } else if phase == "WaitingForStats" || phase == "PreEndOfGame" || phase == "EndOfGame" {
+                                            *shared.gameflow_phase.lock().unwrap() = phase.to_string();
+                                            let _ = app.emit("gameflow://phase", phase);
                                             tracing::info!(phase, "entered post-game phase; fetching match results");
                                             clear_session(&app, &shared);
 
@@ -198,6 +235,8 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                                                 fetch_and_emit_post_game(app_clone, shared_clone, lock_clone, None).await;
                                             });
                                         } else if !is_in_match(phase) {
+                                            *shared.gameflow_phase.lock().unwrap() = phase.to_string();
+                                            let _ = app.emit("gameflow://phase", phase);
                                             tracing::info!(phase, "gameflow phase is not an active match; clearing session");
                                             clear_session(&app, &shared);
                                         }
@@ -217,6 +256,15 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                                         fetch_and_emit_post_game(app_clone, shared_clone, lock_clone, hint_id).await;
                                     });
                                 } else if ev.uri.contains("gameflow") && ev.uri.contains("session") {
+                                    if let Ok(s) = serde_json::from_value::<models::GameflowSession>(ev.data.clone()) {
+                                        if is_tft_session(&s) {
+                                            tracing::debug!("ignoring TFT gameflow session update");
+                                            clear_session(&app, &shared);
+                                            *shared.gameflow_phase.lock().unwrap() = "None".to_string();
+                                            let _ = app.emit("gameflow://phase", "None");
+                                            continue;
+                                        }
+                                    }
                                     if let Some(game_id) = ev.data.get("gameData").and_then(|g| g.get("gameId")).and_then(|id| id.as_u64()) {
                                         if game_id > 0 {
                                             *shared.active_game_id.lock().unwrap() = Some(game_id);
@@ -263,6 +311,25 @@ pub fn is_in_match(phase: &str) -> bool {
     matches!(phase, "ChampSelect" | "GameStart" | "InProgress" | "Reconnect")
 }
 
+pub fn is_tft_session(session: &models::GameflowSession) -> bool {
+    if let Some(gd) = &session.game_data {
+        if gd.game_mode.eq_ignore_ascii_case("TFT") || gd.game_mode.to_uppercase().contains("TFT") {
+            return true;
+        }
+        if let Some(q) = &gd.queue {
+            if q.game_mode.eq_ignore_ascii_case("TFT") || (q.id >= 1090 && q.id <= 1199) {
+                return true;
+            }
+        }
+    }
+    if let Some(m) = &session.map {
+        if m.game_mode.eq_ignore_ascii_case("TFT") || m.id == 22 {
+            return true;
+        }
+    }
+    false
+}
+
 struct LcuEvent {
     event_type: String,
     uri: String,
@@ -280,10 +347,26 @@ fn parse_event(txt: &str) -> Option<LcuEvent> {
 }
 
 pub async fn check_liveclient_data(app: &AppHandle, shared: &Shared) -> bool {
+    // 1. Check liveclient gamestats first to filter out TFT
+    if let Ok(Some(stats)) = client::get_liveclient_gamestats().await {
+        if stats.game_mode.eq_ignore_ascii_case("TFT") || stats.game_mode.to_uppercase().contains("TFT") {
+            tracing::info!(game_mode = %stats.game_mode, "ignoring active TFT match in Live Client API");
+            return false;
+        }
+    }
+
     let players = match client::get_liveclient_playerlist().await {
         Ok(Some(p)) if !p.is_empty() => p,
         _ => return false,
     };
+
+    // Extra guard: in TFT, 8 players typically have championName "Kai'Sa" or Little Legend mappings
+    let kaisa_count = players.iter().filter(|p| p.champion_name.eq_ignore_ascii_case("Kai'Sa")).count();
+    if players.len() == 8 && kaisa_count >= 4 {
+        tracing::info!("ignoring 8-player TFT match detected from Live Client API (Kai'Sa / Little Legends)");
+        return false;
+    }
+
     let active = client::get_liveclient_activeplayer().await.ok().flatten();
 
     let repo = shared.repo.lock().unwrap().clone();
@@ -333,6 +416,14 @@ async fn handle_gameflow_session(
             return;
         }
     };
+
+    if is_tft_session(&session) {
+        tracing::info!("ignoring TFT gameflow session");
+        clear_session(app, shared);
+        *shared.gameflow_phase.lock().unwrap() = "None".to_string();
+        let _ = app.emit("gameflow://phase", "None");
+        return;
+    }
 
     let repo = shared.repo.lock().unwrap().clone();
     let local_profile = shared.profile.lock().unwrap().clone();

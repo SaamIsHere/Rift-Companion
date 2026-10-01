@@ -89,10 +89,10 @@ jobs:
             ## Rift Companion Release ${{ steps.get_version.outputs.tag }}
 
             ### Highlights
-            * **Faster Profile, History Loading & Logging:** Significantly accelerated player profile and match history retrieval via parallel fetching, optimized caching, and refined backend logging.
-            * **Post Game Screen:** In-depth match review view featuring full scoreboard stats, team damage/gold breakdowns, neutral objective logs, MVP/SVP calculation, and automated achievement badges.
-            * **2 New Regional Themes:** Added **Demacia** (sterile petricite white with cool slate gray accents) and **Darkin** (volcanic obsidian black with subtle corrupted crimson embers).
-            * **Champions Tab Polish:** Added a clear magnifying glass icon and instant clear button to the Champions search bar.
+            * **Profile Loading Improvements:** Significantly faster profile and match history loading with progressive rendering, instant local memory & central Rift server caching, and automatic refresh cooldown.
+            * **Bug Fixes:** Resolved concurrent search race condition that previously caused wrong profile redirection, eliminated scoreboard retry flicker, and fixed cross-match duplicate player highlighting.
+            * **TFT Filter:** Filtered Teamfight Tactics matches out of Live Match detection to prevent erroneous 8-Kai'Sa placeholder displays.
+            * **Arena in Match History:** Full 2-column scoreboard support for Arena matches featuring dedicated team cards, placement rankings (1st Place, 2nd Place, etc.), team gold/kill totals, and clean highlight framing.
 
             ### Download & Installation
             * **Windows Installer:** Download `Rift-Companion_${{ steps.get_version.outputs.version }}_x64-setup.exe` below and double-click to install.

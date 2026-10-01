@@ -386,7 +386,9 @@ fn run_internal_tests() {
                     },
                 ],
                 player_champion_selections: vec![],
+                ..Default::default()
             }),
+            ..Default::default()
         };
 
         let state = rift_companion_lib::draft::from_gameflow(
@@ -465,7 +467,9 @@ fn run_internal_tests() {
                     GameflowChampionSelection { champion_id: 238, puuid: "puuid-zed".to_string(), spell1_id: 4, spell2_id: 14 },
                     GameflowChampionSelection { champion_id: 902, puuid: "puuid-milio".to_string(), spell1_id: 4, spell2_id: 7 },
                 ],
+                ..Default::default()
             }),
+            ..Default::default()
         };
 
         let gf_state = rift_companion_lib::draft::from_gameflow(

@@ -615,6 +615,7 @@ export function normalizeMatches(raw: any, targetNameOrPuuid?: string): PlayerMa
         secondary_style_id: stats.perkSubStyle,
         participants: detailedParticipants,
         bans: matchBans.length > 0 ? matchBans : undefined,
+        placement: typeof (stats.playerScore0 || stats.placement || stats.rank) === "number" ? (stats.playerScore0 || stats.placement || stats.rank) : undefined,
       });
     }
 
@@ -661,6 +662,32 @@ export function normalizeMatches(raw: any, targetNameOrPuuid?: string): PlayerMa
 
     const primaryRune = part.rune?.primary_rune_id || part.rune?.primary_page_id;
     const secondaryStyle = part.rune?.secondary_page_id;
+    let matchPlacement =
+      stats.placement ||
+      stats.rank ||
+      stats.subteam_placement ||
+      team?.game_stat?.placement ||
+      team?.game_stat?.rank ||
+      team?.placement ||
+      team?.rank;
+
+    if (!matchPlacement && Array.isArray(g.teams) && g.teams.length > 2 && targetTeamKey) {
+      const sortedTeams = [...g.teams].sort((a: any, b: any) => {
+        const aWin = a.game_stat?.is_win === true ? 1 : 0;
+        const bWin = b.game_stat?.is_win === true ? 1 : 0;
+        if (aWin !== bWin) return bWin - aWin;
+        const aGold = a.game_stat?.gold_earned || 0;
+        const bGold = b.game_stat?.gold_earned || 0;
+        if (aGold !== bGold) return bGold - aGold;
+        const aKills = a.game_stat?.champion_kill || 0;
+        const bKills = b.game_stat?.champion_kill || 0;
+        return bKills - aKills;
+      });
+      const myTeamIdx = sortedTeams.findIndex((t: any) => t.key === targetTeamKey || t.team_key === targetTeamKey);
+      if (myTeamIdx !== -1) {
+        matchPlacement = myTeamIdx + 1;
+      }
+    }
 
     matches.push({
       id: String(g.id),
@@ -690,6 +717,7 @@ export function normalizeMatches(raw: any, targetNameOrPuuid?: string): PlayerMa
       secondary_style_id: secondaryStyle,
       op_score: stats.op_score,
       op_score_rank: stats.op_score_rank,
+      placement: typeof matchPlacement === "number" && matchPlacement > 0 ? matchPlacement : undefined,
     });
   }
 
@@ -723,6 +751,10 @@ export function normalizeGameDetail(raw: any, focusNameOrPuuid?: string): Detail
           : p.timeline?.lane) ||
         undefined;
 
+      const subteamId = pStats.subteamId || pStats.subteam_id || (p.teamId !== 100 && p.teamId !== 200 ? p.teamId : undefined);
+      const rawPlacement = pStats.playerScore0 || pStats.placement || pStats.rank;
+      const placement = typeof rawPlacement === "number" && rawPlacement > 0 ? rawPlacement : undefined;
+
       return {
         summoner_name: ident.gameName || ident.summonerName || `Player ${p.participantId}`,
         game_name: ident.gameName,
@@ -730,6 +762,8 @@ export function normalizeGameDetail(raw: any, focusNameOrPuuid?: string): Detail
         champion_id: p.championId,
         champion_name: "",
         team_id: p.teamId,
+        subteam_id: subteamId != null ? String(subteamId) : undefined,
+        placement,
         position: pos,
         is_local: isLocal,
         kills: pStats.kills || 0,
@@ -767,10 +801,55 @@ export function normalizeGameDetail(raw: any, focusNameOrPuuid?: string): Detail
     raw;
   const teams = gameDetail.teams || (Array.isArray(gameDetail.participants) ? [{ participants: gameDetail.participants }] : []);
   const participants: DetailedParticipant[] = [];
+  const isMultiTeam = teams.length > 2;
+
+  // If multi-team (Arena mode: 6 3-player teams or 8 2-player teams):
+  // Calculate accurate team rankings (1..N) based on wins, gold earned, and kills
+  const teamPlacements = new Map<any, number>();
+  if (isMultiTeam) {
+    const hasExplicit = teams.every((t: any) => {
+      const p = t.game_stat?.placement || t.placement || t.rank;
+      return typeof p === "number" && p > 0;
+    });
+
+    if (hasExplicit) {
+      teams.forEach((t: any) => {
+        teamPlacements.set(t, t.game_stat?.placement || t.placement || t.rank);
+      });
+    } else {
+      const sortedTeams = [...teams].sort((a: any, b: any) => {
+        const aWin = a.game_stat?.is_win === true ? 1 : 0;
+        const bWin = b.game_stat?.is_win === true ? 1 : 0;
+        if (aWin !== bWin) return bWin - aWin;
+
+        const aGold = (a.game_stat?.gold_earned || 0) || (a.participants || []).reduce((s: number, p: any) => s + (p.stats?.gold_earned || 0), 0);
+        const bGold = (b.game_stat?.gold_earned || 0) || (b.participants || []).reduce((s: number, p: any) => s + (p.stats?.gold_earned || 0), 0);
+        if (aGold !== bGold) return bGold - aGold;
+
+        const aKills = (a.game_stat?.champion_kill || 0) || (a.participants || []).reduce((s: number, p: any) => s + (p.stats?.kill || 0), 0);
+        const bKills = (b.game_stat?.champion_kill || 0) || (b.participants || []).reduce((s: number, p: any) => s + (p.stats?.kill || 0), 0);
+        if (aKills !== bKills) return bKills - aKills;
+
+        const aDmg = (a.participants || []).reduce((s: number, p: any) => s + (p.stats?.total_damage_dealt_to_champions || 0), 0);
+        const bDmg = (b.participants || []).reduce((s: number, p: any) => s + (p.stats?.total_damage_dealt_to_champions || 0), 0);
+        return bDmg - aDmg;
+      });
+
+      sortedTeams.forEach((t: any, rankIdx: number) => {
+        teamPlacements.set(t, rankIdx + 1);
+      });
+    }
+  }
 
   teams.forEach((t: any, tIdx: number) => {
-    const teamId = tIdx === 0 ? 100 : 200;
+    const teamId = isMultiTeam ? ((tIdx + 1) * 100) : (tIdx === 0 ? 100 : 200);
+    const subteamKey = t.key || t.id || t.team_key || (tIdx + 1);
+    const subteamName = typeof t.key === "string" ? t.key : undefined;
+    const teamWin = t.game_stat?.is_win != null ? Boolean(t.game_stat.is_win) : undefined;
+    const rawPlacement = teamPlacements.get(t) || t.game_stat?.placement || t.placement || t.rank || (isMultiTeam ? tIdx + 1 : undefined);
+    const placement = typeof rawPlacement === "number" && rawPlacement > 0 ? rawPlacement : undefined;
     const parts = t.participants || [];
+
     for (const p of parts) {
       const stats = p.stats || {};
       const sum = p.summoner || {};
@@ -778,14 +857,15 @@ export function normalizeGameDetail(raw: any, focusNameOrPuuid?: string): Detail
       const items = [...rawItems];
       while (items.length < 7) items.push(0);
 
-      const isWin = stats.result === "WIN" || stats.result === "win" || stats.win === true;
-      const isLocal = p.is_target === true ||
-        (focusNameOrPuuid &&
-          (sum.game_name?.toLowerCase() === focusNameOrPuuid.toLowerCase() ||
+      const isWin = teamWin !== undefined ? teamWin : (stats.result === "WIN" || stats.result === "win" || stats.win === true);
+      const isLocal = focusNameOrPuuid
+        ? (sum.game_name?.toLowerCase() === focusNameOrPuuid.toLowerCase() ||
            `${sum.game_name || ""}#${sum.tagline || ""}`.toLowerCase() === focusNameOrPuuid.toLowerCase() ||
-           (focusNameOrPuuid.includes("#") && sum.game_name?.toLowerCase() === focusNameOrPuuid.split("#")[0].trim().toLowerCase())));
+           (focusNameOrPuuid.includes("#") && sum.game_name?.toLowerCase() === focusNameOrPuuid.split("#")[0].trim().toLowerCase()))
+        : p.is_target === true;
 
       const pos = p.position || p.role || p.stats?.position || undefined;
+      const partPlacement = stats.placement || stats.rank || placement;
 
       participants.push({
         summoner_name: sum.game_name || `Player ${p.champion_id}`,
@@ -794,6 +874,9 @@ export function normalizeGameDetail(raw: any, focusNameOrPuuid?: string): Detail
         champion_id: p.champion_id,
         champion_name: p.champion_name || "",
         team_id: teamId,
+        subteam_id: String(subteamKey),
+        subteam_name: subteamName,
+        placement: typeof partPlacement === "number" && partPlacement > 0 ? partPlacement : undefined,
         position: pos,
         is_local: !!isLocal,
         kills: stats.kill || 0,

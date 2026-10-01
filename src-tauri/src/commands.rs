@@ -948,6 +948,29 @@ fn normalize_region_from_tag(tag: &str) -> Option<&'static str> {
     }
 }
 
+/// Verify if OP.GG pro player result is an exact case-insensitive match for the queried name
+fn matches_pro_player(query_name: &str, pro: &serde_json::Value) -> Option<(String, String, String)> {
+    let player = pro.get("data")?.get("player")?;
+    let nickname = player.get("nickname").and_then(|n| n.as_str()).unwrap_or("");
+    let riot_id = player.get("riot_id")?;
+    let p_name = riot_id.get("game_name").and_then(|g| g.as_str()).unwrap_or("");
+    let p_tag = riot_id.get("tagline").and_then(|t| t.as_str()).unwrap_or("");
+    let p_reg = player.get("region").and_then(|r| r.as_str()).unwrap_or("");
+    let aliases = player.get("aliases").and_then(|a| a.as_array());
+
+    let is_exact = query_name.eq_ignore_ascii_case(nickname)
+        || (!p_name.is_empty() && query_name.eq_ignore_ascii_case(p_name))
+        || aliases.map_or(false, |arr| {
+            arr.iter().any(|a| a.as_str().map_or(false, |s| s.eq_ignore_ascii_case(query_name)))
+        });
+
+    if is_exact && !p_name.is_empty() {
+        Some((p_name.to_string(), p_tag.to_string(), p_reg.to_uppercase()))
+    } else {
+        None
+    }
+}
+
 /// Fetch a player's full profile (rank, tier, top champions, level).
 /// Checks LCU first if connected and no specific summoner was requested.
 /// Otherwise, fetches from OP.GG MCP server with fallback to pro player aliases.
@@ -982,7 +1005,7 @@ pub async fn get_player_profile(
             if let Ok(Some(summoner)) = crate::lcu::client::get_current_summoner(&lock).await {
                 let ranked = crate::lcu::client::get_all_ranked_stats(&lock).await.unwrap_or(None);
                 let mastery = crate::lcu::client::get_local_champion_mastery(&lock).await.unwrap_or(None);
-                let (opgg_stats, top_champions_solo, top_champions_flex) = if let Ok(client) = opgg::client::McpClient::new() {
+                let (opgg_stats, top_champions_solo, top_champions_flex): (Option<serde_json::Value>, Vec<serde_json::Value>, Vec<serde_json::Value>) = if let Ok(client) = opgg::client::McpClient::new() {
                     let (gn, tl) = {
                         let name_cand = game_name.as_deref().filter(|s| !s.is_empty())
                             .or(if !summoner.game_name.is_empty() { Some(summoner.game_name.as_str()) } else { None });
@@ -1024,9 +1047,7 @@ pub async fn get_player_profile(
 
                     tracing::info!("is_local_lookup resolved summoner: {}#{} (region: {})", gn, tl, reg);
                     let profile_fut = opgg::summoner::fetch_profile(&client, &gn, &tl, &reg);
-                    let solo_fut = opgg::summoner::fetch_queue_champions(client.http(), &gn, &tl, &reg, "SOLORANKED");
-                    let flex_fut = opgg::summoner::fetch_queue_champions(client.http(), &gn, &tl, &reg, "FLEXRANKED");
-                    let (p_res, s_res, f_res) = tokio::join!(profile_fut, solo_fut, flex_fut);
+                    let p_res = profile_fut.await;
                     let p_val = match p_res {
                         Ok(mut d) => {
                             if let Some(inner) = d.get_mut("data") {
@@ -1038,30 +1059,7 @@ pub async fn get_player_profile(
                         Err(_) => None,
                     };
 
-                    let mut top_champions_solo = s_res.unwrap_or_default();
-                    let mut top_champions_flex = f_res.unwrap_or_default();
-
-                    if top_champions_solo.is_empty() {
-                        if let Ok(retry) = opgg::summoner::fetch_queue_champions(client.http(), &gn, &tl, &reg, "SOLORANKED").await {
-                            if !retry.is_empty() {
-                                top_champions_solo = retry;
-                            }
-                        }
-                    }
-                    if top_champions_flex.is_empty() {
-                        if let Ok(retry) = opgg::summoner::fetch_queue_champions(client.http(), &gn, &tl, &reg, "FLEXRANKED").await {
-                            if !retry.is_empty() {
-                                top_champions_flex = retry;
-                            }
-                        }
-                    }
-
-                    tracing::info!(
-                        "is_local_lookup queue champions: solo={}, flex={}",
-                        top_champions_solo.len(),
-                        top_champions_flex.len()
-                    );
-                    (p_val, top_champions_solo, top_champions_flex)
+                    (p_val, Vec::new(), Vec::new())
                 } else {
                     (None, Vec::new(), Vec::new())
                 };
@@ -1116,24 +1114,8 @@ pub async fn get_player_profile(
 
     let client = opgg::client::McpClient::new().map_err(|e| e.to_string())?;
 
-    // Attempt pro player resolution upfront if tag matches default region or if no tag was originally given
-    let (mut req_name, mut req_tag) = (name.clone(), tag.clone());
-    if req_tag.eq_ignore_ascii_case(&reg) || req_tag.eq_ignore_ascii_case(&raw_reg) {
-        if let Ok(pro) = opgg::summoner::fetch_pro_player(&client, &req_name, &reg).await {
-            if let Some(riot_id) = pro.get("data").and_then(|d| d.get("player")).and_then(|p| p.get("riot_id")) {
-                let p_name = riot_id.get("game_name").and_then(|g| g.as_str()).unwrap_or("");
-                let p_tag = riot_id.get("tagline").and_then(|t| t.as_str()).unwrap_or(&reg);
-                if !p_name.is_empty() {
-                    req_name = p_name.to_string();
-                    req_tag = p_tag.to_string();
-                }
-            }
-        }
-    }
-
-    // Try primary fetch_profile
-    let final_name = req_name.clone();
-    let final_tag = req_tag.clone();
+    let final_name = name.clone();
+    let final_tag = tag.clone();
     let mut final_reg = reg.clone();
 
     let data = match opgg::summoner::fetch_profile(&client, &final_name, &final_tag, &final_reg).await {
@@ -1157,35 +1139,27 @@ pub async fn get_player_profile(
                 }
             }
 
-            // Fallback 2: Check pro player lookup in current region
+            // Fallback 2: Check pro player lookup in current region (STRICT MATCH ONLY)
             if resolved.is_none() {
                 if let Ok(pro) = opgg::summoner::fetch_pro_player(&client, &name, &final_reg).await {
-                    if let Some(riot_id) = pro.get("data").and_then(|d| d.get("player")).and_then(|p| p.get("riot_id")) {
-                        let p_name = riot_id.get("game_name").and_then(|g| g.as_str()).unwrap_or("");
-                        let p_tag = riot_id.get("tagline").and_then(|t| t.as_str()).unwrap_or(&final_reg);
-                        let p_reg = pro.get("data").and_then(|d| d.get("player")).and_then(|p| p.get("region")).and_then(|r| r.as_str()).map(|r| r.to_uppercase()).unwrap_or_else(|| final_reg.clone());
-
-                        if !p_name.is_empty() {
-                            if let Ok(mut d) = opgg::summoner::fetch_profile(&client, p_name, p_tag, &p_reg).await {
-                                final_reg = p_reg;
-                                resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
-                            }
+                    if let Some((p_name, p_tag, p_reg)) = matches_pro_player(&name, &pro) {
+                        let target_reg = if !p_reg.is_empty() { p_reg } else { final_reg.clone() };
+                        if let Ok(mut d) = opgg::summoner::fetch_profile(&client, &p_name, &p_tag, &target_reg).await {
+                            final_reg = target_reg;
+                            resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
                         }
                     }
                 }
             }
 
-            // Fallback 3: Check pro player lookup in KR region (for Korean pro players like Faker, Chovy, etc.)
+            // Fallback 3: Check pro player lookup in KR region (STRICT MATCH ONLY)
             if resolved.is_none() && final_reg != "KR" {
                 if let Ok(pro) = opgg::summoner::fetch_pro_player(&client, &name, "KR").await {
-                    if let Some(riot_id) = pro.get("data").and_then(|d| d.get("player")).and_then(|p| p.get("riot_id")) {
-                        let p_name = riot_id.get("game_name").and_then(|g| g.as_str()).unwrap_or("");
-                        let p_tag = riot_id.get("tagline").and_then(|t| t.as_str()).unwrap_or("KR1");
-                        if !p_name.is_empty() {
-                            if let Ok(mut d) = opgg::summoner::fetch_profile(&client, p_name, p_tag, "KR").await {
-                                final_reg = "KR".to_string();
-                                resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
-                            }
+                    if let Some((p_name, p_tag, _)) = matches_pro_player(&name, &pro) {
+                        let target_tag = if !p_tag.is_empty() { p_tag } else { "KR1".to_string() };
+                        if let Ok(mut d) = opgg::summoner::fetch_profile(&client, &p_name, &target_tag, "KR").await {
+                            final_reg = "KR".to_string();
+                            resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
                         }
                     }
                 }
@@ -1204,40 +1178,12 @@ pub async fn get_player_profile(
         }
     };
 
-    let (solo_res, flex_res) = tokio::join!(
-        opgg::summoner::fetch_queue_champions(client.http(), &final_name, &final_tag, &final_reg, "SOLORANKED"),
-        opgg::summoner::fetch_queue_champions(client.http(), &final_name, &final_tag, &final_reg, "FLEXRANKED"),
-    );
-    let mut top_champions_solo = solo_res.unwrap_or_default();
-    let mut top_champions_flex = flex_res.unwrap_or_default();
-
-    if top_champions_solo.is_empty() {
-        if let Ok(retry) = opgg::summoner::fetch_queue_champions(client.http(), &final_name, &final_tag, &final_reg, "SOLORANKED").await {
-            if !retry.is_empty() {
-                top_champions_solo = retry;
-            }
-        }
-    }
-    if top_champions_flex.is_empty() {
-        if let Ok(retry) = opgg::summoner::fetch_queue_champions(client.http(), &final_name, &final_tag, &final_reg, "FLEXRANKED").await {
-            if !retry.is_empty() {
-                top_champions_flex = retry;
-            }
-        }
-    }
-
-    tracing::info!(
-        "remote lookup queue champions: solo={}, flex={}",
-        top_champions_solo.len(),
-        top_champions_flex.len()
-    );
-
     Ok(serde_json::json!({
         "source": "opgg",
         "region": final_reg,
         "data": data,
-        "top_champions_solo": top_champions_solo,
-        "top_champions_flex": top_champions_flex,
+        "top_champions_solo": serde_json::Value::Null,
+        "top_champions_flex": serde_json::Value::Null,
     }))
 }
 
@@ -1319,22 +1265,8 @@ pub async fn get_player_matches(
 
     let client = opgg::client::McpClient::new().map_err(|e| e.to_string())?;
 
-    let (mut req_name, mut req_tag) = (name.clone(), tag.clone());
-    if req_tag.eq_ignore_ascii_case(&reg) || req_tag.eq_ignore_ascii_case(&raw_reg) {
-        if let Ok(pro) = opgg::summoner::fetch_pro_player(&client, &req_name, &reg).await {
-            if let Some(riot_id) = pro.get("data").and_then(|d| d.get("player")).and_then(|p| p.get("riot_id")) {
-                let p_name = riot_id.get("game_name").and_then(|g| g.as_str()).unwrap_or("");
-                let p_tag = riot_id.get("tagline").and_then(|t| t.as_str()).unwrap_or(&reg);
-                if !p_name.is_empty() {
-                    req_name = p_name.to_string();
-                    req_tag = p_tag.to_string();
-                }
-            }
-        }
-    }
-
-    let final_name = req_name.clone();
-    let final_tag = req_tag.clone();
+    let final_name = name.clone();
+    let final_tag = tag.clone();
     let mut final_reg = reg.clone();
 
     let data = match opgg::summoner::fetch_matches(&client, &final_name, &final_tag, &final_reg, lim).await {
@@ -1357,33 +1289,27 @@ pub async fn get_player_matches(
                 }
             }
 
+            // Fallback 2: Check pro player lookup in current region (STRICT MATCH ONLY)
             if resolved.is_none() {
                 if let Ok(pro) = opgg::summoner::fetch_pro_player(&client, &name, &final_reg).await {
-                    if let Some(riot_id) = pro.get("data").and_then(|d| d.get("player")).and_then(|p| p.get("riot_id")) {
-                        let p_name = riot_id.get("game_name").and_then(|g| g.as_str()).unwrap_or("");
-                        let p_tag = riot_id.get("tagline").and_then(|t| t.as_str()).unwrap_or(&final_reg);
-                        let p_reg = pro.get("data").and_then(|d| d.get("player")).and_then(|p| p.get("region")).and_then(|r| r.as_str()).map(|r| r.to_uppercase()).unwrap_or_else(|| final_reg.clone());
-
-                        if !p_name.is_empty() {
-                            if let Ok(mut d) = opgg::summoner::fetch_matches(&client, p_name, p_tag, &p_reg, lim).await {
-                                final_reg = p_reg;
-                                resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
-                            }
+                    if let Some((p_name, p_tag, p_reg)) = matches_pro_player(&name, &pro) {
+                        let target_reg = if !p_reg.is_empty() { p_reg } else { final_reg.clone() };
+                        if let Ok(mut d) = opgg::summoner::fetch_matches(&client, &p_name, &p_tag, &target_reg, lim).await {
+                            final_reg = target_reg;
+                            resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
                         }
                     }
                 }
             }
 
+            // Fallback 3: Check pro player lookup in KR region (STRICT MATCH ONLY)
             if resolved.is_none() && final_reg != "KR" {
                 if let Ok(pro) = opgg::summoner::fetch_pro_player(&client, &name, "KR").await {
-                    if let Some(riot_id) = pro.get("data").and_then(|d| d.get("player")).and_then(|p| p.get("riot_id")) {
-                        let p_name = riot_id.get("game_name").and_then(|g| g.as_str()).unwrap_or("");
-                        let p_tag = riot_id.get("tagline").and_then(|t| t.as_str()).unwrap_or("KR1");
-                        if !p_name.is_empty() {
-                            if let Ok(mut d) = opgg::summoner::fetch_matches(&client, p_name, p_tag, "KR", lim).await {
-                                final_reg = "KR".to_string();
-                                resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
-                            }
+                    if let Some((p_name, p_tag, _)) = matches_pro_player(&name, &pro) {
+                        let target_tag = if !p_tag.is_empty() { p_tag } else { "KR1".to_string() };
+                        if let Ok(mut d) = opgg::summoner::fetch_matches(&client, &p_name, &target_tag, "KR", lim).await {
+                            final_reg = "KR".to_string();
+                            resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
                         }
                     }
                 }

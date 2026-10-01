@@ -142,6 +142,22 @@ pub async fn get_liveclient_activeplayer() -> Result<Option<crate::lcu::models::
     }
 }
 
+/// Fetch active game stats from League of Legends game client (`https://127.0.0.1:2999`).
+pub async fn get_liveclient_gamestats() -> Result<Option<crate::lcu::models::LiveClientGameStats>> {
+    let client = http_client()?;
+    let url = "https://127.0.0.1:2999/liveclientdata/gamestats";
+    let resp = client
+        .get(url)
+        .timeout(std::time::Duration::from_millis(1000))
+        .send()
+        .await;
+
+    match resp {
+        Ok(r) if r.status().is_success() => Ok(Some(r.json().await?)),
+        _ => Ok(None),
+    }
+}
+
 /// Active account's summoner profile, fetched on client connect (Issue #9, persisted in Issue #40).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Summoner {

@@ -332,6 +332,9 @@ export interface DetailedParticipant {
   secondary_style_id?: number;
   op_score?: number;
   win: boolean;
+  placement?: number;
+  subteam_id?: string | number;
+  subteam_name?: string;
 }
 
 export interface PlayerMatch {
@@ -364,6 +367,7 @@ export interface PlayerMatch {
   op_score_rank?: number;
   participants?: DetailedParticipant[];
   bans?: number[];
+  placement?: number;
 }
 
 export interface FullPlayerProfile {

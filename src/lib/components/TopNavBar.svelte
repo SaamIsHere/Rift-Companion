@@ -75,7 +75,7 @@
       >
         <div class="flex items-center gap-1.5">
           <span>{tab.label}</span>
-          {#if tab.id === "live_match" && ($draft || ["ChampSelect", "GameStart", "InProgress", "Reconnect"].includes($gameflowPhase))}
+          {#if tab.id === "live_match" && ($draft !== null || $gameflowPhase === "ChampSelect")}
             <!-- Pulsing LIVE badge when champ select or match is active -->
             <span class="flex h-2 w-2 relative">
               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>

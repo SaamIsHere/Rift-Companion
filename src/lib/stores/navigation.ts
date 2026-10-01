@@ -20,26 +20,31 @@ let previousDraftState: boolean = false;
 // Automatically navigate to LIVE MATCH when champion select or match begins,
 // and transition to POST GAME (instead of kicking to startseite) when match ends.
 draft.subscribe((d) => {
-  const isInDraft = d !== null;
+  const isInDraft = d !== null && (d.allies?.length > 0 || d.enemies?.length > 0);
   const phase = get(gameflowPhase);
-  const isMatchActive = isInDraft || ["ChampSelect", "GameStart", "InProgress", "Reconnect"].includes(phase);
+  const isMatchActive = isInDraft || phase === "ChampSelect";
 
   if (isMatchActive && !previousDraftState) {
     activeTab.set("live_match");
   } else if (!isMatchActive && previousDraftState) {
-    activeTab.update((current) => (current === "live_match" ? "post_game" : current));
+    const isPostGamePhase = ["WaitingForStats", "PreEndOfGame", "EndOfGame"].includes(phase);
+    activeTab.update((current) => (current === "live_match" ? (isPostGamePhase ? "post_game" : "startseite") : current));
   }
   previousDraftState = isMatchActive;
 });
 
 gameflowPhase.subscribe((phase) => {
-  const isMatchActive = ["ChampSelect", "GameStart", "InProgress", "Reconnect"].includes(phase);
+  const currentDraft = get(draft);
+  const hasDraft = currentDraft !== null && (currentDraft.allies?.length > 0 || currentDraft.enemies?.length > 0);
+  const isMatchActive = phase === "ChampSelect" || (["GameStart", "InProgress", "Reconnect"].includes(phase) && hasDraft);
+
   if (isMatchActive && !previousDraftState) {
     activeTab.set("live_match");
     previousDraftState = true;
-  } else if (!isMatchActive && previousDraftState && get(draft) === null) {
+  } else if (!isMatchActive && previousDraftState && !hasDraft) {
     // When game concludes, transition to post_game screen rather than dumping to startseite!
-    activeTab.update((current) => (current === "live_match" ? "post_game" : current));
+    const isPostGamePhase = ["WaitingForStats", "PreEndOfGame", "EndOfGame"].includes(phase);
+    activeTab.update((current) => (current === "live_match" ? (isPostGamePhase ? "post_game" : "startseite") : current));
     previousDraftState = false;
   }
 });
