@@ -89,10 +89,14 @@ jobs:
             ## Rift Companion Release ${{ steps.get_version.outputs.tag }}
 
             ### Highlights
-            * **Profile Loading Improvements:** Significantly faster profile and match history loading with progressive rendering, instant local memory & central Rift server caching, and automatic refresh cooldown.
-            * **Bug Fixes:** Resolved concurrent search race condition that previously caused wrong profile redirection, eliminated scoreboard retry flicker, and fixed cross-match duplicate player highlighting.
-            * **TFT Filter:** Filtered Teamfight Tactics matches out of Live Match detection to prevent erroneous 8-Kai'Sa placeholder displays.
-            * **Arena in Match History:** Full 2-column scoreboard support for Arena matches featuring dedicated team cards, placement rankings (1st Place, 2nd Place, etc.), team gold/kill totals, and clean highlight framing.
+            * **Post-Game Screen Overhaul & Enhancements:**
+              * **Timeline & Analysis Graph:** Added an interactive team gold advantage SVG area chart with real-time mouse scrubber HUD, minute-by-minute gold swings, objective milestone callouts (Dragons, Barons, Turrets), and automatic epic comeback detection.
+              * **Comparative Damage Breakdown:** Added team-level physical vs. magic vs. true damage distribution comparison bars as well as per-player AD/AP/True damage splits to assess threat profiles at a glance.
+              * **Game-Mode Specific Post-Game (ARAM & Arena):** Tailored scoring algorithms and visual layouts for Howling Abyss (ARAM) and Rings of Wrath (Arena). Standard lane roles and vision scoring are omitted, CS expectations are adapted, and game-mode specific badges have been added (Abyss Legend, Brawler, Teamfight Anchor, Snowball Sniper, Abyss Medic, Siege Ram, Arena Champion, Gladiator).
+              * **7th Item Slot & ADC Boots:** Added dedicated 7th item slot display above trinkets for ADC boots, role quests, and jungle items.
+              * **Scoreboard & Tab Improvements:** Display match rank badge (#1..#10) directly next to champion avatars in Damage, Defense, and Economy tabs, with a sort dropdown filter to sort participants by damage, DPM, rank, total defended, gold, or CS.
+              * **Badge Balancing & Clarifications:** Rebalanced badge thresholds to scale with match duration (Damage Sponge, Wrecking Ball, CC Overlord, Ward Hunter) and clarified criteria descriptions for Monster Hunter, Glass Cannon, and Vision Lord.
+            * **League Client Match History Investigation:** Investigated and verified read-only interaction with client endpoints to ensure companion operations do not impact League of Legends match history synchronization.
 
             ### Download & Installation
             * **Windows Installer:** Download `Rift-Companion_${{ steps.get_version.outputs.version }}_x64-setup.exe` below and double-click to install.

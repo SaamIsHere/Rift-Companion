@@ -571,11 +571,39 @@ export interface PostGameTeam {
   participants: PostGameParticipant[];
 }
 
+export type GameModeType = "classic" | "aram" | "arena";
+
+export interface TimelineEvent {
+  type: "kill" | "dragon" | "baron" | "tower" | "inhibitor" | "herald" | "feat";
+  teamId?: number; // 100 or 200
+  minute: number;
+  description: string;
+}
+
+export interface TimelineFramePoint {
+  minute: number;
+  timestamp: number; // in milliseconds
+  blueGold: number;
+  redGold: number;
+  goldDiff: number; // positive = blue lead, negative = red lead
+  events?: TimelineEvent[];
+}
+
+export interface PostGameTimeline {
+  frames: TimelineFramePoint[];
+  maxGoldDiff: number; // peak absolute diff
+  maxBlueLead: { minute: number; amount: number };
+  maxRedLead: { minute: number; amount: number };
+  hasComeback: boolean;
+  comebackDetails?: string;
+}
+
 export interface PostGameMatch {
   gameId: string;
   gameDuration: number; // in seconds
   gameCreation?: number;
   gameMode: string;
+  modeType?: GameModeType;
   queueId?: number;
   queueLabel: string;
   localPlayerWon: boolean;
@@ -586,6 +614,7 @@ export interface PostGameMatch {
   blueTeam: PostGameTeam;
   redTeam: PostGameTeam;
   allParticipants: PostGameParticipant[]; // sorted by rank 1..10
+  timeline?: PostGameTimeline | null;
 }
 
 

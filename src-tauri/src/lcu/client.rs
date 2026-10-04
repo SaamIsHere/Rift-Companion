@@ -379,18 +379,61 @@ pub async fn get_local_game_detail(
     }
 }
 
+/// Fetch game timeline for a specific gameId from local LCU API (/lol-match-history/v1/game-timelines/{game_id}).
+pub async fn get_local_game_timeline(
+    lock: &Lockfile,
+    game_id: u64,
+) -> Result<Option<serde_json::Value>> {
+    let client = http_client()?;
+    let url = format!(
+        "https://127.0.0.1:{}/lol-match-history/v1/game-timelines/{}",
+        lock.port, game_id
+    );
+    let resp = client
+        .get(url)
+        .header("Authorization", auth_header(lock))
+        .send()
+        .await?;
+
+    if resp.status().is_success() {
+        Ok(Some(resp.json().await?))
+    } else {
+        Ok(None)
+    }
+}
+
 /// Fetch recent match history list directly from local LCU API,
 /// augmented with full 10-player participant data.
+/// Always requests at least 20 matches (or queries by PUUID) so that
+/// the League Client's own internal match history view is not truncated to 1-2 games.
 pub async fn get_local_matches(
     lock: &Lockfile,
     beg_index: usize,
     end_index: usize,
 ) -> Result<Option<serde_json::Value>> {
     let client = http_client()?;
-    let url = format!(
-        "https://127.0.0.1:{}/lol-match-history/v1/products/lol/current-summoner/matches?begIndex={}&endIndex={}",
-        lock.port, beg_index, end_index
-    );
+
+    // Always request at least 20 games from LCU to prevent truncating the League Client's match history cache
+    let fetch_end_index = end_index.max(20);
+
+    // Prefer querying by PUUID if available so LCU's current-summoner cache is not touched
+    let puuid = match get_current_summoner(lock).await {
+        Ok(Some(s)) if !s.puuid.is_empty() => Some(s.puuid),
+        _ => None,
+    };
+
+    let url = if let Some(ref p) = puuid {
+        format!(
+            "https://127.0.0.1:{}/lol-match-history/v1/products/lol/{}/matches?begIndex={}&endIndex={}",
+            lock.port, p, beg_index, fetch_end_index
+        )
+    } else {
+        format!(
+            "https://127.0.0.1:{}/lol-match-history/v1/products/lol/current-summoner/matches?begIndex={}&endIndex={}",
+            lock.port, beg_index, fetch_end_index
+        )
+    };
+
     let resp = client
         .get(url)
         .header("Authorization", auth_header(lock))
@@ -403,10 +446,13 @@ pub async fn get_local_matches(
 
     let mut val: serde_json::Value = resp.json().await?;
 
-    // Enhance each game in the list with full 10-player data from /lol-match-history/v1/games/{id}
+    // Enhance requested games in the list with full 10-player data from /lol-match-history/v1/games/{id}
+    // Only enhance up to the requested end_index (e.g. 1 for post-game) to avoid superfluous LCU requests
+    let detail_limit = end_index.max(1);
     if let Some(games) = val.get_mut("games").and_then(|g| g.get_mut("games")).and_then(|g| g.as_array_mut()) {
         let game_ids: Vec<u64> = games
             .iter()
+            .take(detail_limit)
             .filter_map(|g| g.get("gameId").and_then(|id| id.as_u64()))
             .collect();
 

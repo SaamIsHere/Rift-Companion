@@ -679,7 +679,34 @@ async fn fetch_and_emit_post_game(
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
 
-        if let Ok(Some(matches_val)) = client::get_local_matches(&lock, 0, 5).await {
+        // If we know the exact game ID, try fetching game detail directly without touching match history list
+        if let Some(target_id) = target_game_id {
+            if let Ok(Some(game_detail)) = client::get_local_game_detail(&lock, target_id).await {
+                let already_emitted = {
+                    let current = shared.latest_post_game.lock().unwrap();
+                    if let Some(ref cur) = *current {
+                        cur.get("game").and_then(|g| g.get("gameId")).and_then(|id| id.as_u64()) == Some(target_id)
+                    } else {
+                        false
+                    }
+                };
+
+                if !already_emitted {
+                    let timeline = client::get_local_game_timeline(&lock, target_id).await.ok().flatten();
+                    let res = serde_json::json!({
+                        "source": "lcu",
+                        "game": game_detail,
+                        "timeline": timeline,
+                    });
+                    *shared.latest_post_game.lock().unwrap() = Some(res.clone());
+                    let _ = app.emit("post-game://update", &res);
+                    tracing::info!(?target_id, "emitted post-game update directly from game detail");
+                }
+                break;
+            }
+        }
+
+        if let Ok(Some(matches_val)) = client::get_local_matches(&lock, 0, 1).await {
             let games = matches_val
                 .get("games")
                 .and_then(|g| g.get("games"))
@@ -708,9 +735,15 @@ async fn fetch_and_emit_post_game(
                     };
 
                     if !already_emitted {
+                        let timeline = if let Some(gid) = game_id {
+                            client::get_local_game_timeline(&lock, gid).await.ok().flatten()
+                        } else {
+                            None
+                        };
                         let res = serde_json::json!({
                             "source": "lcu",
                             "game": game,
+                            "timeline": timeline,
                         });
                         *shared.latest_post_game.lock().unwrap() = Some(res.clone());
                         let _ = app.emit("post-game://update", &res);

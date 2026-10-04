@@ -55,6 +55,18 @@ pub fn clear_post_game_data(state: State<Shared>, app: AppHandle) {
     let _ = app.emit("post-game://update", serde_json::Value::Null);
 }
 
+/// On-demand fetch of the match timeline directly from local LCU match history.
+#[tauri::command]
+pub async fn get_post_game_timeline(game_id: u64) -> Result<Option<serde_json::Value>, String> {
+    let lock = match crate::lcu::lockfile::find() {
+        Some(l) => l,
+        None => return Ok(None),
+    };
+    crate::lcu::client::get_local_game_timeline(&lock, game_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// On-demand fetch of the most recently finished match directly from local LCU match history.
 #[tauri::command]
 pub async fn fetch_latest_post_game(
@@ -74,9 +86,20 @@ pub async fn fetch_latest_post_game(
             .and_then(|a| a.first())
             .cloned()
         {
+            let game_id = game.get("gameId").and_then(|id| id.as_u64());
+            let timeline = if let Some(gid) = game_id {
+                crate::lcu::client::get_local_game_timeline(&lock, gid)
+                    .await
+                    .ok()
+                    .flatten()
+            } else {
+                None
+            };
+
             let res = serde_json::json!({
                 "source": "lcu",
                 "game": game,
+                "timeline": timeline,
             });
             *state.latest_post_game.lock().unwrap() = Some(res.clone());
             let _ = app.emit("post-game://update", &res);

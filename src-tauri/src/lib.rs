@@ -168,6 +168,7 @@ pub fn run() {
             commands::get_post_game_data,
             commands::clear_post_game_data,
             commands::fetch_latest_post_game,
+            commands::get_post_game_timeline,
             commands::get_profile,
             commands::get_draft_state,
             commands::get_recommendations,

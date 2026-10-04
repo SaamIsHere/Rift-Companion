@@ -47,8 +47,8 @@ export async function clearPostGame() {
 /**
  * Loads the built-in mock match for instant testing & evaluation.
  */
-export function loadMockPostGame(win = true) {
-  const mock = createMockPostGameMatch(win);
+export function loadMockPostGame(win = true, mode: "classic" | "aram" = "classic") {
+  const mock = createMockPostGameMatch(win, mode);
   setPostGameMatch(mock, true);
   return mock;
 }
