@@ -23,6 +23,7 @@ server/data/
 
 # Temporary screenshots
 Current-*.png
+timeline*.png
 
 # Environment and secrets
 .env

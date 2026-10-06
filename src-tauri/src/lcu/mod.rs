@@ -668,18 +668,31 @@ async fn fetch_and_emit_post_game(
     }
     let _guard = FetchGuard(shared.post_game_fetching.clone());
 
-    let target_game_id = hint_game_id.or_else(|| *shared.active_game_id.lock().unwrap());
+    let mut target_game_id = hint_game_id.or_else(|| *shared.active_game_id.lock().unwrap());
     tracing::info!(?target_game_id, "starting post-game match fetch loop");
 
-    // Retry up to 10 times with 2-second intervals (total ~20s) to wait for Riot LCU match ingestion
-    for retry in 0..10 {
+    // Retry up to 15 times with 2-second intervals (total ~30s) to wait for Riot LCU match ingestion
+    for retry in 0..15 {
         if retry > 0 {
             tokio::time::sleep(Duration::from_millis(2000)).await;
         } else {
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
 
-        // If we know the exact game ID, try fetching game detail directly without touching match history list
+        // If target_game_id is not yet known, attempt to discover it via eog-stats-block
+        if target_game_id.is_none() {
+            if let Ok(Some(eog)) = client::get_eog_stats(&lock).await {
+                if let Some(id) = eog.get("gameId").and_then(|id| id.as_u64()) {
+                    if id > 0 {
+                        target_game_id = Some(id);
+                        *shared.active_game_id.lock().unwrap() = Some(id);
+                        tracing::info!(id, "resolved target game ID from eog-stats-block");
+                    }
+                }
+            }
+        }
+
+        // 1. If we know the exact game ID, fetch game detail directly WITHOUT touching match history list
         if let Some(target_id) = target_game_id {
             if let Ok(Some(game_detail)) = client::get_local_game_detail(&lock, target_id).await {
                 let already_emitted = {
@@ -702,54 +715,52 @@ async fn fetch_and_emit_post_game(
                     let _ = app.emit("post-game://update", &res);
                     tracing::info!(?target_id, "emitted post-game update directly from game detail");
                 }
-                break;
+                return;
             }
+            // CRITICAL: While target_id is known, DO NOT call get_local_matches!
+            // Doing so before Riot's match-history database replicates poisons the LCU cache,
+            // hiding the match in the official League Client's match history tab until restart.
+            continue;
         }
 
-        if let Ok(Some(matches_val)) = client::get_local_matches(&lock, 0, 1).await {
-            let games = matches_val
-                .get("games")
-                .and_then(|g| g.get("games"))
-                .and_then(|g| g.as_array());
+        // 2. Fallback only if NO game ID was found even after several retries (> 10s wait)
+        if retry >= 5 {
+            if let Ok(Some(matches_val)) = client::get_local_matches(&lock, 0, 1).await {
+                let games = matches_val
+                    .get("games")
+                    .and_then(|g| g.get("games"))
+                    .and_then(|g| g.as_array());
 
-            if let Some(games_list) = games {
-                let found_game = if let Some(target_id) = target_game_id {
-                    games_list.iter().find(|g| {
-                        g.get("gameId").and_then(|id| id.as_u64()) == Some(target_id)
-                    }).cloned()
-                } else {
-                    // Fallback if no specific target ID is known: take the most recent match
-                    games_list.first().cloned()
-                };
+                if let Some(games_list) = games {
+                    if let Some(game) = games_list.first() {
+                        let game_id = game.get("gameId").and_then(|id| id.as_u64());
 
-                if let Some(game) = found_game {
-                    let game_id = game.get("gameId").and_then(|id| id.as_u64());
-
-                    let already_emitted = {
-                        let current = shared.latest_post_game.lock().unwrap();
-                        if let Some(ref cur) = *current {
-                            cur.get("game").and_then(|g| g.get("gameId")).and_then(|id| id.as_u64()) == game_id
-                        } else {
-                            false
-                        }
-                    };
-
-                    if !already_emitted {
-                        let timeline = if let Some(gid) = game_id {
-                            client::get_local_game_timeline(&lock, gid).await.ok().flatten()
-                        } else {
-                            None
+                        let already_emitted = {
+                            let current = shared.latest_post_game.lock().unwrap();
+                            if let Some(ref cur) = *current {
+                                cur.get("game").and_then(|g| g.get("gameId")).and_then(|id| id.as_u64()) == game_id
+                            } else {
+                                false
+                            }
                         };
-                        let res = serde_json::json!({
-                            "source": "lcu",
-                            "game": game,
-                            "timeline": timeline,
-                        });
-                        *shared.latest_post_game.lock().unwrap() = Some(res.clone());
-                        let _ = app.emit("post-game://update", &res);
-                        tracing::info!(?game_id, "emitted post-game update from local match history");
+
+                        if !already_emitted {
+                            let timeline = if let Some(gid) = game_id {
+                                client::get_local_game_timeline(&lock, gid).await.ok().flatten()
+                            } else {
+                                None
+                            };
+                            let res = serde_json::json!({
+                                "source": "lcu",
+                                "game": game,
+                                "timeline": timeline,
+                            });
+                            *shared.latest_post_game.lock().unwrap() = Some(res.clone());
+                            let _ = app.emit("post-game://update", &res);
+                            tracing::info!(?game_id, "emitted post-game update from local match history fallback");
+                        }
+                        return;
                     }
-                    break;
                 }
             }
         }

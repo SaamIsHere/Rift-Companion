@@ -73,11 +73,51 @@ pub async fn fetch_latest_post_game(
     state: State<'_, Shared>,
     app: AppHandle,
 ) -> Result<Option<serde_json::Value>, String> {
+    // 1. If we already have the latest post game in state, return it immediately without touching LCU
+    if let Some(existing) = state.latest_post_game.lock().unwrap().clone() {
+        return Ok(Some(existing));
+    }
+
     let lock = match crate::lcu::lockfile::find() {
         Some(l) => l,
         None => return Ok(None),
     };
 
+    // 2. Check active_game_id or eog_stats first to fetch directly via game detail,
+    // protecting LCU's summoner match list cache from being prematurely queried.
+    let target_id = (*state.active_game_id.lock().unwrap()).or_else(|| {
+        None
+    });
+    let target_id = match target_id {
+        Some(id) => Some(id),
+        None => {
+            if let Ok(Some(eog)) = crate::lcu::client::get_eog_stats(&lock).await {
+                eog.get("gameId").and_then(|id| id.as_u64())
+            } else {
+                None
+            }
+        }
+    };
+
+    if let Some(gid) = target_id {
+        if let Ok(Some(game_detail)) = crate::lcu::client::get_local_game_detail(&lock, gid).await {
+            let timeline = crate::lcu::client::get_local_game_timeline(&lock, gid)
+                .await
+                .ok()
+                .flatten();
+
+            let res = serde_json::json!({
+                "source": "lcu",
+                "game": game_detail,
+                "timeline": timeline,
+            });
+            *state.latest_post_game.lock().unwrap() = Some(res.clone());
+            let _ = app.emit("post-game://update", &res);
+            return Ok(Some(res));
+        }
+    }
+
+    // 3. Fallback only if no active or recent game ID was identifiable
     if let Ok(Some(matches_val)) = crate::lcu::client::get_local_matches(&lock, 0, 1).await {
         if let Some(game) = matches_val
             .get("games")

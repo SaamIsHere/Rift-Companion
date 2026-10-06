@@ -150,6 +150,7 @@
     : [];
 
   // --- TIMELINE GRAPH & DAMAGE COMPOSITION STATE (Issue 88) ---
+  let timelineSvg: SVGSVGElement | null = null;
   let hoveredTimelineIndex: number | null = null;
 
   $: timeline = match?.timeline;
@@ -207,11 +208,87 @@
       .join(" ");
   })();
 
+  $: timelineTicks = (() => {
+    if (!frames.length) return [];
+    const ticks: { index: number; minute: number; x: number }[] = [];
+    const lastIdx = frames.length - 1;
+    for (let i = 0; i < frames.length; i++) {
+      const f = frames[i];
+      const isStart = i === 0;
+      const isFiveMin = f.minute % 5 === 0 && f.minute > 0;
+      const isLast = i === lastIdx;
+      if (isStart || isFiveMin || isLast) {
+        const x = getTimelineX(i, frames.length);
+        const prev = ticks[ticks.length - 1];
+        // Deduplicate: avoid ticks that are less than 2 minutes apart or less than 32px apart to prevent text collisions
+        if (prev && (Math.abs(prev.minute - f.minute) < 2 || Math.abs(prev.x - x) < 32)) {
+          if (isLast) {
+            ticks[ticks.length - 1] = { index: i, minute: f.minute, x };
+          }
+          continue;
+        }
+        ticks.push({ index: i, minute: f.minute, x });
+      }
+    }
+    return ticks;
+  })();
+
+  interface MilestonePin {
+    index: number;
+    minute: number;
+    x: number;
+    y: number;
+    teamId: number;
+    primaryType: "baron" | "dragon" | "herald" | "inhibitor" | "tower";
+    count: number;
+    events: NonNullable<(typeof frames)[0]["events"]>;
+    label: string;
+  }
+
+  const typePriority: Record<string, number> = {
+    baron: 5,
+    dragon: 4,
+    herald: 3,
+    inhibitor: 2,
+    tower: 1,
+  };
+
+  $: milestonePins = (() => {
+    if (!frames.length) return [];
+    const pins: MilestonePin[] = [];
+    frames.forEach((f, i) => {
+      if (!f.events || f.events.length === 0) return;
+      const sorted = [...f.events].sort((a, b) => {
+        const pA = typePriority[a.type] || 0;
+        const pB = typePriority[b.type] || 0;
+        return pB - pA;
+      });
+      const topEv = sorted[0];
+      const x = getTimelineX(i, frames.length);
+      const y = getTimelineY(f.goldDiff, maxGoldLeadVal);
+      const clampedY = Math.max(25, Math.min(215, y));
+
+      pins.push({
+        index: i,
+        minute: f.minute,
+        x,
+        y: clampedY,
+        teamId: topEv.teamId || 100,
+        primaryType: topEv.type as any,
+        count: f.events.length,
+        events: f.events,
+        label: topEv.description,
+      });
+    });
+    return pins;
+  })();
+
   function handleTimelineMouseMove(e: MouseEvent) {
-    if (!frames.length) return;
-    const svg = e.currentTarget as SVGSVGElement;
-    const rect = svg.getBoundingClientRect();
-    const relX = (e.clientX - rect.left) / rect.width;
+    if (!frames.length || !timelineSvg) return;
+    const rect = timelineSvg.getBoundingClientRect();
+    if (rect.width <= 0) return;
+    const mouseX = e.clientX - rect.left;
+    const relX = Math.max(0, Math.min(1, mouseX / rect.width));
     const svgX = relX * 900;
     const clampedX = Math.max(60, Math.min(840, svgX));
     const progress = (clampedX - 60) / 780;
@@ -1603,7 +1680,7 @@
                       <span class="text-sky-300 font-semibold">{(hoveredFrame.blueGold / 1000).toFixed(1)}k</span> vs <span class="text-rose-300 font-semibold">{(hoveredFrame.redGold / 1000).toFixed(1)}k</span>
                     </span>
                     {#if hoveredFrame.events && hoveredFrame.events.length > 0}
-                      <div class="flex items-center gap-1.5 pl-1 border-l border-white/10">
+                      <div class="flex items-center gap-1.5 pl-1 border-l border-white/10 flex-wrap">
                         {#each hoveredFrame.events as ev}
                           <span class="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase {ev.teamId === 100 ? 'bg-sky-500/20 text-sky-300 border border-sky-400/40' : 'bg-rose-500/20 text-rose-300 border border-rose-400/40'}">
                             {ev.description || ev.type}
@@ -1613,9 +1690,19 @@
                     {/if}
                   </div>
                 {:else}
-                  <span class="text-slate-400 text-xs italic">
-                    Hover over graph to scrub through timeline & events
-                  </span>
+                  <div class="flex items-center gap-3">
+                    <span class="text-slate-400 text-xs italic">
+                      Hover over graph to scrub through timeline & events
+                    </span>
+                    <span class="text-slate-600">•</span>
+                    <span class="text-[10px] text-slate-400 flex items-center gap-2">
+                      <span class="text-sky-400 font-bold">D</span> Dragon
+                      <span class="text-purple-400 font-bold">B</span> Baron
+                      <span class="text-purple-300 font-bold">H</span> Herald
+                      <span class="text-slate-200 font-bold">T</span> Turret
+                      <span class="text-amber-400 font-bold">I</span> Inhibitor
+                    </span>
+                  </div>
                 {/if}
               </div>
             </div>
@@ -1623,11 +1710,16 @@
             <!-- SVG Graph Container -->
             <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
-              class="relative w-full rounded-xl bg-void-950/60 border border-white/5 p-2 overflow-hidden"
-              on:mousemove={handleTimelineMouseMove}
-              on:mouseleave={handleTimelineMouseLeave}
+              class="relative w-full rounded-xl bg-void-950/60 border border-white/5 py-2 px-2 overflow-hidden"
             >
-              <svg viewBox="0 0 900 240" class="w-full h-64 overflow-visible cursor-crosshair select-none">
+              <svg
+                bind:this={timelineSvg}
+                viewBox="0 0 900 240"
+                preserveAspectRatio="none"
+                class="w-full h-64 overflow-visible cursor-crosshair select-none block"
+                on:mousemove={handleTimelineMouseMove}
+                on:mouseleave={handleTimelineMouseLeave}
+              >
                 <defs>
                   <linearGradient id="blueLeadGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.38" />
@@ -1678,45 +1770,90 @@
                   />
                 {/if}
 
-                <!-- Time Axis Minute Ticks -->
-                {#each frames as f, i}
-                  {#if f.minute % 5 === 0 || i === frames.length - 1}
-                    <line
-                      x1={getTimelineX(i, frames.length)}
-                      y1="210"
-                      x2={getTimelineX(i, frames.length)}
-                      y2="216"
-                      stroke="rgba(255,255,255,0.2)"
-                    />
-                    <text
-                      x={getTimelineX(i, frames.length)}
-                      y="228"
-                      text-anchor="middle"
-                      font-size="9"
-                      font-family="monospace"
-                      fill="rgba(148, 163, 184, 0.8)"
-                    >
-                      {f.minute}m
-                    </text>
-                  {/if}
+                <!-- Time Axis Minute Ticks (Deduplicated to avoid collisions) -->
+                {#each timelineTicks as t}
+                  <line
+                    x1={t.x}
+                    y1="210"
+                    x2={t.x}
+                    y2="216"
+                    stroke="rgba(255,255,255,0.2)"
+                  />
+                  <text
+                    x={t.x}
+                    y="228"
+                    text-anchor="middle"
+                    font-size="9"
+                    font-family="monospace"
+                    fill="rgba(148, 163, 184, 0.8)"
+                  >
+                    {t.minute}m
+                  </text>
                 {/each}
 
-                <!-- Objective Markers -->
-                {#each frames as f, i}
-                  {#if f.events && f.events.length > 0}
-                    {#each f.events as ev, evIdx}
+                <!-- Objective Markers / Milestone Pins (Cleanly aggregated with count badges) -->
+                {#each milestonePins as pin}
+                  <!-- svelte-ignore a11y_no_static_element_interactions -->
+                  <g
+                    class="cursor-pointer"
+                    on:mouseenter={() => { hoveredTimelineIndex = pin.index; }}
+                  >
+                    <!-- Outer ring glow -->
+                    <circle
+                      cx={pin.x}
+                      cy={pin.y}
+                      r="8.5"
+                      fill={pin.teamId === 100 ? 'rgba(56, 189, 248, 0.25)' : 'rgba(244, 63, 94, 0.25)'}
+                    />
+                    <!-- Center node -->
+                    <circle
+                      cx={pin.x}
+                      cy={pin.y}
+                      r="6.5"
+                      fill="#0b0517"
+                      stroke={pin.teamId === 100 ? '#38bdf8' : '#f43f5e'}
+                      stroke-width="1.8"
+                    />
+
+                    <!-- Objective Icon / Symbol -->
+                    {#if pin.primaryType === 'baron'}
+                      <text x={pin.x} y={pin.y + 2.5} text-anchor="middle" font-size="7.5" font-weight="900" font-family="sans-serif" fill="#c084fc">B</text>
+                    {:else if pin.primaryType === 'dragon'}
+                      <text x={pin.x} y={pin.y + 2.5} text-anchor="middle" font-size="7.5" font-weight="900" font-family="sans-serif" fill="#38bdf8">D</text>
+                    {:else if pin.primaryType === 'herald'}
+                      <text x={pin.x} y={pin.y + 2.5} text-anchor="middle" font-size="7.5" font-weight="900" font-family="sans-serif" fill="#c084fc">H</text>
+                    {:else if pin.primaryType === 'inhibitor'}
+                      <text x={pin.x} y={pin.y + 2.5} text-anchor="middle" font-size="7.5" font-weight="900" font-family="sans-serif" fill="#facc15">I</text>
+                    {:else}
+                      <!-- Tower -->
+                      <text x={pin.x} y={pin.y + 2.5} text-anchor="middle" font-size="7.5" font-weight="900" font-family="sans-serif" fill="#e2e8f0">T</text>
+                    {/if}
+
+                    <!-- Multiple events badge (e.g. 5 towers/inhibs in 1 minute) -->
+                    {#if pin.count > 1}
                       <circle
-                        cx={getTimelineX(i, frames.length)}
-                        cy={Math.max(20, Math.min(220, getTimelineY(f.goldDiff, maxGoldLeadVal) + (evIdx * 8 - 4)))}
+                        cx={pin.x + 5.5}
+                        cy={pin.y - 5.5}
                         r="4"
-                        fill={ev.teamId === 100 ? '#38bdf8' : '#f43f5e'}
-                        stroke="#0d041a"
-                        stroke-width="1.5"
+                        fill={pin.teamId === 100 ? '#0369a1' : '#be123c'}
+                        stroke="#ffffff"
+                        stroke-width="1"
+                      />
+                      <text
+                        x={pin.x + 5.5}
+                        y={pin.y - 3.2}
+                        text-anchor="middle"
+                        font-size="6"
+                        font-weight="900"
+                        font-family="sans-serif"
+                        fill="#ffffff"
                       >
-                        <title>{ev.description || ev.type}</title>
-                      </circle>
-                    {/each}
-                  {/if}
+                        {pin.count}
+                      </text>
+                    {/if}
+
+                    <title>{pin.minute}m: {pin.events.map(e => e.description).join(' | ')}</title>
+                  </g>
                 {/each}
 
                 <!-- Scrubber Guide Line & Dot when hovering -->
