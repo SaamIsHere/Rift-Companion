@@ -153,17 +153,28 @@
       {:else}
         <div class="flex flex-col">
           <span class="text-xs font-bold text-slate-300 leading-tight group-hover:text-purple-200 transition">
-            Offline
+            {$connection === "connected" ? "League Client" : "Offline"}
           </span>
-          <span class="text-[10px] font-semibold uppercase tracking-wider text-purple-300/60 leading-none">
-            {formatRank($rankTier)}
-          </span>
+          <div class="flex items-center justify-end gap-1.5 text-[10px] font-semibold uppercase tracking-wider leading-none">
+            <span class="text-purple-300/60">{formatRank($rankTier)}</span>
+            {#if $connection === "connected"}
+              <span class="text-emerald-400 font-bold lowercase tracking-normal text-[9px]">online</span>
+            {:else}
+              <span class="text-amber-400/80 font-normal lowercase tracking-normal text-[9px]">(offline)</span>
+            {/if}
+          </div>
         </div>
-        <div class="flex h-7 w-7 items-center justify-center rounded-full bg-purple-950/40 ring-1 {$activeTab === 'profil' ? 'ring-2 ring-purple-400' : 'ring-purple-500/30'} text-purple-300 transition group-hover:ring-purple-400/60">
+        <div class="relative flex h-7 w-7 items-center justify-center rounded-full bg-purple-950/40 ring-1 {$activeTab === 'profil' ? 'ring-2 ring-purple-400' : 'ring-purple-500/30'} text-purple-300 transition group-hover:ring-purple-400/60">
           <svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="8" r="4" />
             <path d="M6 21v-2a6 6 0 0 1 12 0v2" />
           </svg>
+          <span
+            class="absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-void-950 {$connection === 'connected'
+              ? 'bg-emerald-400'
+              : 'bg-amber-400/85'}"
+            title={$connection === 'connected' ? 'Client connected' : 'Client offline'}
+          ></span>
         </div>
       {/if}
     </button>

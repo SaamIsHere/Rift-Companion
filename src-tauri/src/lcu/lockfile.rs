@@ -1,18 +1,17 @@
 //! Discovery + parsing of the League Client `lockfile`.
 //!
 //! The running client writes a `lockfile` into its install directory containing
-//! `LeagueClient:<pid>:<port>:<password>:<protocol>`. We locate it by finding the
-//! `LeagueClientUx` process and reading the file next to its executable.
+//! `LeagueClient:<pid>:<port>:<password>:<protocol>`. We locate it by checking
+//! official installation metadata, cached paths, or process discovery.
 
 use anyhow::{anyhow, Result};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use sysinfo::{ProcessesToUpdate, System};
 
-/// Last lockfile path resolved via a full process scan. Checked first on
-/// every call so the common "still running, nothing changed" case only
-/// costs a cheap `exists()` instead of a full `sysinfo` process-table scan
-/// (with exe paths and command lines) every 3s while idle.
+/// Last lockfile path resolved via install lookup or process scan. Checked first on
+/// every call so the common case only costs a fast file + alive PID check instead of
+/// scanning OS process tables.
 static LAST_KNOWN_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 #[derive(Debug, Clone)]
@@ -28,7 +27,7 @@ pub struct Lockfile {
 pub fn is_league_process_alive(pid: u32) -> bool {
     let mut sys = System::new();
     let sys_pid = sysinfo::Pid::from_u32(pid);
-    sys.refresh_processes(ProcessesToUpdate::All, true);
+    sys.refresh_processes(ProcessesToUpdate::Some(&[sys_pid]), true);
     if let Some(proc) = sys.process(sys_pid) {
         let name = proc.name().to_string_lossy().to_lowercase();
         name.starts_with("leagueclient")
@@ -40,7 +39,15 @@ pub fn is_league_process_alive(pid: u32) -> bool {
 /// Returns the lockfile if the League client is currently running.
 pub fn find() -> Option<Lockfile> {
     let path = locate_path()?;
-    let raw = std::fs::read_to_string(&path).ok()?;
+    let raw = match std::fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(_) => {
+            // When League client is launching, it briefly holds a write lock on the lockfile.
+            // A brief retry handles transient sharing violations smoothly.
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            std::fs::read_to_string(&path).ok()?
+        }
+    };
     let lockfile = parse(&raw).ok()?;
 
     // Double check: ensure the process in the lockfile is actively running.
@@ -67,11 +74,69 @@ fn parse(raw: &str) -> Result<Lockfile> {
     })
 }
 
+fn get_installed_league_path() -> Option<PathBuf> {
+    #[cfg(windows)]
+    {
+        // 1. Check Riot Client's official metadata file (standard on all modern League installs)
+        let meta_path = PathBuf::from(r"C:\ProgramData\Riot Games\Metadata\league_of_legends.live\league_of_legends.live.product_settings.yaml");
+        if meta_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(&meta_path) {
+                for line in content.lines() {
+                    let trimmed = line.trim();
+                    if let Some(rest) = trimmed.strip_prefix("product_install_full_path:") {
+                        let path_str = rest.trim().trim_matches('"').trim_matches('\'');
+                        let p = PathBuf::from(path_str).join("lockfile");
+                        if p.exists() {
+                            return Some(p);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Windows Registry lookup
+        use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+        use winreg::RegKey;
+
+        if let Ok(key) = RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey(r"SOFTWARE\WOW6432Node\Riot Games, Inc\League of Legends") {
+            if let Ok(loc) = key.get_value::<String, _>("Location") {
+                let p = PathBuf::from(loc.trim_matches('"')).join("lockfile");
+                if p.exists() {
+                    return Some(p);
+                }
+            }
+        }
+
+        if let Ok(key) = RegKey::predef(HKEY_CURRENT_USER).open_subkey(r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Riot Game league_of_legends.live") {
+            if let Ok(loc) = key.get_value::<String, _>("InstallLocation") {
+                let p = PathBuf::from(loc.trim_matches('"')).join("lockfile");
+                if p.exists() {
+                    return Some(p);
+                }
+            }
+        }
+
+        // 3. Scan common drive letters
+        for drive in ['C', 'D', 'E', 'F', 'G'] {
+            let candidate = PathBuf::from(format!(r"{drive}:\Riot Games\League of Legends\lockfile"));
+            if candidate.exists() {
+                return Some(candidate);
+            }
+        }
+    }
+
+    None
+}
+
 fn locate_path() -> Option<PathBuf> {
-    // Check cached path first, but only if the process recorded in it is actually alive!
+    // 1. Check cached path first, but only if the process recorded in it is actively alive
     if let Some(cached) = LAST_KNOWN_PATH.lock().unwrap().clone() {
         if cached.exists() {
-            if let Ok(raw) = std::fs::read_to_string(&cached) {
+            let raw_opt = std::fs::read_to_string(&cached).ok().or_else(|| {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                std::fs::read_to_string(&cached).ok()
+            });
+            if let Some(raw) = raw_opt {
                 if let Ok(lockfile) = parse(&raw) {
                     if is_league_process_alive(lockfile.pid) {
                         return Some(cached);
@@ -83,6 +148,25 @@ fn locate_path() -> Option<PathBuf> {
         *LAST_KNOWN_PATH.lock().unwrap() = None;
     }
 
+    // 2. Fast check: check official install locations (Riot metadata / Registry)
+    if let Some(candidate) = get_installed_league_path() {
+        if candidate.exists() {
+            let raw_opt = std::fs::read_to_string(&candidate).ok().or_else(|| {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                std::fs::read_to_string(&candidate).ok()
+            });
+            if let Some(raw) = raw_opt {
+                if let Ok(lockfile) = parse(&raw) {
+                    if is_league_process_alive(lockfile.pid) {
+                        *LAST_KNOWN_PATH.lock().unwrap() = Some(candidate.clone());
+                        return Some(candidate);
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Process scan fallback for custom non-standard locations
     let resolved = locate_path_via_process_scan();
     if let Some(path) = &resolved {
         *LAST_KNOWN_PATH.lock().unwrap() = Some(path.clone());
@@ -94,16 +178,12 @@ fn locate_path_via_process_scan() -> Option<PathBuf> {
     let mut sys = System::new();
     sys.refresh_processes(ProcessesToUpdate::All, true);
 
-    // More than one "leagueclientux*" process can be alive at once (e.g. a
-    // leftover instance that never exited cleanly from a previous session).
-    // Collect every match instead of returning on the first hit, so a stale
-    // process pinned to a now-dead port can't win over the real, currently
-    // starting one just because of process-list iteration order.
     let mut candidates: Vec<(&sysinfo::Process, PathBuf)> = Vec::new();
 
     for proc in sys.processes().values() {
         let name = proc.name().to_string_lossy().to_lowercase();
-        if !name.starts_with("leagueclientux") {
+        // Match LeagueClient, LeagueClientUx, and LeagueClientUxRender
+        if !name.starts_with("leagueclient") {
             continue;
         }
 
@@ -138,12 +218,8 @@ fn locate_path_via_process_scan() -> Option<PathBuf> {
         // Fallback: check standard installation directories only while this process is running
         #[cfg(windows)]
         {
-            for default_path in [
-                r"C:\Riot Games\League of Legends\lockfile",
-                r"D:\Riot Games\League of Legends\lockfile",
-                r"E:\Riot Games\League of Legends\lockfile",
-            ] {
-                let candidate = PathBuf::from(default_path);
+            for drive in ['C', 'D', 'E', 'F', 'G'] {
+                let candidate = PathBuf::from(format!(r"{drive}:\Riot Games\League of Legends\lockfile"));
                 if candidate.exists() {
                     candidates.push((proc, candidate));
                     break;
@@ -155,7 +231,7 @@ fn locate_path_via_process_scan() -> Option<PathBuf> {
     if candidates.len() > 1 {
         tracing::info!(
             count = candidates.len(),
-            "multiple LeagueClientUx-like processes found; picking the most recently started"
+            "multiple LeagueClient-like processes found; picking the most recently started"
         );
     }
 

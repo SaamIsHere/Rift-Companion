@@ -39,6 +39,73 @@ fn bring_window_to_foreground(app: &AppHandle, shared: &Shared) {
     }
 }
 
+async fn fetch_and_update_profile(app: &AppHandle, shared: &Shared, lock: &lockfile::Lockfile) {
+    match client::get_current_summoner(lock).await {
+        Ok(Some(profile)) => {
+            let _ = crate::data::store::write_cached_profile(&profile);
+            *shared.profile.lock().unwrap() = Some(profile.clone());
+            let _ = app.emit("lcu://profile", &profile);
+            tracing::info!(name = %profile.display_name, "summoner profile updated");
+        }
+        Ok(None) => tracing::debug!("current summoner not available yet"),
+        Err(e) => tracing::warn!("failed to fetch current summoner: {e}"),
+    }
+
+    if !*shared.rank_manual.lock().unwrap() {
+        if let Ok(Some(tier_str)) = client::get_ranked_solo_tier(lock).await {
+            let detected = RankTier::from_lcu_tier(&tier_str);
+            let current = *shared.rank_tier.lock().unwrap();
+            if detected != current {
+                tracing::info!(tier = detected.as_opgg_tier(), "auto-detected rank tier from LCU profile");
+                *shared.rank_tier.lock().unwrap() = detected;
+                let _ = app.emit("rank://update", detected);
+
+                // Persist detected rank tier
+                {
+                    let mut settings = shared.settings.lock().unwrap();
+                    settings.rank_tier = Some(detected);
+                    let _ = crate::data::store::write_settings(&settings);
+                }
+                let patch = crate::data::store::read_meta().map(|m| m.patch).unwrap_or_default();
+                let _ = crate::data::store::write_meta(&patch, crate::data::store::now_unix(), detected, false);
+
+                let (server_url, api_key) = {
+                    let s = shared.settings.lock().unwrap();
+                    (s.server_url.clone(), s.api_key.clone())
+                };
+                if !server_url.trim().is_empty() {
+                    let shared_clone = shared.clone();
+                    let app_clone = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        let _ = app_clone.emit("rank-refresh://status", "refreshing");
+                        match opgg::remote::fetch_stats(&server_url, detected, Some(&api_key)).await {
+                            Ok(champions) => {
+                                let count = champions.len();
+                                let repo = crate::data::repository::Repository::from_champions(champions);
+                                *shared_clone.repo.lock().unwrap() = std::sync::Arc::new(repo);
+                                tracing::info!(tier = detected.as_opgg_tier(), champions = count, "loaded champion stats from Rift Server");
+                                let draft = shared_clone.latest_draft.lock().unwrap().clone();
+                                if let Some(d) = draft {
+                                    let weights = shared_clone.weights.lock().unwrap();
+                                    let recs = engine::recommend(shared_clone.repo.lock().unwrap().as_ref(), &d, &weights);
+                                    let _ = app_clone.emit("recommendations://update", &recs);
+                                }
+                                let _ = app_clone.emit("rank-refresh://status", "idle");
+                            }
+                            Err(e) => {
+                                tracing::warn!("failed to fetch stats from server ({server_url}): {e:#}");
+                                let _ = app_clone.emit("rank-refresh://status", "error");
+                            }
+                        }
+                    });
+                } else {
+                    opgg::refresh::trigger_refresh(app.clone(), shared.clone(), detected);
+                }
+            }
+        }
+    }
+}
+
 /// Runs forever: (re)discovers the client and processes events, reconnecting on drop.
 pub async fn run_watcher(app: AppHandle, shared: Shared) {
     let mut last_foreground_pid: Option<u32> = None;
@@ -70,75 +137,8 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                     last_foreground_pid = Some(lock.pid);
                 }
 
-                // Fetch the active account's profile for the title bar (Issue #9).
-                // Persist to disk so it is remembered across sessions (Issue #40).
-                match client::get_current_summoner(&lock).await {
-                    Ok(Some(profile)) => {
-                        let _ = crate::data::store::write_cached_profile(&profile);
-                        *shared.profile.lock().unwrap() = Some(profile.clone());
-                        let _ = app.emit("lcu://profile", &profile);
-                    }
-                    Ok(None) => tracing::debug!("current summoner not available yet"),
-                    Err(e) => tracing::warn!("failed to fetch current summoner: {e}"),
-                }
-
-                // Auto-detect the local player's rank tier as the data-fetch default,
-                // unless they've already picked one manually from the dropdown
-                // (Issue #13). Best-effort: unranked/unreachable just keeps whatever
-                // tier is already active.
-                if !*shared.rank_manual.lock().unwrap() {
-                    if let Ok(Some(tier_str)) = client::get_ranked_solo_tier(&lock).await {
-                        let detected = RankTier::from_lcu_tier(&tier_str);
-                        let current = *shared.rank_tier.lock().unwrap();
-                        if detected != current {
-                            tracing::info!(tier = detected.as_opgg_tier(), "auto-detected rank tier from LCU profile");
-                            *shared.rank_tier.lock().unwrap() = detected;
-                            let _ = app.emit("rank://update", detected);
-
-                            // Persist detected rank tier
-                            {
-                                let mut settings = shared.settings.lock().unwrap();
-                                settings.rank_tier = Some(detected);
-                                let _ = crate::data::store::write_settings(&settings);
-                            }
-                            let patch = crate::data::store::read_meta().map(|m| m.patch).unwrap_or_default();
-                            let _ = crate::data::store::write_meta(&patch, crate::data::store::now_unix(), detected, false);
-
-                            let (server_url, api_key) = {
-                                let s = shared.settings.lock().unwrap();
-                                (s.server_url.clone(), s.api_key.clone())
-                            };
-                            if !server_url.trim().is_empty() {
-                                let shared_clone = shared.clone();
-                                let app_clone = app.clone();
-                                tauri::async_runtime::spawn(async move {
-                                    let _ = app_clone.emit("rank-refresh://status", "refreshing");
-                                    match opgg::remote::fetch_stats(&server_url, detected, Some(&api_key)).await {
-                                        Ok(champions) => {
-                                            let count = champions.len();
-                                            let repo = crate::data::repository::Repository::from_champions(champions);
-                                            *shared_clone.repo.lock().unwrap() = std::sync::Arc::new(repo);
-                                            tracing::info!(tier = detected.as_opgg_tier(), champions = count, "loaded champion stats from Rift Server");
-                                            let draft = shared_clone.latest_draft.lock().unwrap().clone();
-                                            if let Some(d) = draft {
-                                                let weights = shared_clone.weights.lock().unwrap();
-                                                let recs = engine::recommend(shared_clone.repo.lock().unwrap().as_ref(), &d, &weights);
-                                                let _ = app_clone.emit("recommendations://update", &recs);
-                                            }
-                                            let _ = app_clone.emit("rank-refresh://status", "idle");
-                                        }
-                                        Err(e) => {
-                                            tracing::warn!("failed to fetch stats from server ({server_url}): {e:#}");
-                                            let _ = app_clone.emit("rank-refresh://status", "error");
-                                        }
-                                    }
-                                });
-                            } else {
-                                opgg::refresh::trigger_refresh(app.clone(), shared.clone(), detected);
-                            }
-                        }
-                    }
-                }
+                // Initial attempt to fetch the active account's profile and rank
+                fetch_and_update_profile(&app, &shared, &lock).await;
 
                 // Check current gameflow phase first!
                 let initial_phase = match client::get_gameflow_phase(&lock).await {
@@ -182,9 +182,17 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                     match msg {
                         Ok(Message::Text(txt)) => {
                             if let Some(ev) = parse_event(&txt) {
-                                if ev.uri.contains("gameflow-phase") {
+                                if ev.uri.contains("current-summoner") || ev.uri.contains("login") {
+                                    tracing::info!("received summoner/login event; updating profile");
+                                    fetch_and_update_profile(&app, &shared, &lock).await;
+                                } else if ev.uri.contains("gameflow-phase") {
                                     if let Some(phase) = ev.data.as_str() {
                                         tracing::info!(phase, "gameflow phase update");
+
+                                        // If profile wasn't ready during initial handshake, update it now
+                                        if shared.profile.lock().unwrap().is_none() {
+                                            fetch_and_update_profile(&app, &shared, &lock).await;
+                                        }
 
                                         if phase == "ChampSelect" {
                                             *shared.gameflow_phase.lock().unwrap() = phase.to_string();
@@ -194,6 +202,11 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                                             *shared.latest_post_game.lock().unwrap() = None;
                                             *shared.active_game_id.lock().unwrap() = None;
                                             let _ = app.emit("post-game://update", serde_json::Value::Null);
+
+                                            // Proactively pull active champ-select session from REST so we don't miss or delay display
+                                            if let Ok(Some(value)) = client::get_session(&lock).await {
+                                                handle_session(&app, &shared, value);
+                                            }
                                         } else if phase == "GameStart" || phase == "InProgress" || phase == "Reconnect" {
                                             let is_tft = if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
                                                 if let Ok(s) = serde_json::from_value::<models::GameflowSession>(gf_val) {
