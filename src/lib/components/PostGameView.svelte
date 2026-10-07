@@ -5,7 +5,6 @@
     isPostGameLoading,
     postGameError,
     fetchLatestPostGame,
-    loadMockPostGame,
     clearPostGame,
   } from "../stores/postGame";
   import { activeTab } from "../stores/navigation";
@@ -32,7 +31,6 @@
     Shield,
     Coins,
     RefreshCw,
-    Zap,
     Trophy,
     TrendingUp,
     Sparkles,
@@ -455,14 +453,6 @@
             </button>
             <button
               type="button"
-              on:click={() => loadMockPostGame(true)}
-              class="flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/20 px-4 py-2 text-xs font-bold text-amber-200 transition hover:bg-amber-500 hover:text-black shadow-sm"
-            >
-              <Zap class="h-3.5 w-3.5" />
-              <span>View Demo Match</span>
-            </button>
-            <button
-              type="button"
               on:click={() => activeTab.set("startseite")}
               class="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"
             >
@@ -512,23 +502,6 @@
 
         <!-- Action Controls -->
         <div class="flex items-center gap-2">
-          <button
-            type="button"
-            on:click={() => loadMockPostGame(!isVictory, match.modeType === 'aram' ? 'aram' : 'classic')}
-            class="flex items-center gap-1.5 rounded-lg border border-purple-500/20 bg-purple-950/40 px-3 py-1.5 text-xs font-semibold text-purple-300 transition hover:bg-purple-900/40 hover:text-white"
-            title="Toggle between Victory and Defeat Demo"
-          >
-            <Zap class="h-3.5 w-3.5" />
-            <span>{isVictory ? "Demo Defeat" : "Demo Victory"}</span>
-          </button>
-          <button
-            type="button"
-            on:click={() => loadMockPostGame(true, match.modeType === 'aram' ? 'classic' : 'aram')}
-            class="flex items-center gap-1.5 rounded-lg border border-sky-500/30 bg-sky-950/40 px-3 py-1.5 text-xs font-semibold text-sky-300 transition hover:bg-sky-900/40 hover:text-white"
-            title="Switch between Summoner's Rift and ARAM Demo"
-          >
-            <span>{match.modeType === 'aram' ? '🛡️ Classic SR' : '❄️ ARAM Demo'}</span>
-          </button>
           <button
             type="button"
             on:click={() => void fetchLatestPostGame()}

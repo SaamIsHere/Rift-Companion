@@ -181,7 +181,7 @@ export function normalizeProfile(
     let topChamps: ChampionPerformance[] = [];
 
     if (Array.isArray(opggMostList) && opggMostList.length > 0) {
-      for (const c of opggMostList.slice(0, 7)) {
+      for (const c of opggMostList) {
         const id = c.id || c.champion_id || 0;
         const name = c.champion_name || c.name || `Champion ${id}`;
         const play = c.play || (c.win || 0) + (c.lose || 0) || 1;
@@ -353,6 +353,7 @@ export function normalizeProfile(
       top_champions: topChamps,
       top_champions_solo: soloQueueChamps.length > 0 ? soloQueueChamps : undefined,
       top_champions_flex: flexQueueChamps.length > 0 ? flexQueueChamps : undefined,
+      lp_histories: raw.opgg?.lp_histories || raw.opgg?.summoner?.lp_histories || raw.lp_histories,
       source: "lcu",
       updated_at: Date.now(),
     };
@@ -411,7 +412,7 @@ export function normalizeProfile(
     sumData.recent_champion_stats ||
     [];
 
-  for (const c of mostList.slice(0, 7)) {
+  for (const c of mostList) {
     const id = c.id || c.champion_id || 0;
     const name = c.champion_name || c.name || `Champion ${id}`;
     const play = c.play || (c.win || 0) + (c.lose || 0) || 1;
@@ -460,6 +461,7 @@ export function normalizeProfile(
     top_champions: topChamps,
     top_champions_solo: soloQueueChamps.length > 0 ? soloQueueChamps : undefined,
     top_champions_flex: flexQueueChamps.length > 0 ? flexQueueChamps : undefined,
+    lp_histories: sumData.lp_histories || raw.data?.lp_histories || raw.lp_histories,
     source: "opgg",
     updated_at: Date.now(),
   };
@@ -689,9 +691,15 @@ export function normalizeMatches(raw: any, targetNameOrPuuid?: string): PlayerMa
       }
     }
 
+    const rawTime = typeof g.created_at === "string" ? new Date(g.created_at).getTime() : (g.created_at || Date.now());
+    // In OP.GG MCP, created_at is the match completion timestamp.
+    // In Riot Games & LCU, gameCreation is the match start timestamp.
+    // Subtracting duration aligns OP.GG to the canonical start timestamp.
+    const gameStartMs = dur > 0 ? rawTime - dur * 1000 : rawTime;
+
     matches.push({
       id: String(g.id),
-      game_creation: typeof g.created_at === "string" ? new Date(g.created_at).getTime() : (g.created_at || Date.now()),
+      game_creation: gameStartMs,
       raw_created_at: typeof g.created_at === "string" ? g.created_at : undefined,
       game_duration: dur,
       game_type: g.game_type || "SOLORANKED",

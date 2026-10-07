@@ -1110,7 +1110,9 @@ pub async fn get_player_profile(
 
                     tracing::info!("is_local_lookup resolved summoner: {}#{} (region: {})", gn, tl, reg);
                     let profile_fut = opgg::summoner::fetch_profile(&client, &gn, &tl, &reg);
-                    let p_res = profile_fut.await;
+                    let solo_fut = opgg::summoner::fetch_queue_champions(client.http(), &gn, &tl, &reg, "SOLORANKED");
+                    let flex_fut = opgg::summoner::fetch_queue_champions(client.http(), &gn, &tl, &reg, "FLEXRANKED");
+                    let (p_res, solo_res, flex_res) = tokio::join!(profile_fut, solo_fut, flex_fut);
                     let p_val = match p_res {
                         Ok(mut d) => {
                             if let Some(inner) = d.get_mut("data") {
@@ -1121,8 +1123,10 @@ pub async fn get_player_profile(
                         }
                         Err(_) => None,
                     };
+                    let top_solo = solo_res.unwrap_or_default();
+                    let top_flex = flex_res.unwrap_or_default();
 
-                    (p_val, Vec::new(), Vec::new())
+                    (p_val, top_solo, top_flex)
                 } else {
                     (None, Vec::new(), Vec::new())
                 };
@@ -1241,12 +1245,17 @@ pub async fn get_player_profile(
         }
     };
 
+    let (solo_res, flex_res) = tokio::join!(
+        opgg::summoner::fetch_queue_champions(client.http(), &final_name, &final_tag, &final_reg, "SOLORANKED"),
+        opgg::summoner::fetch_queue_champions(client.http(), &final_name, &final_tag, &final_reg, "FLEXRANKED")
+    );
+
     Ok(serde_json::json!({
         "source": "opgg",
         "region": final_reg,
         "data": data,
-        "top_champions_solo": serde_json::Value::Null,
-        "top_champions_flex": serde_json::Value::Null,
+        "top_champions_solo": solo_res.unwrap_or_default(),
+        "top_champions_flex": flex_res.unwrap_or_default(),
     }))
 }
 
@@ -1262,7 +1271,7 @@ pub async fn get_player_matches(
     region: Option<String>,
     limit: Option<usize>,
 ) -> Result<serde_json::Value, String> {
-    let lim = limit.unwrap_or(20).clamp(5, 20);
+    let lim = limit.unwrap_or(100).clamp(5, 100);
     let local_profile = state.profile.lock().unwrap().clone();
     let is_local_lookup = match (&game_name, &tag_line, &local_profile) {
         (None, _, _) => true,
@@ -1331,8 +1340,9 @@ pub async fn get_player_matches(
     let final_name = name.clone();
     let final_tag = tag.clone();
     let mut final_reg = reg.clone();
+    let opgg_lim = lim.clamp(5, 20);
 
-    let data = match opgg::summoner::fetch_matches(&client, &final_name, &final_tag, &final_reg, lim).await {
+    let data = match opgg::summoner::fetch_matches(&client, &final_name, &final_tag, &final_reg, opgg_lim).await {
         Ok(mut d) => {
             if let Some(inner) = d.get_mut("data") {
                 inner.take()
@@ -1345,7 +1355,7 @@ pub async fn get_player_matches(
 
             if let Some(inferred) = normalize_region_from_tag(&final_tag) {
                 if inferred != final_reg {
-                    if let Ok(mut d) = opgg::summoner::fetch_matches(&client, &final_name, &final_tag, inferred, lim).await {
+                    if let Ok(mut d) = opgg::summoner::fetch_matches(&client, &final_name, &final_tag, inferred, opgg_lim).await {
                         final_reg = inferred.to_string();
                         resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
                     }
@@ -1357,7 +1367,7 @@ pub async fn get_player_matches(
                 if let Ok(pro) = opgg::summoner::fetch_pro_player(&client, &name, &final_reg).await {
                     if let Some((p_name, p_tag, p_reg)) = matches_pro_player(&name, &pro) {
                         let target_reg = if !p_reg.is_empty() { p_reg } else { final_reg.clone() };
-                        if let Ok(mut d) = opgg::summoner::fetch_matches(&client, &p_name, &p_tag, &target_reg, lim).await {
+                        if let Ok(mut d) = opgg::summoner::fetch_matches(&client, &p_name, &p_tag, &target_reg, opgg_lim).await {
                             final_reg = target_reg;
                             resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
                         }
@@ -1370,7 +1380,7 @@ pub async fn get_player_matches(
                 if let Ok(pro) = opgg::summoner::fetch_pro_player(&client, &name, "KR").await {
                     if let Some((p_name, p_tag, _)) = matches_pro_player(&name, &pro) {
                         let target_tag = if !p_tag.is_empty() { p_tag } else { "KR1".to_string() };
-                        if let Ok(mut d) = opgg::summoner::fetch_matches(&client, &p_name, &target_tag, "KR", lim).await {
+                        if let Ok(mut d) = opgg::summoner::fetch_matches(&client, &p_name, &target_tag, "KR", opgg_lim).await {
                             final_reg = "KR".to_string();
                             resolved = Some(if let Some(inner) = d.get_mut("data") { inner.take() } else { d });
                         }
@@ -1528,6 +1538,7 @@ pub async fn save_cached_player_profile(
     profile: serde_json::Value,
     matches: serde_json::Value,
     cached_at: Option<u64>,
+    rank_history: Option<serde_json::Value>,
 ) -> Result<(), String> {
     let reg = region.unwrap_or_else(|| "EUW".to_string()).to_uppercase();
 
@@ -1538,7 +1549,7 @@ pub async fn save_cached_player_profile(
             .unwrap_or(0)
     });
 
-    let payload = serde_json::json!({
+    let mut payload = serde_json::json!({
         "game_name": game_name,
         "tag_line": tag_line,
         "region": reg,
@@ -1546,6 +1557,10 @@ pub async fn save_cached_player_profile(
         "matches": matches,
         "cached_at": ts,
     });
+
+    if let Some(rh) = rank_history {
+        payload["rank_history"] = rh;
+    }
 
     // Write ONLY to Rift Server asynchronously in the background
     let (server_url, api_key) = {

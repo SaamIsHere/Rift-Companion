@@ -13,9 +13,11 @@ pub async fn fetch_profile(
 ) -> Result<Value> {
     client.initialize().await?;
     let fields = json!([
-        "data.summoner.{level,game_name,tagline,profile_image_url}",
+        "data.summoner.{puuid,level,game_name,tagline,profile_image_url}",
         "data.summoner.league_stats[].tier_info.{tier,division,lp,tier_image_url}",
         "data.summoner.league_stats[].{game_type,win,lose}",
+        "data.summoner.lp_histories[].tier_info.{border_image_url,division,level,lp,tier,tier_image_url}",
+        "data.summoner.lp_histories[].{created_at,elo_point}",
         "data.summoner.most_champions.champion_stats[].{champion_name,id,play,win,lose,kill,death,assist,minion_kill,neutral_minion_kill,game_length_second}",
         "data.summoner.recent_champion_stats[].{champion_name,id,play,win,kill,death,assist}"
     ]);
@@ -150,7 +152,7 @@ pub async fn fetch_queue_champions(
     let enc_name = game_name.trim().replace(' ', "%20");
     let enc_tag = tag_line.trim().replace(' ', "%20");
     let url = format!(
-        "https://www.op.gg/summoners/{}/{}-{}/champions?queue_type={}",
+        "https://op.gg/summoners/{}/{}-{}/champions?queue_type={}",
         region_lower, enc_name, enc_tag, queue_type
     );
 
@@ -161,7 +163,7 @@ pub async fn fetch_queue_champions(
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
         )
         .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-        .timeout(std::time::Duration::from_millis(3000))
+        .timeout(std::time::Duration::from_millis(8000))
         .send()
         .await;
 

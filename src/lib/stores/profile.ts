@@ -2,6 +2,7 @@ import { writable, get } from "svelte/store";
 import { invoke } from "@tauri-apps/api/core";
 import type { Summoner, FullPlayerProfile, PlayerMatch, DetailedParticipant } from "../types";
 import { normalizeProfile, normalizeMatches, normalizeGameDetail, extractBansFromGameDetail } from "../utils/profileNormalizer";
+import { getProfileKey, loadStoredHistory, importStoredHistory, isSameMatch } from "./rankHistory";
 
 const STORAGE_KEY = "rift_cached_profile";
 const RECENT_SEARCHES_KEY = "rift_recent_searches";
@@ -164,6 +165,51 @@ function prefetchRecentMatches(matches: PlayerMatch[], region: string, focusRiot
   }, 1200);
 }
 
+export function deduplicateMatches(matchesList: PlayerMatch[]): PlayerMatch[] {
+  if (!Array.isArray(matchesList) || matchesList.length <= 1) return matchesList || [];
+  const deduped: PlayerMatch[] = [];
+  for (const m of matchesList) {
+    if (!m) continue;
+    const matchIdx = deduped.findIndex((existing) => isSameMatch(existing, m));
+    if (matchIdx === -1) {
+      deduped.push({ ...m });
+    } else {
+      const existing = deduped[matchIdx];
+      // Merge richer data into existing entry
+      if ((!existing.participants || existing.participants.length < 2) && m.participants && m.participants.length >= 2) {
+        existing.participants = m.participants;
+      }
+      if (!existing.bans && m.bans) {
+        existing.bans = m.bans;
+      }
+      if (existing.op_score == null && m.op_score != null) {
+        existing.op_score = m.op_score;
+        existing.op_score_rank = m.op_score_rank;
+      }
+      if (!existing.raw_created_at && m.raw_created_at) {
+        existing.raw_created_at = m.raw_created_at;
+      }
+      if (existing.placement == null && m.placement != null) {
+        existing.placement = m.placement;
+      }
+      if ((!existing.spells || existing.spells.length === 0) && m.spells && m.spells.length > 0) {
+        existing.spells = m.spells;
+      }
+      if (!existing.primary_rune_id && m.primary_rune_id) {
+        existing.primary_rune_id = m.primary_rune_id;
+      }
+      if (!existing.secondary_style_id && m.secondary_style_id) {
+        existing.secondary_style_id = m.secondary_style_id;
+      }
+      // If existing ID is an OP.GG base64 hash and m has a Riot numeric ID, prefer the Riot numeric ID
+      if (typeof existing.id === "string" && existing.id.includes("=") && typeof m.id === "string" && /^\d+$/.test(m.id)) {
+        existing.id = m.id;
+      }
+    }
+  }
+  return deduped.sort((a, b) => (Number(b.game_creation) || 0) - (Number(a.game_creation) || 0));
+}
+
 let activeLoadRequestId = 0;
 
 export async function loadPlayerProfile(
@@ -249,6 +295,11 @@ export async function loadPlayerProfile(
           cached_at: serverCached.cached_at || Date.now(),
         };
         profileMemoryCache.set(cacheKey, cachedData);
+
+        if (serverCached.rank_history) {
+          const profileKey = getProfileKey(gn, tl, region);
+          importStoredHistory(profileKey, serverCached.rank_history);
+        }
       }
     } catch (err) {
       if (requestId !== activeLoadRequestId) return;
@@ -261,7 +312,7 @@ export async function loadPlayerProfile(
   // 3. Stale-While-Revalidate: If cached data exists, display it IMMEDIATELY! (0ms perception)
   if (cachedData) {
     viewedProfile.set(cachedData.profile);
-    viewedMatches.set(cachedData.matches || []);
+    viewedMatches.set(deduplicateMatches(cachedData.matches || []));
     if (cachedData.cached_at) {
       lastSyncedAt.set(cachedData.cached_at);
     }
@@ -303,7 +354,7 @@ export async function loadPlayerProfile(
 
   const matchesArgs: Record<string, any> = {
     region,
-    limit: 20,
+    limit: 100,
     gameName: gameName ? gn : undefined,
     game_name: gameName ? gn : undefined,
     tagLine: tagLine ? tl : undefined,
@@ -327,6 +378,9 @@ export async function loadPlayerProfile(
         cached_at: now,
       });
       try {
+        const profileKey = getProfileKey(latestProfile.game_name, latestProfile.tag_line, targetRegion);
+        const storedHistory = loadStoredHistory(profileKey);
+
         invoke("save_cached_player_profile", {
           gameName: latestProfile.game_name,
           game_name: latestProfile.game_name,
@@ -335,6 +389,8 @@ export async function loadPlayerProfile(
           region: targetRegion,
           profile: latestProfile,
           matches: latestMatches,
+          rankHistory: storedHistory,
+          rank_history: storedHistory,
           cachedAt: now,
           cached_at: now,
         }).catch((err) => console.warn("Failed to save cached profile to disk/server:", err));
@@ -406,7 +462,7 @@ export async function loadPlayerProfile(
           }
         }
 
-        latestMatches = fresh.map((m) => {
+        const enhancedFresh = fresh.map((m) => {
           const prev = existingMap.get(m.id);
           if (prev && (!m.participants || m.participants.length < 2)) {
             return {
@@ -417,8 +473,12 @@ export async function loadPlayerProfile(
           }
           return m;
         });
+
+        // Combine fresh matches (canonical, newest) with historical matches, then deduplicate cleanly
+        const combined = [...enhancedFresh, ...(cachedData?.matches || []), ...prevMatches];
+        latestMatches = deduplicateMatches(combined);
       } else if (cachedData?.matches?.length) {
-        latestMatches = cachedData.matches;
+        latestMatches = deduplicateMatches(cachedData.matches);
       }
 
       viewedMatches.set(latestMatches);

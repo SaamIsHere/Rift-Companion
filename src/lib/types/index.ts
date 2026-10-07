@@ -383,8 +383,27 @@ export interface FullPlayerProfile {
   top_champions: ChampionPerformance[];
   top_champions_solo?: ChampionPerformance[];
   top_champions_flex?: ChampionPerformance[];
+  lp_histories?: any[];
   source: "lcu" | "opgg" | "cache";
   updated_at: number;
+}
+
+export interface RankHistoryPoint {
+  id: string;
+  timestamp: number;
+  queue: "solo" | "flex";
+  tier: string;
+  division: string;
+  lp: number;
+  elo: number;
+  source: "local" | "opgg" | "match" | "lcu" | "eog";
+  champion_id?: number;
+  champion_name?: string;
+  lp_delta?: number;
+  win?: boolean;
+  kills?: number;
+  deaths?: number;
+  assists?: number;
 }
 
 

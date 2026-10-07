@@ -15,6 +15,7 @@
     isExplicitSearch,
     loadPlayerProfile,
     loadMatchDetail,
+    deduplicateMatches,
     removeRecentSearch,
     clearAllRecentSearches,
     type RecentSearchItem,
@@ -34,6 +35,7 @@
   } from "../utils/ddragon";
   import { inferRegionFromTag, sortTeamByRole } from "../utils/profileNormalizer";
   import type { PlayerMatch, ChampionPerformance, DetailedParticipant } from "../types";
+  import RankGraph from "./RankGraph.svelte";
 
   const REGIONS = [
     { code: "EUW", label: "Europe West (EUW)" },
@@ -465,15 +467,17 @@
     }
   }
 
-  // Filtered matches
-  $: filteredMatches = $viewedMatches.filter((m) => {
-    if (activeQueueFilter === "all") return true;
-    const label = m.queue_label.toLowerCase();
-    if (activeQueueFilter === "solo") return label.includes("solo");
-    if (activeQueueFilter === "flex") return label.includes("flex");
-    if (activeQueueFilter === "other") return !label.includes("solo") && !label.includes("flex");
-    return true;
-  });
+  // Filtered matches (strictly deduplicated)
+  $: filteredMatches = deduplicateMatches(
+    $viewedMatches.filter((m) => {
+      if (activeQueueFilter === "all") return true;
+      const label = m.queue_label.toLowerCase();
+      if (activeQueueFilter === "solo") return label.includes("solo");
+      if (activeQueueFilter === "flex") return label.includes("flex");
+      if (activeQueueFilter === "other") return !label.includes("solo") && !label.includes("flex");
+      return true;
+    })
+  );
 
   function selectChampQueueFilter(filter: "all" | "solo" | "flex") {
     championQueueFilter = filter;
@@ -576,8 +580,8 @@
       });
   }
 
-  $: soloMatches = $viewedMatches.filter(isSoloMatch);
-  $: flexMatches = $viewedMatches.filter(isFlexMatch);
+  $: soloMatches = deduplicateMatches($viewedMatches.filter(isSoloMatch));
+  $: flexMatches = deduplicateMatches($viewedMatches.filter(isFlexMatch));
 
   $: displayedChampions = (() => {
     if (championQueueFilter === "all") {
@@ -1178,6 +1182,9 @@
           </div>
         </div>
       {/if}
+ 
+      <!-- CARD: RANK GRAPH (ELO PROGRESSION) -->
+      <RankGraph profile={$viewedProfile} matches={$viewedMatches} />
 
       <!-- CARD: TOP CHAMPIONS -->
       <div class="glass rounded-2xl p-4">

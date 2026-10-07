@@ -89,14 +89,16 @@ jobs:
             ## Rift Companion Release ${{ steps.get_version.outputs.tag }}
 
             ### Highlights
-            * **Post-Game Screen Overhaul & Enhancements:**
-              * **Timeline & Analysis Graph:** Added an interactive team gold advantage SVG area chart with real-time mouse scrubber HUD, minute-by-minute gold swings, objective milestone callouts (Dragons, Barons, Turrets), and automatic epic comeback detection.
-              * **Comparative Damage Breakdown:** Added team-level physical vs. magic vs. true damage distribution comparison bars as well as per-player AD/AP/True damage splits to assess threat profiles at a glance.
-              * **Game-Mode Specific Post-Game (ARAM & Arena):** Tailored scoring algorithms and visual layouts for Howling Abyss (ARAM) and Rings of Wrath (Arena). Standard lane roles and vision scoring are omitted, CS expectations are adapted, and game-mode specific badges have been added (Abyss Legend, Brawler, Teamfight Anchor, Snowball Sniper, Abyss Medic, Siege Ram, Arena Champion, Gladiator).
-              * **7th Item Slot & ADC Boots:** Added dedicated 7th item slot display above trinkets for ADC boots, role quests, and jungle items.
-              * **Scoreboard & Tab Improvements:** Display match rank badge (#1..#10) directly next to champion avatars in Damage, Defense, and Economy tabs, with a sort dropdown filter to sort participants by damage, DPM, rank, total defended, gold, or CS.
-              * **Badge Balancing & Clarifications:** Rebalanced badge thresholds to scale with match duration (Damage Sponge, Wrecking Ball, CC Overlord, Ward Hunter) and clarified criteria descriptions for Monster Hunter, Glass Cannon, and Vision Lord.
-            * **League Client Match History Investigation:** Investigated and verified read-only interaction with client endpoints to ensure companion operations do not impact League of Legends match history synchronization.
+            * **Interactive Rank Progression Graph:**
+              * **Smooth Elo & LP Timeline:** Added an interactive SVG spline graph visualizing historical LP and Elo progression across Ranked Solo/Duo and Ranked Flex queues.
+              * **Visual Rank Bands:** Clear tier division color bands with prominent visual distinction between Platinum (cyan) and Diamond (deep royal blue).
+              * **Streamlined Tooltips:** Win/loss color-coded hover cards displaying outcome, LP delta, and queue details without distracting glow effects or clutter.
+            * **Match History Deduplication & Timestamp Alignment:**
+              * **Start/End Timestamp Normalization:** Synchronized match timestamps between League Client (game start) and OP.GG MCP / NAS Rift Server cache (game end) so duplicate match cards are eliminated.
+              * **Fingerprint & Queue Validation:** Enhanced match comparison with exact KDA fingerprinting and queue validation to prevent false merges between distinct games.
+              * **Clean Single-Match List:** Centralized deduplication ensuring every match is presented strictly once across all views and champion statistics.
+            * **NAS Rift Server Remote Synchronization:**
+              * Synchronized rank progression records and full player profiles seamlessly with the central Rift Server.
 
             ### Download & Installation
             * **Windows Installer:** Download `Rift-Companion_${{ steps.get_version.outputs.version }}_x64-setup.exe` below and double-click to install.

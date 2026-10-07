@@ -81,11 +81,11 @@
 <svelte:window on:keydown={handleGlobalKeydown} on:contextmenu|preventDefault />
 
 <div
-  class="relative flex h-screen w-screen flex-col overflow-hidden text-slate-100 bg-[var(--theme-bg-base)] transition-colors duration-500 border {$isMaximized ? 'border-transparent' : 'border-white/10'}"
+  class="relative flex h-screen w-screen flex-col overflow-hidden text-slate-100 bg-[var(--theme-bg-base)] transition-colors duration-500 border {$isMaximized ? 'border-transparent' : 'border-void-950'}"
 >
   <!-- Optional subtle background for all tabs when enabled in settings -->
   {#if $wallpaperScope === "all_tabs" && $activeTab !== "startseite"}
-    <div class="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+    <div class="pointer-events-none absolute inset-0 z-0 overflow-hidden">
       <div
         class="absolute inset-0 bg-center bg-no-repeat bg-cover opacity-[0.24] transition-all duration-700"
         style="background-image: {effectiveWallpaper ? `url('${effectiveWallpaper}')` : 'none'}; filter: {hasCustom ? 'none' : $activeTheme.bgFilter};"

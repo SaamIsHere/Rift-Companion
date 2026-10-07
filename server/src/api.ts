@@ -221,12 +221,22 @@ export function createApiRouter(scheduler: any, dataDir: string) {
       const profilesDir = getProfilesDir(dataDir);
       const targetFile = path.join(profilesDir, filename);
 
+      // Preserve existing rank_history if incoming payload does not have one
+      let existingRankHistory: any = null;
+      if (fs.existsSync(targetFile)) {
+        try {
+          const prev = JSON.parse(await fsp.readFile(targetFile, "utf-8"));
+          existingRankHistory = prev.rank_history || null;
+        } catch {}
+      }
+
       const payload = {
         game_name: gn,
         tag_line: tl,
         region: reg,
         profile: req.body.profile || null,
         matches: req.body.matches || [],
+        rank_history: req.body.rank_history || req.body.rankHistory || existingRankHistory || null,
         cached_at: req.body.cached_at || Date.now(),
       };
 

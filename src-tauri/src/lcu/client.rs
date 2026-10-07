@@ -414,7 +414,7 @@ pub async fn get_local_matches(
     let client = http_client()?;
 
     // Always request at least 20 games from LCU to prevent truncating the League Client's match history cache
-    let fetch_end_index = end_index.max(20);
+    let fetch_end_index = end_index.max(20).clamp(20, 100);
 
     // Prefer querying by PUUID if available so LCU's current-summoner cache is not touched
     let puuid = match get_current_summoner(lock).await {
@@ -446,9 +446,66 @@ pub async fn get_local_matches(
 
     let mut val: serde_json::Value = resp.json().await?;
 
+    // If LCU returned fewer games than requested (e.g. capped at 20 by internal paging),
+    // paginate in slices of 20 up to fetch_end_index to gather up to 100 matches.
+    if let Some(games) = val.get_mut("games").and_then(|g| g.get_mut("games")).and_then(|g| g.as_array_mut()) {
+        let mut current_count = games.len();
+        while current_count < fetch_end_index {
+            let next_beg = current_count;
+            let next_end = (next_beg + 20).min(fetch_end_index);
+            if next_beg >= next_end {
+                break;
+            }
+
+            let next_url = if let Some(ref p) = puuid {
+                format!(
+                    "https://127.0.0.1:{}/lol-match-history/v1/products/lol/{}/matches?begIndex={}&endIndex={}",
+                    lock.port, p, next_beg, next_end
+                )
+            } else {
+                format!(
+                    "https://127.0.0.1:{}/lol-match-history/v1/products/lol/current-summoner/matches?begIndex={}&endIndex={}",
+                    lock.port, next_beg, next_end
+                )
+            };
+
+            let next_resp = match client
+                .get(next_url)
+                .header("Authorization", auth_header(lock))
+                .send()
+                .await
+            {
+                Ok(r) if r.status().is_success() => r,
+                _ => break,
+            };
+
+            let next_val: serde_json::Value = match next_resp.json().await {
+                Ok(v) => v,
+                _ => break,
+            };
+
+            let next_list = next_val
+                .get("games")
+                .and_then(|g| g.get("games"))
+                .and_then(|g| g.as_array());
+
+            match next_list {
+                Some(slice) if !slice.is_empty() => {
+                    let added = slice.len();
+                    games.extend(slice.clone());
+                    current_count += added;
+                    if added < (next_end - next_beg) {
+                        break;
+                    }
+                }
+                _ => break,
+            }
+        }
+    }
+
     // Enhance requested games in the list with full 10-player data from /lol-match-history/v1/games/{id}
-    // Only enhance up to the requested end_index (e.g. 1 for post-game) to avoid superfluous LCU requests
-    let detail_limit = end_index.max(1);
+    // Only enhance up to 20 games on initial load to keep LCU requests fast
+    let detail_limit = end_index.min(20).max(1);
     if let Some(games) = val.get_mut("games").and_then(|g| g.get_mut("games")).and_then(|g| g.as_array_mut()) {
         let game_ids: Vec<u64> = games
             .iter()
