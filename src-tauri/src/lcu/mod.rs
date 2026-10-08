@@ -385,13 +385,45 @@ pub async fn check_liveclient_data(app: &AppHandle, shared: &Shared) -> bool {
     let repo = shared.repo.lock().unwrap().clone();
     let existing_draft = shared.latest_draft.lock().unwrap().clone();
 
-    if let Some(state) = draft::from_live_client(
+    if let Some(mut state) = draft::from_live_client(
         repo.as_ref(),
         &players,
         active.as_ref(),
         existing_draft.as_ref(),
     ) {
         if !state.allies.is_empty() || !state.enemies.is_empty() {
+            // Re-apply any enemy role overrides
+            {
+                let mut overrides = shared.enemy_role_overrides.lock().unwrap();
+                if !overrides.is_empty() {
+                    let live_ids: std::collections::HashSet<u32> =
+                        state.enemies.iter().map(|p| p.champion_id).collect();
+                    overrides.retain(|id, _| live_ids.contains(id));
+                    for pick in state.enemies.iter_mut() {
+                        if let Some(role) = overrides.get(&pick.champion_id) {
+                            pick.role = Some(*role);
+                        }
+                    }
+                }
+            }
+            // Re-apply any ally role overrides
+            {
+                let mut overrides = shared.ally_role_overrides.lock().unwrap();
+                if !overrides.is_empty() {
+                    let live_ids: std::collections::HashSet<u32> =
+                        state.allies.iter().map(|p| p.champion_id).collect();
+                    overrides.retain(|id, _| live_ids.contains(id));
+                    for pick in state.allies.iter_mut() {
+                        if let Some(role) = overrides.get(&pick.champion_id) {
+                            pick.role = Some(*role);
+                            if pick.is_local {
+                                state.local_role = Some(*role);
+                            }
+                        }
+                    }
+                }
+            }
+
             tracing::info!(
                 allies = state.allies.len(),
                 enemies = state.enemies.len(),

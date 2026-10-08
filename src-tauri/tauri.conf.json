@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Rift Companion",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "identifier": "com.riftcompanion.app",
   "build": {
     "frontendDist": "../dist",
@@ -35,6 +35,10 @@
     "active": true,
     "targets": ["nsis"],
     "createUpdaterArtifacts": true,
+    "copyright": "Copyright © 2026 Rift Companion",
+    "shortDescription": "League of Legends champion-select companion",
+    "longDescription": "Desktop companion application providing real-time drafting advice, builds, runes, and match statistics for League of Legends.",
+    "publisher": "Rift Companion",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

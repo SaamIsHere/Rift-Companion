@@ -284,11 +284,10 @@ pub fn run() {
                     arg == "--autostart" || arg == "--minimized" || arg == "--hidden"
                 });
 
-                // Ensure autostart shortcut is synchronized with persisted settings
-                if startup_behavior == "system_boot" || startup_behavior == "league_launch" {
-                    let _ = autostart::set_autostart(true);
-                } else {
-                    let _ = autostart::set_autostart(false);
+                // Ensure autostart shortcut is synchronized with persisted settings only if out of sync
+                let should_autostart = startup_behavior == "system_boot" || startup_behavior == "league_launch";
+                if autostart::is_autostart_enabled() != should_autostart {
+                    let _ = autostart::set_autostart(should_autostart);
                 }
 
                 // In "League Launch" mode:

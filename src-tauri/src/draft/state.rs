@@ -409,6 +409,115 @@ pub fn assign_unique_roles(repo: &Repository, picks: &mut [DraftPick]) {
     }
 }
 
+/// Helper to check if a target display name (e.g. from existing draft or active player)
+/// matches a LiveClientPlayer's Riot ID or summoner name.
+pub fn matches_player_name(expected: &str, p: &crate::lcu::models::LiveClientPlayer) -> bool {
+    let exp = expected.trim();
+    if exp.is_empty() {
+        return false;
+    }
+    // Check against p.riot_id (e.g. "Player#EUW")
+    if !p.riot_id.is_empty() && p.riot_id != "#" {
+        if exp.eq_ignore_ascii_case(&p.riot_id) {
+            return true;
+        }
+    }
+    // Check against game_name#tag_line or game_name
+    if !p.riot_id_game_name.is_empty() {
+        if !p.riot_id_tag_line.is_empty() {
+            let combined = format!("{}#{}", p.riot_id_game_name, p.riot_id_tag_line);
+            if exp.eq_ignore_ascii_case(&combined) {
+                return true;
+            }
+        }
+        if exp.eq_ignore_ascii_case(&p.riot_id_game_name) {
+            return true;
+        }
+        if let Some(prefix) = exp.split('#').next() {
+            if prefix.eq_ignore_ascii_case(&p.riot_id_game_name) {
+                return true;
+            }
+        }
+    }
+    // Check against summoner_name
+    if !p.summoner_name.is_empty() {
+        if exp.eq_ignore_ascii_case(&p.summoner_name) {
+            return true;
+        }
+        if let Some(prefix) = exp.split('#').next() {
+            if prefix.eq_ignore_ascii_case(&p.summoner_name) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Helper to check if a live client player represents a disguised or non-champion entity
+/// (such as Neeko transformed into a minion, jungle monster, ward, or plant).
+pub fn is_non_champion_entity(name: &str) -> bool {
+    let lower = name.trim().to_lowercase();
+    lower.is_empty()
+        || lower.starts_with("sru_")
+        || lower.contains("minion")
+        || lower.contains("ward")
+        || lower.contains("trinket")
+        || lower.contains("plant")
+        || lower.contains("crab")
+        || lower.contains("turret")
+}
+
+/// Helper to detect true champion ID of active player from innate ability IDs.
+/// In League's Live Client Data API, ability IDs (like `NeekoPassive`, `NeekoQ`, `ViegoPassive`, `ViegoR`)
+/// preserve the champion's true identity even during disguises, shapeshifts, or possessions.
+pub fn detect_active_champion_from_abilities(
+    repo: &Repository,
+    active: Option<&crate::lcu::models::LiveClientActivePlayer>,
+) -> Option<u32> {
+    let act = active?;
+    let abilities = act.abilities.as_ref()?;
+
+    let ability_ids = [
+        abilities.passive.as_ref().map(|a| a.id.as_str()),
+        abilities.q.as_ref().map(|a| a.id.as_str()),
+        abilities.w.as_ref().map(|a| a.id.as_str()),
+        abilities.e.as_ref().map(|a| a.id.as_str()),
+        abilities.r.as_ref().map(|a| a.id.as_str()),
+    ];
+
+    // Priority checks for notorious shapeshifters/possessors
+    for id_opt in &ability_ids {
+        if let Some(id) = id_opt {
+            let lower = id.to_lowercase();
+            if lower.contains("neeko") {
+                if let Some(champ) = repo.get_by_name("Neeko") {
+                    return Some(champ.champion_id);
+                }
+            }
+            if lower.contains("viego") {
+                if let Some(champ) = repo.get_by_name("Viego") {
+                    return Some(champ.champion_id);
+                }
+            }
+        }
+    }
+
+    // Generic check: match prefix of passive or R ability against known champion names in repo
+    for id_opt in &ability_ids {
+        if let Some(id) = id_opt {
+            for suffix in &["Passive", "Q", "W", "E", "R", "Spell"] {
+                if let Some(prefix) = id.strip_suffix(suffix) {
+                    if let Some(champ) = repo.get_by_name(prefix) {
+                        return Some(champ.champion_id);
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
 /// Parse live in-game state directly from Riot's Live Client Data API (`https://127.0.0.1:2999`).
 pub fn from_live_client(
     repo: &Repository,
@@ -436,23 +545,54 @@ pub fn from_live_client(
         }
     });
 
-    let active_team = players
-        .iter()
-        .find(|p| {
-            active_name.as_deref().map_or(false, |name| {
-                p.riot_id == name
-                    || p.summoner_name == name
-                    || p.riot_id_game_name == name
-                    || (!p.riot_id_game_name.is_empty() && name.starts_with(&p.riot_id_game_name))
-            }) || existing.and_then(|d| d.local_champion_id).map_or(false, |cid| {
-                repo.get(cid).map_or(false, |c| {
+    let existing_local_name = existing
+        .and_then(|d| d.allies.iter().find(|a| a.is_local))
+        .and_then(|a| a.player_name.as_deref());
+
+    let is_player_local = |p: &crate::lcu::models::LiveClientPlayer| -> bool {
+        if let Some(act_name) = active_name.as_deref() {
+            if matches_player_name(act_name, p) {
+                return true;
+            }
+        }
+        if let Some(loc_name) = existing_local_name {
+            if matches_player_name(loc_name, p) {
+                return true;
+            }
+        }
+        // Fallback: only if active_name and existing_local_name are absent, match by local champion
+        if active_name.is_none() && existing_local_name.is_none() {
+            if let Some(cid) = existing.and_then(|d| d.local_champion_id) {
+                if repo.get(cid).map_or(false, |c| {
                     c.name.eq_ignore_ascii_case(&p.champion_name)
                         || c.image.eq_ignore_ascii_case(&p.champion_name)
-                })
-            })
-        })
+                }) {
+                    return true;
+                }
+            }
+        }
+        false
+    };
+
+    let active_team = players
+        .iter()
+        .find(|p| is_player_local(p))
         .map(|p| p.team.as_str())
-        .unwrap_or("ORDER");
+        .unwrap_or_else(|| {
+            // Secondary search if active_name was matched partially or existing local champion
+            players
+                .iter()
+                .find(|p| {
+                    existing.and_then(|d| d.local_champion_id).map_or(false, |cid| {
+                        repo.get(cid).map_or(false, |c| {
+                            c.name.eq_ignore_ascii_case(&p.champion_name)
+                                || c.image.eq_ignore_ascii_case(&p.champion_name)
+                        })
+                    })
+                })
+                .map(|p| p.team.as_str())
+                .unwrap_or("ORDER")
+        });
 
     let parse_spell_id = |s: Option<&crate::lcu::models::LiveClientSpell>| -> Option<u64> {
         let sp = s?;
@@ -482,14 +622,40 @@ pub fn from_live_client(
         }
     };
 
-    let mut local_role = None;
-    let mut local_champion_id = None;
+    // The true champion of the local player:
+    // 1. Existing local_champion_id if already known (> 0)
+    // 2. Active player abilities check (handles opening app mid-game while Neeko/Viego is transformed)
+    let true_local_champion_id = existing
+        .and_then(|d| d.local_champion_id)
+        .filter(|&id| id > 0)
+        .or_else(|| detect_active_champion_from_abilities(repo, active));
 
-    let map_player = |p: &crate::lcu::models::LiveClientPlayer, is_local_check: bool| -> DraftPick {
-        let champ_opt = repo.get_by_name(&p.champion_name);
-        let champ_id = champ_opt.map(|c| c.champion_id).unwrap_or(0);
-        let role = Role::from_lcu(&p.position).or_else(|| champ_opt.and_then(|c| c.roles.first().copied()));
+    let mut local_role = existing.and_then(|e| e.local_role);
+    let mut local_champion_id = true_local_champion_id;
 
+    let mut allies = Vec::new();
+    let mut enemies = Vec::new();
+
+    for p in players {
+        let is_ally = p.team == active_team;
+        let is_local = is_ally && is_player_local(p);
+
+        // Find corresponding existing pick if known
+        let existing_pick = existing.and_then(|ex| {
+            if is_local {
+                ex.allies.iter().find(|a| a.is_local)
+            } else if is_ally {
+                ex.allies.iter().find(|a| {
+                    !a.is_local && a.player_name.as_deref().map_or(false, |name| matches_player_name(name, p))
+                })
+            } else {
+                ex.enemies.iter().find(|e| {
+                    e.player_name.as_deref().map_or(false, |name| matches_player_name(name, p))
+                })
+            }
+        });
+
+        // Resolve Player Name
         let player_name = if !p.riot_id.is_empty() && p.riot_id != "#" {
             Some(p.riot_id.clone())
         } else if !p.riot_id_game_name.is_empty() {
@@ -498,51 +664,69 @@ pub fn from_live_client(
             } else {
                 Some(p.riot_id_game_name.clone())
             }
-        } else if !p.summoner_name.is_empty() && !champ_opt.map_or(false, |c| c.name.eq_ignore_ascii_case(&p.summoner_name)) {
+        } else if !p.summoner_name.is_empty() {
             Some(p.summoner_name.clone())
         } else {
-            existing.and_then(|d| {
-                d.allies.iter().chain(d.enemies.iter()).find(|x| x.champion_id == champ_id).and_then(|x| x.player_name.clone())
-            })
+            existing_pick.and_then(|ep| ep.player_name.clone())
         };
 
-        let spell1_id = p.summoner_spells.as_ref().and_then(|s| parse_spell_id(s.summoner_spell_one.as_ref()));
-        let spell2_id = p.summoner_spells.as_ref().and_then(|s| parse_spell_id(s.summoner_spell_two.as_ref()));
+        // Determine True Champion ID
+        let champ_id = if is_local && true_local_champion_id.is_some() {
+            true_local_champion_id.unwrap()
+        } else if let Some(ep) = existing_pick.filter(|ep| ep.champion_id > 0) {
+            // Player was already registered in existing draft (e.g. champ select / earlier tick).
+            // NEVER overwrite their true champion ID when p.champion_name reflects a temporary
+            // transformation (Neeko disguise, Viego possession, minion/monster disguise).
+            ep.champion_id
+        } else if is_non_champion_entity(&p.champion_name) {
+            // Non-champion entity in playerlist (minion, ward, jungle monster, plant)
+            // In League of Legends, ONLY Neeko can disguise as non-champion units.
+            repo.get_by_name("Neeko").map(|c| c.champion_id).unwrap_or(518)
+        } else {
+            // Standard lookup
+            let champ_opt = repo.get_by_name(&p.champion_name);
+            champ_opt.map(|c| c.champion_id).unwrap_or(0)
+        };
 
-        DraftPick {
+        // If champ_id is still 0 (e.g. unrecognized disguise), fallback to Neeko
+        let champ_id = if champ_id == 0 {
+            repo.get_by_name("Neeko").map(|c| c.champion_id).unwrap_or(518)
+        } else {
+            champ_id
+        };
+
+        // Resolve Role
+        let role = existing_pick.and_then(|ep| ep.role)
+            .or_else(|| Role::from_lcu(&p.position))
+            .or_else(|| repo.primary_role(champ_id));
+
+        if is_local {
+            if local_role.is_none() {
+                local_role = role;
+            }
+            if local_champion_id.is_none() {
+                local_champion_id = Some(champ_id);
+            }
+        }
+
+        // Resolve Spells
+        let spell1_id = p.summoner_spells.as_ref()
+            .and_then(|s| parse_spell_id(s.summoner_spell_one.as_ref()))
+            .or_else(|| existing_pick.and_then(|ep| ep.spell1_id));
+
+        let spell2_id = p.summoner_spells.as_ref()
+            .and_then(|s| parse_spell_id(s.summoner_spell_two.as_ref()))
+            .or_else(|| existing_pick.and_then(|ep| ep.spell2_id));
+
+        let pick = DraftPick {
             champion_id: champ_id,
             role,
-            is_local: is_local_check,
+            is_local,
             is_hover: false,
             spell1_id,
             spell2_id,
             player_name,
-        }
-    };
-
-    let mut allies = Vec::new();
-    let mut enemies = Vec::new();
-
-    for p in players {
-        let is_ally = p.team == active_team;
-        let is_local = is_ally
-            && (active_name.as_deref().map_or(false, |name| {
-                p.riot_id == name
-                    || p.summoner_name == name
-                    || p.riot_id_game_name == name
-                    || (!p.riot_id_game_name.is_empty() && name.starts_with(&p.riot_id_game_name))
-            }) || existing.and_then(|d| d.local_champion_id).map_or(false, |cid| {
-                repo.get(cid).map_or(false, |c| {
-                    c.name.eq_ignore_ascii_case(&p.champion_name)
-                        || c.image.eq_ignore_ascii_case(&p.champion_name)
-                })
-            }));
-
-        let pick = map_player(p, is_local);
-        if is_local {
-            local_champion_id = Some(pick.champion_id);
-            local_role = pick.role;
-        }
+        };
 
         if is_ally {
             allies.push(pick);
@@ -550,6 +734,27 @@ pub fn from_live_client(
             enemies.push(pick);
         }
     }
+
+    // Guard against duplicate champions on the same team in standard modes
+    // (e.g. Neeko disguised as an ally when app opened mid-match without existing state)
+    let fix_team_disguise_duplicates = |team: &mut Vec<DraftPick>| {
+        let mut seen = std::collections::HashSet::new();
+        for pick in team.iter_mut() {
+            if pick.champion_id > 0 {
+                if seen.contains(&pick.champion_id) {
+                    // Duplicate found on the same team! In League, this is Neeko disguised as her teammate.
+                    if let Some(neeko) = repo.get_by_name("Neeko") {
+                        pick.champion_id = neeko.champion_id;
+                        pick.role = repo.primary_role(neeko.champion_id);
+                    }
+                } else {
+                    seen.insert(pick.champion_id);
+                }
+            }
+        }
+    };
+    fix_team_disguise_duplicates(&mut allies);
+    fix_team_disguise_duplicates(&mut enemies);
 
     if local_role.is_none() {
         local_role = existing.and_then(|e| e.local_role);

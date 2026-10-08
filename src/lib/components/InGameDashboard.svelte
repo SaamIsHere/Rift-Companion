@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { DraftPick, Role, SimulatedMatchAnalysis, ChampionOverviewData, CoreItemStats, StarterItemStats, BootsStats, DepthItemStats } from "../types";
-  import { draft } from "../stores/draft";
+  import { draft, gameflowPhase } from "../stores/draft";
   import { profile } from "../stores/profile";
   import { championCatalog, ddragonVersion } from "../stores/champions";
   import { squareIconUrl, roleIconUrl, itemIconUrl, summonerSpellIconUrl } from "../utils/ddragon";
@@ -25,13 +25,35 @@
   $: localChampId = $draft?.local_champion_id || null;
   $: localRole = $draft?.local_role || null;
 
+  // Anchor the local player's true champion and role for the active game session
+  // to guard against transient shapeshifting/possession glitches (Neeko, Viego, etc.)
+  let anchoredPlayerChampId: number | null = null;
+  let anchoredPlayerRole: Role | null = null;
+
+  $: if (localChampId && localChampId > 0 && !anchoredPlayerChampId) {
+    anchoredPlayerChampId = localChampId;
+    anchoredPlayerRole = localRole;
+  }
+
+  // Reset anchor when match ends
+  $: if (!$draft || !["GameStart", "InProgress", "Reconnect"].includes($gameflowPhase)) {
+    anchoredPlayerChampId = null;
+    anchoredPlayerRole = null;
+    inspectingTeammate = false;
+  }
+
+  $: playerChampId = anchoredPlayerChampId || localChampId;
+  $: playerRole = anchoredPlayerRole || localRole;
+
   // Initialize or keep selection updated with local player if not explicitly inspecting
-  $: if (!inspectingTeammate && localChampId) {
-    selectedChampionId = localChampId;
-    selectedRole = localRole;
-  } else if (!selectedChampionId && $draft?.allies.length) {
-    selectedChampionId = $draft.allies[0].champion_id;
-    selectedRole = $draft.allies[0].role || "top";
+  $: if (!inspectingTeammate) {
+    if (playerChampId) {
+      selectedChampionId = playerChampId;
+      selectedRole = playerRole;
+    } else if (!selectedChampionId && $draft?.allies.length) {
+      selectedChampionId = $draft.allies[0].champion_id;
+      selectedRole = $draft.allies[0].role || "top";
+    }
   }
 
   // Match Analysis reactive calculation
@@ -91,13 +113,13 @@
   function selectChampionToInspect(champId: number, role: Role | null, isAlly: boolean) {
     selectedChampionId = champId;
     selectedRole = role;
-    inspectingTeammate = !isAlly || champId !== localChampId;
+    inspectingTeammate = !isAlly || champId !== playerChampId;
   }
 
   function resetToPlayerChampion() {
     inspectingTeammate = false;
-    selectedChampionId = localChampId;
-    selectedRole = localRole;
+    selectedChampionId = playerChampId;
+    selectedRole = playerRole;
   }
 
   // Lane Matchup pairing: ensures all 5 lanes have their paired ally and enemy without duplicates

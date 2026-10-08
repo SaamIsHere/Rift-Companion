@@ -47,6 +47,11 @@ pub fn set_autostart(enabled: bool) -> Result<()> {
     };
 
     if enabled {
+        if shortcut_path.exists() {
+            // Shortcut already present; avoid repeatedly re-writing on every launch
+            return Ok(());
+        }
+
         let current_exe = std::env::current_exe().context("failed to get current_exe")?;
 
         if let Some(parent) = shortcut_path.parent() {
@@ -77,19 +82,36 @@ pub fn set_autostart(enabled: bool) -> Result<()> {
 
 /// Cleans up any legacy registry entries created by auto-launch / tauri-plugin-autostart
 /// in older versions so they don't linger and trigger AV scanners.
+/// Only opens registry keys with write permissions if legacy entries are actually detected.
 #[cfg(windows)]
 pub fn cleanup_legacy_registry_entries() {
-    use winreg::enums::{HKEY_CURRENT_USER, KEY_SET_VALUE};
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_SET_VALUE};
     use winreg::RegKey;
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    if let Ok(run_key) = hkcu.open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Run", KEY_SET_VALUE) {
-        let _ = run_key.delete_value("Rift Companion");
-        let _ = run_key.delete_value("rift-companion");
+
+    // 1. Run key: check read-only first
+    if let Ok(run_key_read) = hkcu.open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Run", KEY_READ) {
+        let has_rift = run_key_read.get_raw_value("Rift Companion").is_ok()
+            || run_key_read.get_raw_value("rift-companion").is_ok();
+        if has_rift {
+            if let Ok(run_key_write) = hkcu.open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Run", KEY_SET_VALUE) {
+                let _ = run_key_write.delete_value("Rift Companion");
+                let _ = run_key_write.delete_value("rift-companion");
+            }
+        }
     }
-    if let Ok(appr_key) = hkcu.open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run", KEY_SET_VALUE) {
-        let _ = appr_key.delete_value("Rift Companion");
-        let _ = appr_key.delete_value("rift-companion");
+
+    // 2. StartupApproved\Run key: check read-only first
+    if let Ok(appr_key_read) = hkcu.open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run", KEY_READ) {
+        let has_rift = appr_key_read.get_raw_value("Rift Companion").is_ok()
+            || appr_key_read.get_raw_value("rift-companion").is_ok();
+        if has_rift {
+            if let Ok(appr_key_write) = hkcu.open_subkey_with_flags(r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run", KEY_SET_VALUE) {
+                let _ = appr_key_write.delete_value("Rift Companion");
+                let _ = appr_key_write.delete_value("rift-companion");
+            }
+        }
     }
 }
 

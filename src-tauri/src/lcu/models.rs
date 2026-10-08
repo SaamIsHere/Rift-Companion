@@ -172,6 +172,12 @@ pub struct LiveClientPlayer {
     #[serde(default)]
     pub champion_name: String,
     #[serde(default)]
+    pub raw_champion_name: String,
+    #[serde(default)]
+    pub raw_skin_name: String,
+    #[serde(default)]
+    pub skin_id: i64,
+    #[serde(default)]
     pub position: String,
     #[serde(default)]
     pub team: String,
@@ -189,6 +195,34 @@ pub struct LiveClientPlayer {
 
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
+pub struct LiveClientAbility {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub display_name: String,
+    #[serde(default)]
+    pub raw_description: String,
+    #[serde(default)]
+    pub raw_display_name: String,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "PascalCase")]
+pub struct LiveClientActivePlayerAbilities {
+    #[serde(default)]
+    pub passive: Option<LiveClientAbility>,
+    #[serde(default)]
+    pub q: Option<LiveClientAbility>,
+    #[serde(default)]
+    pub w: Option<LiveClientAbility>,
+    #[serde(default)]
+    pub e: Option<LiveClientAbility>,
+    #[serde(default)]
+    pub r: Option<LiveClientAbility>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct LiveClientActivePlayer {
     #[serde(default)]
     pub summoner_name: String,
@@ -198,6 +232,8 @@ pub struct LiveClientActivePlayer {
     pub riot_id_game_name: String,
     #[serde(default)]
     pub riot_id_tag_line: String,
+    #[serde(default)]
+    pub abilities: Option<LiveClientActivePlayerAbilities>,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]

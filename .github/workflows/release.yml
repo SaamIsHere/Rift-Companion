@@ -89,16 +89,13 @@ jobs:
             ## Rift Companion Release ${{ steps.get_version.outputs.tag }}
 
             ### Highlights
-            * **Interactive Rank Progression Graph:**
-              * **Smooth Elo & LP Timeline:** Added an interactive SVG spline graph visualizing historical LP and Elo progression across Ranked Solo/Duo and Ranked Flex queues.
-              * **Visual Rank Bands:** Clear tier division color bands with prominent visual distinction between Platinum (cyan) and Diamond (deep royal blue).
-              * **Streamlined Tooltips:** Win/loss color-coded hover cards displaying outcome, LP delta, and queue details without distracting glow effects or clutter.
-            * **Match History Deduplication & Timestamp Alignment:**
-              * **Start/End Timestamp Normalization:** Synchronized match timestamps between League Client (game start) and OP.GG MCP / NAS Rift Server cache (game end) so duplicate match cards are eliminated.
-              * **Fingerprint & Queue Validation:** Enhanced match comparison with exact KDA fingerprinting and queue validation to prevent false merges between distinct games.
-              * **Clean Single-Match List:** Centralized deduplication ensuring every match is presented strictly once across all views and champion statistics.
-            * **NAS Rift Server Remote Synchronization:**
-              * Synchronized rank progression records and full player profiles seamlessly with the central Rift Server.
+            * **Windows Defender & Antivirus False-Positive Hardening:**
+              * **Heuristic Compilation Profile:** Transitioned from aggressive size-optimizations (`opt-level = "s"`, `panic = "abort"`, full stripping) to standard MSVC release configuration (`opt-level = 3`, `panic = "unwind"`, debuginfo stripping), eliminating `Trojan:Win32/Bearfoos.A!ml` machine-learning false positives.
+              * **Safe Startup Operations:** Eliminated redundant shortcut rewrites in `%APPDATA%\...\Startup\Rift Companion.lnk` and guarded legacy registry cleanup with read-only checks, preventing real-time behavioral monitoring triggers.
+              * **Embedded Application Metadata:** Embedded comprehensive Windows PE resource metadata (publisher, copyright, descriptions) into the executable bundle.
+            * **Shapeshifter & In-Game Identity Stability (Neeko & Viego):**
+              * Preserved true player and teammate identity across mid-game disguise transformations and champion possession.
+              * Fixed in-game matchup displays and role assignments during shapeshifting events.
 
             ### Download & Installation
             * **Windows Installer:** Download `Rift-Companion_${{ steps.get_version.outputs.version }}_x64-setup.exe` below and double-click to install.

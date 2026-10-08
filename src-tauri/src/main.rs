@@ -28,7 +28,7 @@ fn run_internal_tests() {
     println!("Running internal test suite...");
     use rift_companion_lib::data::models::Role;
     use rift_companion_lib::data::repository::Repository;
-    use rift_companion_lib::draft;
+    use rift_companion_lib::draft::{self, DraftPick, DraftState};
     use rift_companion_lib::engine::{recommend, weights::Weights, BadgeKind};
     use rift_companion_lib::lcu::models::{Action, Bans, ChampSelectSession, PlayerSlot};
 
@@ -553,5 +553,240 @@ fn run_internal_tests() {
         println!("✓ Test 6 Passed: In-game Live Client Data parsing and player_champion_selections recovery");
     }
 
-    println!("\nALL 6 INTERNAL TESTS PASSED SUCCESSFULLY!");
+    // Test 7: Shapeshifter & Possessor Identity Preservation (Neeko & Viego)
+    {
+        use rift_companion_lib::lcu::models::{LiveClientActivePlayer, LiveClientPlayer, LiveClientAbility, LiveClientActivePlayerAbilities};
+
+        // Case 7a: Local player is Neeko (ID 518).
+        // Existing draft state has local_champion_id = 518 (Neeko) and allies with Neeko.
+        let neeko_draft = DraftState {
+            local_champion_id: Some(518),
+            local_role: Some(Role::Mid),
+            is_locked: true,
+            allies: vec![
+                DraftPick {
+                    champion_id: 518,
+                    role: Some(Role::Mid),
+                    is_local: true,
+                    player_name: Some("NeekoPlayer#EUW".to_string()),
+                    ..Default::default()
+                },
+                DraftPick {
+                    champion_id: 222, // Jinx
+                    role: Some(Role::Adc),
+                    is_local: false,
+                    player_name: Some("AllyJinx#EUW".to_string()),
+                    ..Default::default()
+                },
+            ],
+            enemies: vec![
+                DraftPick {
+                    champion_id: 238, // Zed
+                    role: Some(Role::Mid),
+                    is_local: false,
+                    player_name: Some("EnemyZed#EUW".to_string()),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+
+        let active_neeko = LiveClientActivePlayer {
+            summoner_name: "NeekoPlayer#EUW".to_string(),
+            riot_id: "NeekoPlayer#EUW".to_string(),
+            ..Default::default()
+        };
+
+        // Neeko transforms into Jinx! Live Client API reports champion_name: "Jinx" for NeekoPlayer#EUW
+        let players_disguised_as_jinx = vec![
+            LiveClientPlayer {
+                champion_name: "Jinx".to_string(), // Disguised!
+                position: "MIDDLE".to_string(),
+                team: "ORDER".to_string(),
+                summoner_name: "NeekoPlayer#EUW".to_string(),
+                riot_id: "NeekoPlayer#EUW".to_string(),
+                ..Default::default()
+            },
+            LiveClientPlayer {
+                champion_name: "Jinx".to_string(), // Real Jinx
+                position: "BOTTOM".to_string(),
+                team: "ORDER".to_string(),
+                summoner_name: "AllyJinx#EUW".to_string(),
+                riot_id: "AllyJinx#EUW".to_string(),
+                ..Default::default()
+            },
+            LiveClientPlayer {
+                champion_name: "Zed".to_string(),
+                position: "MIDDLE".to_string(),
+                team: "CHAOS".to_string(),
+                summoner_name: "EnemyZed#EUW".to_string(),
+                riot_id: "EnemyZed#EUW".to_string(),
+                ..Default::default()
+            },
+        ];
+
+        let state_disguised = rift_companion_lib::draft::from_live_client(
+            &repo,
+            &players_disguised_as_jinx,
+            Some(&active_neeko),
+            Some(&neeko_draft),
+        ).expect("parsed disguised state");
+
+        assert_eq!(state_disguised.local_champion_id, Some(518), "Local champion must remain Neeko (518) when disguised as Jinx");
+        let local_ally = state_disguised.allies.iter().find(|a| a.is_local).expect("local ally");
+        assert_eq!(local_ally.champion_id, 518, "Local ally pick must remain Neeko (518)");
+        assert_eq!(local_ally.role, Some(Role::Mid), "Local ally pick role must remain Mid");
+
+        let teammate_jinx = state_disguised.allies.iter().find(|a| !a.is_local).expect("teammate");
+        assert_eq!(teammate_jinx.champion_id, 222, "Teammate pick must remain Jinx (222)");
+        assert_eq!(teammate_jinx.role, Some(Role::Adc), "Teammate pick role must remain Adc");
+
+        // Case 7b: Neeko transforms into a minion! Live Client API reports "SRU_ChaosMinionMelee"
+        let players_disguised_as_minion = vec![
+            LiveClientPlayer {
+                champion_name: "SRU_ChaosMinionMelee".to_string(), // Disguised as minion!
+                position: "MIDDLE".to_string(),
+                team: "ORDER".to_string(),
+                summoner_name: "NeekoPlayer#EUW".to_string(),
+                riot_id: "NeekoPlayer#EUW".to_string(),
+                ..Default::default()
+            },
+            LiveClientPlayer {
+                champion_name: "Jinx".to_string(),
+                position: "BOTTOM".to_string(),
+                team: "ORDER".to_string(),
+                summoner_name: "AllyJinx#EUW".to_string(),
+                riot_id: "AllyJinx#EUW".to_string(),
+                ..Default::default()
+            },
+            LiveClientPlayer {
+                champion_name: "Zed".to_string(),
+                position: "MIDDLE".to_string(),
+                team: "CHAOS".to_string(),
+                summoner_name: "EnemyZed#EUW".to_string(),
+                riot_id: "EnemyZed#EUW".to_string(),
+                ..Default::default()
+            },
+        ];
+
+        let state_minion = rift_companion_lib::draft::from_live_client(
+            &repo,
+            &players_disguised_as_minion,
+            Some(&active_neeko),
+            Some(&neeko_draft),
+        ).expect("parsed minion disguised state");
+
+        assert_eq!(state_minion.local_champion_id, Some(518), "Local champion must remain Neeko (518) when disguised as minion");
+        let local_ally_minion = state_minion.allies.iter().find(|a| a.is_local).expect("local ally");
+        assert_eq!(local_ally_minion.champion_id, 518, "Local ally pick must remain Neeko (518)");
+
+        // Case 7c: Viego possessing an enemy champion
+        let viego_draft = DraftState {
+            local_champion_id: Some(234), // Viego
+            local_role: Some(Role::Jungle),
+            is_locked: true,
+            allies: vec![
+                DraftPick {
+                    champion_id: 234,
+                    role: Some(Role::Jungle),
+                    is_local: true,
+                    player_name: Some("ViegoPlayer#EUW".to_string()),
+                    ..Default::default()
+                },
+            ],
+            enemies: vec![
+                DraftPick {
+                    champion_id: 238, // Zed
+                    role: Some(Role::Mid),
+                    is_local: false,
+                    player_name: Some("EnemyZed#EUW".to_string()),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+
+        let active_viego = LiveClientActivePlayer {
+            summoner_name: "ViegoPlayer#EUW".to_string(),
+            riot_id: "ViegoPlayer#EUW".to_string(),
+            ..Default::default()
+        };
+
+        // Viego possesses Zed! Live Client reports champion_name: "Zed" for ViegoPlayer#EUW
+        let players_viego_possessed = vec![
+            LiveClientPlayer {
+                champion_name: "Zed".to_string(), // Possessed enemy Zed!
+                position: "JUNGLE".to_string(),
+                team: "ORDER".to_string(),
+                summoner_name: "ViegoPlayer#EUW".to_string(),
+                riot_id: "ViegoPlayer#EUW".to_string(),
+                ..Default::default()
+            },
+            LiveClientPlayer {
+                champion_name: "Zed".to_string(),
+                position: "MIDDLE".to_string(),
+                team: "CHAOS".to_string(),
+                summoner_name: "EnemyZed#EUW".to_string(),
+                riot_id: "EnemyZed#EUW".to_string(),
+                ..Default::default()
+            },
+        ];
+
+        let state_viego = rift_companion_lib::draft::from_live_client(
+            &repo,
+            &players_viego_possessed,
+            Some(&active_viego),
+            Some(&viego_draft),
+        ).expect("parsed viego possessed state");
+
+        assert_eq!(state_viego.local_champion_id, Some(234), "Local champion must remain Viego (234) when possessing enemy");
+        let local_viego = state_viego.allies.iter().find(|a| a.is_local).expect("local viego");
+        assert_eq!(local_viego.champion_id, 234, "Local pick must remain Viego (234)");
+
+        // Case 7d: Mid-match start without existing draft state, active player has Neeko abilities
+        let active_neeko_abilities = LiveClientActivePlayer {
+            summoner_name: "FreshNeeko#EUW".to_string(),
+            riot_id: "FreshNeeko#EUW".to_string(),
+            abilities: Some(LiveClientActivePlayerAbilities {
+                passive: Some(LiveClientAbility {
+                    id: "NeekoPassive".to_string(),
+                    display_name: "Inherent Glamour".to_string(),
+                    ..Default::default()
+                }),
+                q: Some(LiveClientAbility {
+                    id: "NeekoQ".to_string(),
+                    display_name: "Blooming Burst".to_string(),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let players_mid_match_neeko = vec![
+            LiveClientPlayer {
+                champion_name: "SRU_ChaosMinionMelee".to_string(), // Disguised as minion without existing state
+                position: "MIDDLE".to_string(),
+                team: "ORDER".to_string(),
+                summoner_name: "FreshNeeko#EUW".to_string(),
+                riot_id: "FreshNeeko#EUW".to_string(),
+                ..Default::default()
+            },
+        ];
+
+        let state_fresh = rift_companion_lib::draft::from_live_client(
+            &repo,
+            &players_mid_match_neeko,
+            Some(&active_neeko_abilities),
+            None, // No existing state!
+        ).expect("parsed fresh neeko from abilities");
+
+        assert_eq!(state_fresh.local_champion_id, Some(518), "Fresh mid-game start must detect Neeko (518) from abilities/disguise");
+        let fresh_ally = state_fresh.allies.iter().find(|a| a.is_local).expect("fresh ally");
+        assert_eq!(fresh_ally.champion_id, 518, "Fresh ally pick must be Neeko (518)");
+
+        println!("✓ Test 7 Passed: Shapeshifter & possessor identity preservation (Neeko disguise, minion disguise, Viego possession)");
+    }
+
+    println!("\nALL 7 INTERNAL TESTS PASSED SUCCESSFULLY!");
 }
