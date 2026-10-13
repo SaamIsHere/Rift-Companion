@@ -788,5 +788,103 @@ fn run_internal_tests() {
         println!("✓ Test 7 Passed: Shapeshifter & possessor identity preservation (Neeko disguise, minion disguise, Viego possession)");
     }
 
-    println!("\nALL 7 INTERNAL TESTS PASSED SUCCESSFULLY!");
+    // Test 8: Live In-Game Role Assignment Accuracy (Overriding Draft Primary Role Collisions)
+    {
+        use rift_companion_lib::lcu::models::{LiveClientActivePlayer, LiveClientPlayer, LiveClientSpell, LiveClientSpells};
+
+        // Draft state had Brand and Nautilus both with role: Some(Role::Support) due to primary role inference
+        let draft_with_collision = DraftState {
+            local_champion_id: Some(161),
+            local_role: Some(Role::Mid),
+            is_locked: true,
+            allies: vec![
+                DraftPick {
+                    champion_id: 161, // Vel'Koz
+                    role: Some(Role::Mid),
+                    is_local: true,
+                    ..Default::default()
+                },
+            ],
+            enemies: vec![
+                DraftPick {
+                    champion_id: 63, // Brand (primary role often Support or Mid)
+                    role: Some(Role::Support),
+                    is_local: false,
+                    ..Default::default()
+                },
+                DraftPick {
+                    champion_id: 111, // Nautilus (primary Support)
+                    role: Some(Role::Support),
+                    is_local: false,
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+
+        // Live client reports Brand is actually playing Mid and Nautilus is playing Support!
+        let live_players = vec![
+            LiveClientPlayer {
+                champion_name: "Vel'Koz".to_string(),
+                position: "MIDDLE".to_string(),
+                team: "ORDER".to_string(),
+                summoner_name: "LocalVelkoz#EUW".to_string(),
+                riot_id: "LocalVelkoz#EUW".to_string(),
+                ..Default::default()
+            },
+            LiveClientPlayer {
+                champion_name: "Brand".to_string(),
+                position: "MIDDLE".to_string(),
+                team: "CHAOS".to_string(),
+                summoner_name: "EnemyBrand#EUW".to_string(),
+                riot_id: "EnemyBrand#EUW".to_string(),
+                ..Default::default()
+            },
+            LiveClientPlayer {
+                champion_name: "Nautilus".to_string(),
+                position: "UTILITY".to_string(),
+                team: "CHAOS".to_string(),
+                summoner_name: "EnemyNautilus#EUW".to_string(),
+                riot_id: "EnemyNautilus#EUW".to_string(),
+                ..Default::default()
+            },
+            LiveClientPlayer {
+                champion_name: "Lee Sin".to_string(),
+                position: "".to_string(), // Missing position, but has Smite!
+                team: "CHAOS".to_string(),
+                summoner_name: "EnemyLee#EUW".to_string(),
+                riot_id: "EnemyLee#EUW".to_string(),
+                summoner_spells: Some(LiveClientSpells {
+                    summoner_spell_one: Some(LiveClientSpell { display_name: "Smite".to_string(), ..Default::default() }),
+                    summoner_spell_two: Some(LiveClientSpell { display_name: "Flash".to_string(), ..Default::default() }),
+                }),
+                ..Default::default()
+            },
+        ];
+
+        let active_player = LiveClientActivePlayer {
+            summoner_name: "LocalVelkoz#EUW".to_string(),
+            riot_id: "LocalVelkoz#EUW".to_string(),
+            ..Default::default()
+        };
+
+        let live_state = rift_companion_lib::draft::from_live_client(
+            &repo,
+            &live_players,
+            Some(&active_player),
+            Some(&draft_with_collision),
+        ).expect("parsed live state with resolved roles");
+
+        let brand = live_state.enemies.iter().find(|e| e.champion_id == 63).expect("Brand");
+        let nautilus = live_state.enemies.iter().find(|e| e.champion_id == 111).expect("Nautilus");
+        let lee = live_state.enemies.iter().find(|e| e.champion_id == 64).expect("Lee Sin");
+
+        assert_eq!(brand.role, Some(Role::Mid), "Brand's in-game position (MIDDLE) must override champ-select inferred role");
+        assert_eq!(nautilus.role, Some(Role::Support), "Nautilus's in-game position (UTILITY) must be Support");
+        assert_eq!(lee.role, Some(Role::Jungle), "Lee Sin with Smite must be resolved to Jungle");
+
+        println!("✓ Test 8 Passed: Live in-game role positions accurately read from live client data & override draft collisions");
+    }
+
+    println!("\nALL 8 INTERNAL TESTS PASSED SUCCESSFULLY!");
 }

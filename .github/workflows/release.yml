@@ -89,13 +89,12 @@ jobs:
             ## Rift Companion Release ${{ steps.get_version.outputs.tag }}
 
             ### Highlights
-            * **Windows Defender & Antivirus False-Positive Hardening:**
-              * **Heuristic Compilation Profile:** Transitioned from aggressive size-optimizations (`opt-level = "s"`, `panic = "abort"`, full stripping) to standard MSVC release configuration (`opt-level = 3`, `panic = "unwind"`, debuginfo stripping), eliminating `Trojan:Win32/Bearfoos.A!ml` machine-learning false positives.
-              * **Safe Startup Operations:** Eliminated redundant shortcut rewrites in `%APPDATA%\...\Startup\Rift Companion.lnk` and guarded legacy registry cleanup with read-only checks, preventing real-time behavioral monitoring triggers.
-              * **Embedded Application Metadata:** Embedded comprehensive Windows PE resource metadata (publisher, copyright, descriptions) into the executable bundle.
-            * **Shapeshifter & In-Game Identity Stability (Neeko & Viego):**
-              * Preserved true player and teammate identity across mid-game disguise transformations and champion possession.
-              * Fixed in-game matchup displays and role assignments during shapeshifting events.
+            * **Live Match Skill Order Display:**
+              * **Ability Max Priority:** Displays the champion's recommended ability max priority flow (e.g. Q > W > E) with rich spell icons, hotkey badges, and tooltips in the Live Match dashboard.
+              * **Level 1–15 Upgrade Matrix:** Complete level-by-level skill progression matrix from levels 1 through 15, along with pick rate, win rate, and game count statistics.
+            * **In-Game Live Client Role Detection & Alignment:**
+              * Prioritizes Riot's active in-game position reports from Live Client Data, resolving draft/champ-select inferred role collisions during live matches.
+              * Added automatic Smite summoner spell detection fallback for accurate Jungler role identification.
 
             ### Download & Installation
             * **Windows Installer:** Download `Rift-Companion_${{ steps.get_version.outputs.version }}_x64-setup.exe` below and double-click to install.

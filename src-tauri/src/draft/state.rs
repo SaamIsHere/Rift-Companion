@@ -73,7 +73,7 @@ pub fn from_session(repo: &Repository, s: &ChampSelectSession) -> DraftState {
     let mut hovered_champion_id = None;
     let mut is_locked = false;
 
-    let allies = s
+    let mut allies: Vec<DraftPick> = s
         .my_team
         .iter()
         .filter_map(|p| {
@@ -89,7 +89,14 @@ pub fn from_session(repo: &Repository, s: &ChampSelectSession) -> DraftState {
                 }
             }
 
-            let role = Role::from_lcu(&p.assigned_position).or_else(|| repo.primary_role(champ_id));
+            let smite_role = if p.spell1_id == 11 || p.spell2_id == 11 {
+                Some(Role::Jungle)
+            } else {
+                None
+            };
+            let role = Role::from_lcu(&p.assigned_position)
+                .or(smite_role)
+                .or_else(|| repo.primary_role(champ_id));
 
             Some(DraftPick {
                 champion_id: champ_id,
@@ -109,8 +116,8 @@ pub fn from_session(repo: &Repository, s: &ChampSelectSession) -> DraftState {
             .and_then(|id| repo.primary_role(id));
     }
 
-    // Enemy positions are usually hidden → fall back to the champion's primary role.
-    let enemies = s
+    // Enemy positions are usually hidden in draft → infer from primary role and spells.
+    let mut enemies: Vec<DraftPick> = s
         .their_team
         .iter()
         .filter_map(|p| {
@@ -129,9 +136,18 @@ pub fn from_session(repo: &Repository, s: &ChampSelectSession) -> DraftState {
                 completed_pick_champ
             }?;
 
+            let smite_role = if p.spell1_id == 11 || p.spell2_id == 11 {
+                Some(Role::Jungle)
+            } else {
+                None
+            };
+            let role = Role::from_lcu(&p.assigned_position)
+                .or(smite_role)
+                .or_else(|| repo.primary_role(champ_id));
+
             Some(DraftPick {
                 champion_id: champ_id,
-                role: Role::from_lcu(&p.assigned_position).or_else(|| repo.primary_role(champ_id)),
+                role,
                 is_local: false,
                 is_hover: false,
                 spell1_id: if p.spell1_id > 0 { Some(p.spell1_id as u64) } else { None },
@@ -140,6 +156,15 @@ pub fn from_session(repo: &Repository, s: &ChampSelectSession) -> DraftState {
             })
         })
         .collect();
+
+    assign_unique_roles(repo, &mut allies);
+    assign_unique_roles(repo, &mut enemies);
+
+    if local_role.is_none() {
+        if let Some(local_pick) = allies.iter().find(|a| a.is_local) {
+            local_role = local_pick.role;
+        }
+    }
 
     let is_ban_phase = s.actions.iter().any(|round| {
         round.iter().any(|a| a.action_type == "ban" && a.is_in_progress)
@@ -217,8 +242,16 @@ pub fn from_gameflow(
                 || existing.map_or(false, |d| d.local_champion_id == Some(champ_id));
 
             let existing_pick = existing.and_then(|d| d.allies.iter().find(|a| a.champion_id == champ_id));
-            let role = existing_pick.and_then(|a| a.role)
-                .or_else(|| Role::from_lcu(&p.selected_position))
+            let live_role = Role::from_lcu(&p.selected_position);
+            let smite_role = if p.spell1_id == 11 || p.spell2_id == 11 {
+                Some(Role::Jungle)
+            } else {
+                None
+            };
+            let role = live_role
+                .or(smite_role)
+                .or_else(|| if is_local { existing.and_then(|e| e.local_role) } else { None })
+                .or_else(|| existing_pick.and_then(|a| a.role))
                 .or_else(|| repo.primary_role(champ_id));
 
             if is_local {
@@ -244,8 +277,15 @@ pub fn from_gameflow(
         .map(|p| {
             let champ_id = p.champion_id as u32;
             let existing_pick = existing.and_then(|d| d.enemies.iter().find(|e| e.champion_id == champ_id));
-            let role = existing_pick.and_then(|e| e.role)
-                .or_else(|| Role::from_lcu(&p.selected_position))
+            let live_role = Role::from_lcu(&p.selected_position);
+            let smite_role = if p.spell1_id == 11 || p.spell2_id == 11 {
+                Some(Role::Jungle)
+            } else {
+                None
+            };
+            let role = live_role
+                .or(smite_role)
+                .or_else(|| existing_pick.and_then(|e| e.role))
                 .or_else(|| repo.primary_role(champ_id));
 
             DraftPick {
@@ -367,44 +407,133 @@ pub fn from_gameflow(
 }
 
 /// Assigns unique roles to all picks in a team to prevent duplicate or missing lane assignments.
+/// Assigns unique roles to all picks in a team to prevent duplicate or missing lane assignments.
+/// Uses optimal role assignment respecting confirmed roles (in-game position, Smite, local role)
+/// and champion role affinities (`champ.roles`).
 pub fn assign_unique_roles(repo: &Repository, picks: &mut [DraftPick]) {
     if picks.len() <= 1 {
         return;
     }
+
     let all_roles = [Role::Top, Role::Jungle, Role::Mid, Role::Adc, Role::Support];
-    let mut role_counts: std::collections::HashMap<Role, usize> = std::collections::HashMap::new();
-    for p in picks.iter() {
-        if let Some(r) = p.role {
-            *role_counts.entry(r).or_insert(0) += 1;
+
+    // If every pick already has a unique, non-None role, no adjustment needed
+    let is_already_unique = {
+        let mut seen = std::collections::HashSet::new();
+        let mut ok = true;
+        for p in picks.iter() {
+            match p.role {
+                Some(role) => {
+                    if !seen.insert(role) {
+                        ok = false;
+                        break;
+                    }
+                }
+                None => {
+                    ok = false;
+                    break;
+                }
+            }
+        }
+        ok
+    };
+
+    if is_already_unique && picks.len() <= 5 {
+        return;
+    }
+
+    let n = picks.len().min(5);
+
+    let score_assignment = |pick: &DraftPick, role: Role| -> i32 {
+        let mut score = 0;
+
+        let has_smite = pick.spell1_id == Some(11) || pick.spell2_id == Some(11);
+        if has_smite {
+            if role == Role::Jungle {
+                score += 50000;
+            } else {
+                score -= 50000;
+            }
+        }
+
+        if pick.is_local && pick.role == Some(role) {
+            score += 20000;
+        }
+
+        if pick.role == Some(role) {
+            score += 1000;
+        }
+
+        if let Some(champ) = repo.get(pick.champion_id) {
+            if champ.roles.first().copied() == Some(role) {
+                score += 100;
+            } else if let Some(idx) = champ.roles.iter().position(|&r| r == role) {
+                score += 80 - (idx as i32 * 10);
+            }
+        }
+
+        score
+    };
+
+    fn permute_roles(
+        available: &[Role],
+        current: &mut Vec<Role>,
+        target_len: usize,
+        best_score: &mut i32,
+        best_assignment: &mut Option<Vec<Role>>,
+        picks: &[DraftPick],
+        score_fn: &dyn Fn(&DraftPick, Role) -> i32,
+    ) {
+        if current.len() == target_len {
+            let mut total_score = 0;
+            for (i, &role) in current.iter().enumerate() {
+                total_score += score_fn(&picks[i], role);
+            }
+            if total_score > *best_score {
+                *best_score = total_score;
+                *best_assignment = Some(current.clone());
+            }
+            return;
+        }
+
+        for (i, &role) in available.iter().enumerate() {
+            current.push(role);
+            let mut next_available = Vec::with_capacity(available.len() - 1);
+            for (j, &r) in available.iter().enumerate() {
+                if i != j {
+                    next_available.push(r);
+                }
+            }
+            permute_roles(
+                &next_available,
+                current,
+                target_len,
+                best_score,
+                best_assignment,
+                picks,
+                score_fn,
+            );
+            current.pop();
         }
     }
 
-    let mut assigned = std::collections::HashSet::new();
+    let mut best_score = i32::MIN;
+    let mut best_assignment = None;
+    let mut current = Vec::new();
 
-    // First pass: claim roles that appear exactly once
-    for p in picks.iter() {
-        if let Some(r) = p.role {
-            if role_counts.get(&r).copied().unwrap_or(0) == 1 {
-                assigned.insert(r);
-            }
-        }
-    }
+    permute_roles(
+        &all_roles,
+        &mut current,
+        n,
+        &mut best_score,
+        &mut best_assignment,
+        &picks[..n],
+        &score_assignment,
+    );
 
-    // Second pass: for conflicting or unassigned picks, allocate remaining roles
-    for pick in picks.iter_mut() {
-        let is_conflict = pick.role.map_or(true, |r| {
-            !assigned.contains(&r) || role_counts.get(&r).copied().unwrap_or(0) > 1
-        });
-        if is_conflict {
-            let prim = repo.primary_role(pick.champion_id);
-            let chosen = prim
-                .filter(|r| !assigned.contains(r))
-                .or_else(|| all_roles.iter().find(|r| !assigned.contains(r)).copied());
-
-            if let Some(r) = chosen {
-                pick.role = Some(r);
-                assigned.insert(r);
-            }
+    if let Some(assignment) = best_assignment {
+        for (i, role) in assignment.into_iter().enumerate() {
+            picks[i].role = Some(role);
         }
     }
 }
@@ -695,9 +824,26 @@ pub fn from_live_client(
             champ_id
         };
 
-        // Resolve Role
-        let role = existing_pick.and_then(|ep| ep.role)
-            .or_else(|| Role::from_lcu(&p.position))
+        // Resolve Spells
+        let spell1_id = p.summoner_spells.as_ref()
+            .and_then(|s| parse_spell_id(s.summoner_spell_one.as_ref()))
+            .or_else(|| existing_pick.and_then(|ep| ep.spell1_id));
+
+        let spell2_id = p.summoner_spells.as_ref()
+            .and_then(|s| parse_spell_id(s.summoner_spell_two.as_ref()))
+            .or_else(|| existing_pick.and_then(|ep| ep.spell2_id));
+
+        // Resolve Role: In live match, Riot's Live Client Data API position is top priority!
+        let live_role = Role::from_lcu(&p.position);
+        let smite_role = if spell1_id == Some(11) || spell2_id == Some(11) {
+            Some(Role::Jungle)
+        } else {
+            None
+        };
+        let role = live_role
+            .or(smite_role)
+            .or_else(|| if is_local { existing.and_then(|e| e.local_role) } else { None })
+            .or_else(|| existing_pick.and_then(|ep| ep.role))
             .or_else(|| repo.primary_role(champ_id));
 
         if is_local {
@@ -708,15 +854,6 @@ pub fn from_live_client(
                 local_champion_id = Some(champ_id);
             }
         }
-
-        // Resolve Spells
-        let spell1_id = p.summoner_spells.as_ref()
-            .and_then(|s| parse_spell_id(s.summoner_spell_one.as_ref()))
-            .or_else(|| existing_pick.and_then(|ep| ep.spell1_id));
-
-        let spell2_id = p.summoner_spells.as_ref()
-            .and_then(|s| parse_spell_id(s.summoner_spell_two.as_ref()))
-            .or_else(|| existing_pick.and_then(|ep| ep.spell2_id));
 
         let pick = DraftPick {
             champion_id: champ_id,

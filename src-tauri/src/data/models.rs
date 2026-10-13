@@ -21,12 +21,12 @@ pub enum Role {
 impl Role {
     /// Maps the LCU `assignedPosition` string to a `Role`.
     pub fn from_lcu(s: &str) -> Option<Role> {
-        match s.to_lowercase().as_str() {
+        match s.trim().to_lowercase().as_str() {
             "top" => Some(Role::Top),
-            "jungle" => Some(Role::Jungle),
+            "jungle" | "jgl" => Some(Role::Jungle),
             "middle" | "mid" => Some(Role::Mid),
-            "bottom" | "adc" => Some(Role::Adc),
-            "utility" | "support" => Some(Role::Support),
+            "bottom" | "bot" | "adc" => Some(Role::Adc),
+            "utility" | "support" | "supp" => Some(Role::Support),
             _ => None,
         }
     }
