@@ -277,6 +277,31 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                                             let _ = app.emit("gameflow://phase", "None");
                                             continue;
                                         }
+
+                                        let q_id = s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map(|q| q.id);
+                                        let m_id = s.map.as_ref().map(|m| m.id);
+                                        let raw_mode = s.game_data.as_ref().map(|g| g.game_mode.clone())
+                                            .or_else(|| s.map.as_ref().map(|m| m.game_mode.clone()))
+                                            .or_else(|| s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map(|q| q.game_mode.clone()));
+
+                                        let is_aram = q_id == Some(450)
+                                            || m_id == Some(12)
+                                            || raw_mode.as_ref().map_or(false, |m| m.to_uppercase().contains("ARAM"))
+                                            || s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| q.game_mode.to_uppercase().contains("ARAM"));
+
+                                        let is_mayhem = raw_mode.as_ref().map_or(false, |m| m.to_uppercase().contains("MAYHEM"))
+                                            || s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| q.game_mode.to_uppercase().contains("MAYHEM"));
+
+                                        *shared.current_game_mode.lock().unwrap() = raw_mode.clone();
+                                        *shared.current_queue_id.lock().unwrap() = q_id;
+
+                                        let mode_info = serde_json::json!({
+                                            "game_mode": raw_mode,
+                                            "queue_id": q_id,
+                                            "is_aram": is_aram,
+                                            "is_mayhem": is_mayhem,
+                                        });
+                                        let _ = app.emit("gameflow://game-mode", &mode_info);
                                     }
                                     if let Some(game_id) = ev.data.get("gameData").and_then(|g| g.get("gameId")).and_then(|id| id.as_u64()) {
                                         if game_id > 0 {
@@ -603,6 +628,11 @@ fn handle_session(app: &AppHandle, shared: &Shared, data: serde_json::Value) {
 
     let repo = shared.repo.lock().unwrap().clone();
     let mut state = draft::from_session(repo.as_ref(), &session);
+    state.game_mode = shared.current_game_mode.lock().unwrap().clone();
+    state.queue_id = *shared.current_queue_id.lock().unwrap();
+    state.is_aram = state.queue_id == Some(450)
+        || state.game_mode.as_ref().map_or(false, |m| m.to_uppercase().contains("ARAM"));
+    state.is_mayhem = state.game_mode.as_ref().map_or(false, |m| m.to_uppercase().contains("MAYHEM"));
 
     // Re-apply any manual enemy-role reassignments from the draft board, since
     // `state` above is rebuilt from scratch on every session push. Overrides

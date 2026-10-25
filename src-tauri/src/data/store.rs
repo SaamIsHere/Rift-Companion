@@ -109,6 +109,18 @@ pub struct Settings {
     /// Live Match import: whether item sets auto-import is enabled.
     #[serde(default = "default_auto_import_items")]
     pub auto_import_items: bool,
+    /// Live Match ARAM import: whether runes auto-import is enabled in ARAM.
+    #[serde(default = "default_aram_auto_import_runes")]
+    pub aram_auto_import_runes: bool,
+    /// Live Match ARAM import: whether summoner spells auto-import is enabled in ARAM.
+    #[serde(default = "default_aram_auto_import_spells")]
+    pub aram_auto_import_spells: bool,
+    /// Live Match ARAM import: whether item sets auto-import is enabled in ARAM.
+    #[serde(default = "default_aram_auto_import_items")]
+    pub aram_auto_import_items: bool,
+    /// Live Match ARAM import: whether ARAM Mayhem mode is active (runes disabled).
+    #[serde(default = "default_aram_mayhem_mode")]
+    pub aram_mayhem_mode: bool,
     /// Live Match import: preferred flash key ("D" or "F").
     #[serde(default = "default_flash_key")]
     pub flash_key: String,
@@ -157,6 +169,22 @@ fn default_auto_import_items() -> bool {
     false
 }
 
+fn default_aram_auto_import_runes() -> bool {
+    false
+}
+
+fn default_aram_auto_import_spells() -> bool {
+    false
+}
+
+fn default_aram_auto_import_items() -> bool {
+    false
+}
+
+fn default_aram_mayhem_mode() -> bool {
+    false
+}
+
 fn default_flash_key() -> String {
     "D".to_string()
 }
@@ -183,6 +211,10 @@ impl Default for Settings {
             auto_import_runes: default_auto_import_runes(),
             auto_import_spells: default_auto_import_spells(),
             auto_import_items: default_auto_import_items(),
+            aram_auto_import_runes: default_aram_auto_import_runes(),
+            aram_auto_import_spells: default_aram_auto_import_spells(),
+            aram_auto_import_items: default_aram_auto_import_items(),
+            aram_mayhem_mode: default_aram_mayhem_mode(),
             flash_key: default_flash_key(),
             backdrop_blur: default_backdrop_blur(),
         }
@@ -323,6 +355,10 @@ mod tests {
         assert_eq!(s.auto_import_runes, false);
         assert_eq!(s.auto_import_spells, false);
         assert_eq!(s.auto_import_items, false);
+        assert_eq!(s.aram_auto_import_runes, false);
+        assert_eq!(s.aram_auto_import_spells, false);
+        assert_eq!(s.aram_auto_import_items, false);
+        assert_eq!(s.aram_mayhem_mode, false);
         assert_eq!(s.flash_key, "D");
         assert_eq!(s.backdrop_blur, 12);
     }
@@ -337,6 +373,10 @@ mod tests {
         assert_eq!(s.auto_import_runes, false);
         assert_eq!(s.auto_import_spells, false);
         assert_eq!(s.auto_import_items, false);
+        assert_eq!(s.aram_auto_import_runes, false);
+        assert_eq!(s.aram_auto_import_spells, false);
+        assert_eq!(s.aram_auto_import_items, false);
+        assert_eq!(s.aram_mayhem_mode, false);
         assert_eq!(s.flash_key, "D");
         assert_eq!(s.backdrop_blur, 12);
     }
@@ -350,6 +390,10 @@ mod tests {
             "auto_import_runes": true,
             "auto_import_spells": true,
             "auto_import_items": true,
+            "aram_auto_import_runes": true,
+            "aram_auto_import_spells": true,
+            "aram_auto_import_items": true,
+            "aram_mayhem_mode": true,
             "flash_key": "F",
             "backdrop_blur": 20
         }"#;
@@ -360,6 +404,10 @@ mod tests {
         assert_eq!(s.auto_import_runes, true);
         assert_eq!(s.auto_import_spells, true);
         assert_eq!(s.auto_import_items, true);
+        assert_eq!(s.aram_auto_import_runes, true);
+        assert_eq!(s.aram_auto_import_spells, true);
+        assert_eq!(s.aram_auto_import_items, true);
+        assert_eq!(s.aram_mayhem_mode, true);
         assert_eq!(s.flash_key, "F");
         assert_eq!(s.backdrop_blur, 20);
     }

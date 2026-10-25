@@ -42,3 +42,6 @@ scripts/deploy-nas.ps1
 *deploy-nas*
 get_tunnel_url.py
 scripts/dev.js
+
+# Scratch scripts
+scratch/

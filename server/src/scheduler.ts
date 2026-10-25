@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   crawlTier,
+  crawlTftMeta,
   fetchLatestDdragonVersion,
   loadDataDragon,
   saveDataset,
@@ -190,12 +191,34 @@ export class CrawlerScheduler {
       }
     }
 
+    // Seed fallback TFT dataset if no tft_meta.json exists yet so TFT API is instantly operational
+    const tftPath = path.join(this.dataDir, "tft_meta.json");
+    try {
+      await fs.access(tftPath);
+    } catch {
+      const tftSeedFile = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "tft_seed.json");
+      try {
+        await fs.copyFile(tftSeedFile, tftPath);
+        console.log("[scheduler] Initialized server/data with baseline TFT seed data.");
+      } catch (err) {
+        console.warn("[scheduler] Could not copy TFT seed data:", err.message);
+      }
+    }
+
     // Initial check: if no stats file exists, run crawl immediately
     const meta = await this.readMeta();
     if (!meta || !meta.tiers || Object.keys(meta.tiers).length === 0) {
       console.log("[scheduler] No existing datasets found in meta.json. Triggering initial crawl for emerald_plus...");
       this.triggerCrawl(["emerald_plus"]).catch((err) => {
         console.error("[scheduler] Initial crawl failed:", err);
+      });
+    }
+
+    // Initial check: if no TFT meta exists, trigger TFT crawl
+    if (!meta || !meta.tft_last_updated) {
+      console.log("[scheduler] No existing TFT meta dataset found in meta.json. Triggering initial TFT crawl...");
+      crawlTftMeta({ dataDir: this.dataDir }).catch((err) => {
+        console.error("[scheduler] Initial TFT crawl failed:", err);
       });
     }
 
@@ -227,8 +250,8 @@ export class CrawlerScheduler {
       const isStalePatch = meta?.patch && meta.patch !== currentPatch;
 
       if (isStalePatch) {
-        console.log(`[scheduler] New League patch detected (${currentPatch} vs ${meta.patch}). Triggering sync for all tiers...`);
-        await this.triggerCrawl(SUPPORTED_TIERS, false);
+        console.log(`[scheduler] New League patch detected (${currentPatch} vs ${meta.patch}). Triggering sync for all tiers + TFT...`);
+        await this.triggerCrawl([...SUPPORTED_TIERS, "tft"], false);
         return;
       }
     } catch (err) {
@@ -258,7 +281,7 @@ export class CrawlerScheduler {
       // Trigger if we are within the target hour window and minute has elapsed
       if (currentHour === targetHour && currentMinute >= targetMinute) {
         console.log(
-          `[scheduler] Scheduled daily crawl triggered at ${String(currentHour).padStart(2, "0")}:${String(currentMinute).padStart(2, "0")} (target: ${String(targetHour).padStart(2, "0")}:${String(targetMinute).padStart(2, "0")}) for all tiers.`
+          `[scheduler] Scheduled daily crawl triggered at ${String(currentHour).padStart(2, "0")}:${String(currentMinute).padStart(2, "0")} (target: ${String(targetHour).padStart(2, "0")}:${String(targetMinute).padStart(2, "0")}) for all tiers + TFT.`
         );
 
         this.config.lastRunDate = todayStr;
@@ -266,62 +289,79 @@ export class CrawlerScheduler {
         this.config.lastRunStatus = "running";
         await this.saveConfig();
 
-        await this.triggerCrawl(SUPPORTED_TIERS, true);
+        await this.triggerCrawl([...SUPPORTED_TIERS, "tft"], true);
       }
     } catch (err) {
       console.error("[scheduler] Daily check failed:", err.message);
     }
   }
 
-  async triggerCrawl(tiers = ["emerald_plus"], isDaily = false) {
+  async triggerCrawl(tiers: string[] | string = ["emerald_plus"], isDaily = false) {
     if (this.isCrawling) {
       throw new Error("A crawl is already in progress");
     }
 
     this.isCrawling = true;
-    const targetTiers = Array.isArray(tiers) ? tiers : [tiers];
+    const allRequested = Array.isArray(tiers) ? tiers : [tiers];
+    const includeTft = allRequested.includes("tft") || allRequested.includes("all") || isDaily;
+    const lolTiers = allRequested.filter((t) => t !== "tft" && t !== "all");
 
     (async () => {
       try {
-        console.log(`[scheduler] Beginning crawl for tiers: ${targetTiers.join(", ")}`);
-        const dd = await loadDataDragon();
+        console.log(`[scheduler] Beginning crawl: LoL tiers=[${lolTiers.join(", ")}], TFT=${includeTft}`);
+        if (lolTiers.length > 0) {
+          const dd = await loadDataDragon();
 
-        for (const tier of targetTiers) {
-          console.log(`[scheduler] Starting crawl for rank tier '${tier}'...`);
-          this.currentProgress = {
-            tier,
-            done: 0,
-            total: 0,
-            champion: "Initializing...",
-          };
+          for (const tier of lolTiers) {
+            console.log(`[scheduler] Starting crawl for rank tier '${tier}'...`);
+            this.currentProgress = {
+              tier,
+              done: 0,
+              total: 0,
+              champion: "Initializing...",
+            };
 
-          const result = await crawlTier(tier, {
-            concurrency: this.concurrency,
-            dataDir: this.dataDir,
-            ddragonData: dd,
-            onProgress: (prog) => {
-              this.currentProgress = {
-                tier: prog.tier,
-                done: prog.done,
-                total: prog.total,
-                champion: prog.champion,
-              };
-            },
-          });
+            const result = await crawlTier(tier, {
+              concurrency: this.concurrency,
+              dataDir: this.dataDir,
+              ddragonData: dd,
+              onProgress: (prog) => {
+                this.currentProgress = {
+                  tier: prog.tier,
+                  done: prog.done,
+                  total: prog.total,
+                  champion: prog.champion,
+                };
+              },
+            });
 
-          await saveDataset(this.dataDir, result);
-          console.log(`[scheduler] Completed and saved '${tier}' (${result.champions.length} champions).`);
+            await saveDataset(this.dataDir, result);
+            console.log(`[scheduler] Completed and saved '${tier}' (${result.champions.length} champions).`);
+          }
         }
-        console.log("[scheduler] All requested tiers successfully crawled.");
 
-        if (isDaily || targetTiers.length === SUPPORTED_TIERS.length) {
+        if (includeTft) {
+          console.log("[scheduler] Starting crawl for TFT Set 18 meta decks...");
+          this.currentProgress = {
+            tier: "tft",
+            done: 0,
+            total: 1,
+            champion: "TFT Set 18 Meta Decks",
+          };
+          await crawlTftMeta({ dataDir: this.dataDir });
+          console.log("[scheduler] Completed and saved TFT meta decks.");
+        }
+
+        console.log("[scheduler] All requested sync tasks successfully crawled.");
+
+        if (isDaily || lolTiers.length === SUPPORTED_TIERS.length) {
           this.config.lastRunStatus = "success";
           this.config.lastRunTime = Math.floor(Date.now() / 1000);
           await this.saveConfig();
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("[scheduler] Crawl failed:", err);
-        if (isDaily || targetTiers.length === SUPPORTED_TIERS.length) {
+        if (isDaily || lolTiers.length === SUPPORTED_TIERS.length) {
           this.config.lastRunStatus = `error: ${err.message}`;
           await this.saveConfig();
         }
@@ -331,6 +371,6 @@ export class CrawlerScheduler {
       }
     })();
 
-    return { status: "started", tiers: targetTiers };
+    return { status: "started", tiers: allRequested };
   }
 }

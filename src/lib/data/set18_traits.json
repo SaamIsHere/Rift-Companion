@@ -1,0 +1,343 @@
+{
+  "Elderwood": {
+    "name": "Elderwood",
+    "apiName": "DA_18_Elderwood",
+    "breakpoints": [
+      3,
+      5,
+      7,
+      9,
+      11
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_elderwood.tex"
+  },
+  "Avatar": {
+    "name": "Avatar",
+    "apiName": "DA_18_LuxUniqueTrait",
+    "breakpoints": [
+      1
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_avatar.tex"
+  },
+  "Ravager": {
+    "name": "Ravager",
+    "apiName": "DA_18_Slayer",
+    "breakpoints": [
+      2,
+      4,
+      6
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_ravager.tex"
+  },
+  "Bounty Seeker": {
+    "name": "Bounty Seeker",
+    "apiName": "DA_DravenUniqueTrait18",
+    "breakpoints": [
+      1
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_bountyseeker.tex"
+  },
+  "Solar": {
+    "name": "Solar",
+    "apiName": "DA_18_Solar",
+    "breakpoints": [
+      3
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_solar.tex"
+  },
+  "Sprykin": {
+    "name": "Sprykin",
+    "apiName": "DA_18_Sprykin",
+    "breakpoints": [
+      3,
+      5,
+      7
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_sprykin.tex"
+  },
+  "Adaptor": {
+    "name": "Adaptor",
+    "apiName": "DA_18_Adaptor",
+    "breakpoints": [
+      2,
+      3,
+      4
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_adaptor.tex"
+  },
+  "Coven": {
+    "name": "Coven",
+    "apiName": "DA_18_Coven",
+    "breakpoints": [
+      3,
+      4,
+      5,
+      7
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_coven.tex"
+  },
+  "Eclipse": {
+    "name": "Eclipse",
+    "apiName": "DA_18_Eclipse",
+    "breakpoints": [],
+    "icon": "assets/ux/traiticons/trait_icon_18_eclipse.tex"
+  },
+  "Hunter": {
+    "name": "Hunter",
+    "apiName": "DA_18_Hunter",
+    "breakpoints": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_hunter.tex"
+  },
+  "Old Growth": {
+    "name": "Old Growth",
+    "apiName": "DA_18_Maokai_UniqueTrait",
+    "breakpoints": [
+      1
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_oldgrowth.tex"
+  },
+  "Monolith": {
+    "name": "Monolith",
+    "apiName": "DA_18_Battlemage",
+    "breakpoints": [
+      1
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_monolith.tex"
+  },
+  "Primal": {
+    "name": "Primal",
+    "apiName": "DA_Primal18",
+    "breakpoints": [
+      2,
+      4
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_primal.tex"
+  },
+  "Greenfather": {
+    "name": "Greenfather",
+    "apiName": "DA_18_Greenfather",
+    "breakpoints": [
+      1
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_greenfather.tex"
+  },
+  "Invoker": {
+    "name": "Invoker",
+    "apiName": "DA_18_Invoker",
+    "breakpoints": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_invoker.tex"
+  },
+  "Rapidfire": {
+    "name": "Rapidfire",
+    "apiName": "DA_18_Rapidfire",
+    "breakpoints": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_rapidfire.tex"
+  },
+  "Juggernaut": {
+    "name": "Juggernaut",
+    "apiName": "DA_Juggernaut18",
+    "breakpoints": [
+      2,
+      4,
+      6
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_juggernaut.tex"
+  },
+  "Inferno": {
+    "name": "Inferno",
+    "apiName": "DA_18_Inferno",
+    "breakpoints": [
+      2,
+      3,
+      5,
+      7
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_inferno.tex"
+  },
+  "Attuned": {
+    "name": "Attuned",
+    "apiName": "DA_AluneUniqueTrait18",
+    "breakpoints": [
+      1
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_attuned.tex"
+  },
+  "Rival": {
+    "name": "Rival",
+    "apiName": "DA_18_Rival",
+    "breakpoints": [
+      1,
+      1,
+      2
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_rival.tex"
+  },
+  "Vanguard": {
+    "name": "Vanguard",
+    "apiName": "DA_18_Vanguard",
+    "breakpoints": [
+      2,
+      4,
+      6
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_vanguard.tex"
+  },
+  "Brawler": {
+    "name": "Brawler",
+    "apiName": "DA_18_Brawler",
+    "breakpoints": [
+      2,
+      4,
+      6
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_brawler.tex"
+  },
+  "Blackthorn": {
+    "name": "Blackthorn",
+    "apiName": "DA_18_Blackthorn",
+    "breakpoints": [
+      2,
+      4,
+      6
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_oldgod.tex"
+  },
+  "Executioner": {
+    "name": "Executioner",
+    "apiName": "DA_18_Executioner",
+    "breakpoints": [
+      2,
+      3,
+      4
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_executioner.tex"
+  },
+  "Apex Predator": {
+    "name": "Apex Predator",
+    "apiName": "DA_18_ApexPredator",
+    "breakpoints": [
+      1
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_apexpredator.tex"
+  },
+  "Riftbeast": {
+    "name": "Riftbeast",
+    "apiName": "DA_Riftbeast18",
+    "breakpoints": [
+      3,
+      5,
+      7,
+      10
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_riftbeast.tex"
+  },
+  "Caustic": {
+    "name": "Caustic",
+    "apiName": "DA_18_Caustic",
+    "breakpoints": [
+      1
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_caustic.tex"
+  },
+  "Fae": {
+    "name": "Fae",
+    "apiName": "DA_18_Fae",
+    "breakpoints": [
+      2,
+      4
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_fae.tex"
+  },
+  "Lunar": {
+    "name": "Lunar",
+    "apiName": "DA_18_Lunar",
+    "breakpoints": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_lunar.tex"
+  },
+  "Defender": {
+    "name": "Defender",
+    "apiName": "DA_18_Defender",
+    "breakpoints": [
+      2,
+      4,
+      6
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_defender.tex"
+  },
+  "Spellweaver": {
+    "name": "Spellweaver",
+    "apiName": "DA_18_Spellweaver",
+    "breakpoints": [
+      2,
+      4,
+      6
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_spellweaver.tex"
+  },
+  "Thornmaiden": {
+    "name": "Thornmaiden",
+    "apiName": "DA_18_ZyraUniqueTrait",
+    "breakpoints": [
+      1
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_zyraorigin.tex"
+  },
+  "Flora Fatalis": {
+    "name": "Flora Fatalis",
+    "apiName": "DA_FloraFatalis18",
+    "breakpoints": [
+      1,
+      2
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_florafatalis.tex"
+  },
+  "Summoner": {
+    "name": "Summoner",
+    "apiName": "DA_18_Summoner",
+    "breakpoints": [
+      2,
+      3
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_summoner.tex"
+  },
+  "Blossom": {
+    "name": "Blossom",
+    "apiName": "DA_18_Blossom",
+    "breakpoints": [
+      3,
+      5,
+      7,
+      9,
+      11
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_blossom.tex"
+  },
+  "Emerald Aspect": {
+    "name": "Emerald Aspect",
+    "apiName": "DA_Emerald18",
+    "breakpoints": [
+      1
+    ],
+    "icon": "assets/ux/traiticons/trait_icon_18_emeraldaspect.tex"
+  }
+}

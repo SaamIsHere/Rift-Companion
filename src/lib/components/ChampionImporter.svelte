@@ -5,6 +5,13 @@
   import { championCatalog, ddragonVersion } from "../stores/champions";
   import { settings } from "../stores/settings";
   import {
+    isAramActive,
+    isMayhemActive,
+    activeLiveMode,
+    setManualLiveMode,
+    toggleMayhemMode,
+  } from "../stores/liveGameMode";
+  import {
     getChampionBuild,
     importRunePage,
     importSummonerSpells,
@@ -56,36 +63,18 @@
     return list;
   })();
 
-  // Persisted Auto-Import Toggles (Default: false / OFF; preserved if user has configured them)
-  let autoImportRunes = (() => {
-    try {
-      const saved = localStorage.getItem("rift_auto_import_runes");
-      if (saved !== null) return saved === "true";
-    } catch {}
-    const sVal = get(settings)?.auto_import_runes;
-    if (sVal !== undefined && sVal !== null) return Boolean(sVal);
-    return false;
-  })();
+  // Mode-aware active auto-import toggles
+  $: activeAutoImportRunes = $isAramActive
+    ? ($isMayhemActive ? false : Boolean($settings.aram_auto_import_runes))
+    : Boolean($settings.auto_import_runes);
 
-  let autoImportSpells = (() => {
-    try {
-      const saved = localStorage.getItem("rift_auto_import_spells");
-      if (saved !== null) return saved === "true";
-    } catch {}
-    const sVal = get(settings)?.auto_import_spells;
-    if (sVal !== undefined && sVal !== null) return Boolean(sVal);
-    return false;
-  })();
+  $: activeAutoImportSpells = $isAramActive
+    ? Boolean($settings.aram_auto_import_spells)
+    : Boolean($settings.auto_import_spells);
 
-  let autoImportItems = (() => {
-    try {
-      const saved = localStorage.getItem("rift_auto_import_items");
-      if (saved !== null) return saved === "true";
-    } catch {}
-    const sVal = get(settings)?.auto_import_items;
-    if (sVal !== undefined && sVal !== null) return Boolean(sVal);
-    return false;
-  })();
+  $: activeAutoImportItems = $isAramActive
+    ? Boolean($settings.aram_auto_import_items)
+    : Boolean($settings.auto_import_items);
 
   // Flash Key Preference ("D" or "F", default "D"; preserved if user has configured it)
   let flashKey: "D" | "F" = (() => {
@@ -106,7 +95,7 @@
     settings.update((s) => ({ ...s, flash_key: key }));
     void setSettings(get(settings));
     showFeedback(`✓ Flash preference: key ${key}`);
-    if (autoImportSpells && build?.summoner_spells?.[activeSpellIndex]) {
+    if (activeAutoImportSpells && displayedSpells?.[activeSpellIndex]) {
       void executeImportSpells(activeSpellIndex);
     }
   }
@@ -138,38 +127,78 @@
   }
 
   function toggleRunes() {
-    autoImportRunes = !autoImportRunes;
-    try {
-      localStorage.setItem("rift_auto_import_runes", String(autoImportRunes));
-    } catch {}
-    settings.update((s) => ({ ...s, auto_import_runes: autoImportRunes }));
-    void setSettings(get(settings));
-    if (autoImportRunes && build?.runes?.[activeRunePageIndex]) {
-      void executeImportRunePage(activeRunePageIndex);
+    if ($isAramActive) {
+      if ($isMayhemActive) {
+        showFeedback("⚠️ In ARAM Mayhem gibt es keine Runen");
+        return;
+      }
+      const nextVal = !($settings.aram_auto_import_runes ?? false);
+      try {
+        localStorage.setItem("rift_aram_auto_import_runes", String(nextVal));
+      } catch {}
+      settings.update((s) => ({ ...s, aram_auto_import_runes: nextVal }));
+      void setSettings(get(settings));
+      if (nextVal && build?.runes?.[activeRunePageIndex]) {
+        void executeImportRunePage(activeRunePageIndex);
+      }
+    } else {
+      const nextVal = !($settings.auto_import_runes ?? false);
+      try {
+        localStorage.setItem("rift_auto_import_runes", String(nextVal));
+      } catch {}
+      settings.update((s) => ({ ...s, auto_import_runes: nextVal }));
+      void setSettings(get(settings));
+      if (nextVal && build?.runes?.[activeRunePageIndex]) {
+        void executeImportRunePage(activeRunePageIndex);
+      }
     }
   }
 
   function toggleSpells() {
-    autoImportSpells = !autoImportSpells;
-    try {
-      localStorage.setItem("rift_auto_import_spells", String(autoImportSpells));
-    } catch {}
-    settings.update((s) => ({ ...s, auto_import_spells: autoImportSpells }));
-    void setSettings(get(settings));
-    if (autoImportSpells && build?.summoner_spells?.[activeSpellIndex]) {
-      void executeImportSpells(activeSpellIndex);
+    if ($isAramActive) {
+      const nextVal = !($settings.aram_auto_import_spells ?? false);
+      try {
+        localStorage.setItem("rift_aram_auto_import_spells", String(nextVal));
+      } catch {}
+      settings.update((s) => ({ ...s, aram_auto_import_spells: nextVal }));
+      void setSettings(get(settings));
+      if (nextVal && displayedSpells?.[activeSpellIndex]) {
+        void executeImportSpells(activeSpellIndex);
+      }
+    } else {
+      const nextVal = !($settings.auto_import_spells ?? false);
+      try {
+        localStorage.setItem("rift_auto_import_spells", String(nextVal));
+      } catch {}
+      settings.update((s) => ({ ...s, auto_import_spells: nextVal }));
+      void setSettings(get(settings));
+      if (nextVal && displayedSpells?.[activeSpellIndex]) {
+        void executeImportSpells(activeSpellIndex);
+      }
     }
   }
 
   function toggleItems() {
-    autoImportItems = !autoImportItems;
-    try {
-      localStorage.setItem("rift_auto_import_items", String(autoImportItems));
-    } catch {}
-    settings.update((s) => ({ ...s, auto_import_items: autoImportItems }));
-    void setSettings(get(settings));
-    if (autoImportItems && build) {
-      void executeImportItems();
+    if ($isAramActive) {
+      const nextVal = !($settings.aram_auto_import_items ?? false);
+      try {
+        localStorage.setItem("rift_aram_auto_import_items", String(nextVal));
+      } catch {}
+      settings.update((s) => ({ ...s, aram_auto_import_items: nextVal }));
+      void setSettings(get(settings));
+      if (nextVal && build) {
+        void executeImportItems();
+      }
+    } else {
+      const nextVal = !($settings.auto_import_items ?? false);
+      try {
+        localStorage.setItem("rift_auto_import_items", String(nextVal));
+      } catch {}
+      settings.update((s) => ({ ...s, auto_import_items: nextVal }));
+      void setSettings(get(settings));
+      if (nextVal && build) {
+        void executeImportItems();
+      }
     }
   }
 
@@ -193,13 +222,13 @@
       // On initial lock-in of this champion, auto-import if toggles are enabled
       if (lastImportedChampId !== championId) {
         lastImportedChampId = championId;
-        if (autoImportRunes && build?.runes && build.runes.length > 0) {
+        if (activeAutoImportRunes && build?.runes && build.runes.length > 0 && !$isMayhemActive) {
           void executeImportRunePage(0);
         }
-        if (autoImportSpells && build?.summoner_spells && build.summoner_spells.length > 0) {
+        if (activeAutoImportSpells && displayedSpells && displayedSpells.length > 0) {
           void executeImportSpells(0);
         }
-        if (autoImportItems && build) {
+        if (activeAutoImportItems && build) {
           void executeImportItems();
         }
       }
@@ -212,6 +241,40 @@
   $: if (championId) {
     void loadData();
   }
+
+  // Summoner spells list, tailored for ARAM vs Classic
+  $: displayedSpells = (() => {
+    if (!$isAramActive) {
+      return (build?.summoner_spells || []).slice(0, 2);
+    }
+
+    // --- ARAM MODE ---
+    // 1st combo: The most used combo that does NOT contain Smite (id 11)
+    const nonSmiteCombos = (build?.summoner_spells || []).filter(
+      (s) => !s.ids.includes(11)
+    );
+
+    const firstCombo: SummonerSpellStats = nonSmiteCombos.length > 0
+      ? nonSmiteCombos[0]
+      : {
+          ids: [4, 14],
+          names: ["Flash", "Ignite"],
+          play: undefined,
+          win_rate: undefined,
+          pick_rate: undefined,
+        };
+
+    // 2nd combo: Always Flash (4) + Snowball (32, Mark)
+    const secondCombo: SummonerSpellStats = {
+      ids: [4, 32],
+      names: ["Flash", "Mark"],
+      play: undefined,
+      win_rate: undefined,
+      pick_rate: undefined,
+    };
+
+    return [firstCombo, secondCombo];
+  })();
 
   $: activeRunePage = build?.runes?.[activeRunePageIndex] || build?.runes?.[0] || null;
 
@@ -234,8 +297,8 @@
     const secondaryStyleId = page?.secondary_style?.id;
     if (!page || !primaryStyleId || !secondaryStyleId) return;
 
-    if (!autoImportRunes) {
-      // Toggle is OFF -> Only viewing/switching page, no import
+    if (!activeAutoImportRunes || $isMayhemActive) {
+      // Toggle is OFF or in Mayhem (no runes) -> Only viewing/switching page, no import
       return;
     }
 
@@ -258,12 +321,12 @@
     }
   }
 
-  async function executeImportSpells(spellIdx: number) {
+  async function executeImportSpells(spellIdx: number, force = false) {
     activeSpellIndex = spellIdx;
-    const pair = build?.summoner_spells?.[spellIdx];
+    const pair = displayedSpells?.[spellIdx];
     if (!pair || pair.ids.length < 2) return;
 
-    if (!autoImportSpells) {
+    if (!activeAutoImportSpells && !force) {
       // Toggle is OFF -> Only viewing/switching spells, no import
       return;
     }
@@ -470,8 +533,8 @@
     </div>
   {/if}
 
-  <!-- Header Bar: Champion Info & Role Icon -->
-  <div class="relative z-10 flex items-center px-3 py-1.5 border-b border-purple-500/15 bg-void-950/60 shrink-0">
+  <!-- Header Bar: Champion Info, Role Icon & Game Mode Toggle -->
+  <div class="relative z-10 flex items-center justify-between px-3 py-1.5 border-b border-purple-500/15 bg-void-950/60 shrink-0">
     <div class="flex items-center gap-2">
       {#if champInfo?.key}
         <img
@@ -482,7 +545,7 @@
       {/if}
       <div class="flex items-center gap-1.5">
         <span class="text-xs font-black text-white">{champName}</span>
-        {#if role}
+        {#if role && !$isAramActive}
           <img
             src={roleIconUrl(role)}
             alt={role}
@@ -491,6 +554,47 @@
           />
         {/if}
       </div>
+    </div>
+
+    <!-- Mode Selector & Controls -->
+    <div class="flex items-center gap-2">
+      <!-- Mode Toggle Pill -->
+      <div class="inline-flex items-center rounded-lg border border-purple-500/25 bg-void-950/80 p-0.5 text-[10px]">
+        <button
+          type="button"
+          on:click={() => setManualLiveMode("classic")}
+          class="flex items-center gap-1 rounded px-2 py-0.5 font-bold transition-all cursor-pointer {!$isAramActive
+            ? 'bg-purple-600 text-white shadow-sm'
+            : 'text-slate-400 hover:text-white'}"
+          title="Summoner's Rift Mode"
+        >
+          <span>🌲 Rift</span>
+        </button>
+        <button
+          type="button"
+          on:click={() => setManualLiveMode("aram")}
+          class="flex items-center gap-1 rounded px-2 py-0.5 font-bold transition-all cursor-pointer {$isAramActive
+            ? 'bg-cyan-600/70 text-cyan-100 shadow-sm border border-cyan-400/40'
+            : 'text-slate-400 hover:text-white'}"
+          title="ARAM Mode"
+        >
+          <span>❄️ ARAM</span>
+        </button>
+      </div>
+
+      {#if $isAramActive}
+        <!-- ARAM Mayhem Toggle Button -->
+        <button
+          type="button"
+          on:click={toggleMayhemMode}
+          class="flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-bold transition-all cursor-pointer {$isMayhemActive
+            ? 'border-amber-400/60 bg-amber-500/25 text-amber-200 shadow-sm'
+            : 'border-purple-500/25 bg-void-950/70 text-slate-400 hover:text-amber-200'}"
+          title="ARAM Mayhem (Keine Runen / Augments-Modus)"
+        >
+          <span>⚡ Mayhem {$isMayhemActive ? '(Runen aus)' : ''}</span>
+        </button>
+      {/if}
     </div>
   </div>
 
@@ -508,123 +612,119 @@
         <!-- Runes Header with Toggle -->
         <div class="mb-2 flex items-center justify-between shrink-0">
           <div class="flex items-center gap-2">
-            <span class="text-xs font-black tracking-wide text-purple-200 uppercase">Runes</span>
+            <span class="text-xs font-black tracking-wide text-purple-200 uppercase">
+              {$isMayhemActive ? 'Runen (Deaktiviert)' : 'Runes'}
+            </span>
+            {#if $isMayhemActive}
+              <span class="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold text-amber-300 border border-amber-500/30">
+                Mayhem
+              </span>
+            {:else if $isAramActive}
+              <span class="rounded bg-cyan-500/20 px-1.5 py-0.5 text-[9px] font-bold text-cyan-300 border border-cyan-500/30">
+                ARAM
+              </span>
+            {/if}
           </div>
 
           <!-- Runes Auto-Import Toggle -->
-          <button
-            type="button"
-            on:click={toggleRunes}
-            class="group inline-flex items-center gap-1.5 text-xs cursor-pointer select-none"
-            title={autoImportRunes ? "Auto-import is ON (Click to disable)" : "Auto-import is OFF (Click to enable)"}
-          >
-            <span class="text-[10px] font-semibold text-slate-400 group-hover:text-slate-300">
-              {autoImportRunes ? "Auto-Import" : "View Only"}
-            </span>
-            <div class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors duration-200 {autoImportRunes ? 'bg-emerald-500' : 'bg-slate-700'}">
-              <span class="inline-block h-3 w-3 transform rounded-full bg-white transition duration-200 {autoImportRunes ? 'translate-x-3.5' : 'translate-x-0.5'}"></span>
+          {#if $isMayhemActive}
+            <div class="text-[10px] font-semibold text-amber-400/90 bg-amber-950/40 border border-amber-500/30 rounded-md px-2 py-0.5">
+              Runen ausgemacht
             </div>
-          </button>
+          {:else}
+            <button
+              type="button"
+              on:click={toggleRunes}
+              class="group inline-flex items-center gap-1.5 text-xs cursor-pointer select-none"
+              title={activeAutoImportRunes ? "Auto-import is ON (Click to disable)" : "Auto-import is OFF (Click to enable)"}
+            >
+              <span class="text-[10px] font-semibold text-slate-400 group-hover:text-slate-300">
+                {activeAutoImportRunes ? "Auto-Import" : "View Only"}
+              </span>
+              <div class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors duration-200 {activeAutoImportRunes ? 'bg-emerald-500' : 'bg-slate-700'}">
+                <span class="inline-block h-3 w-3 transform rounded-full bg-white transition duration-200 {activeAutoImportRunes ? 'translate-x-3.5' : 'translate-x-0.5'}"></span>
+              </div>
+            </button>
+          {/if}
         </div>
 
-        <!-- 2 Clickable Rune Page Cards -->
-        {#if build?.runes && build.runes.length > 0}
-          <div class="mb-2.5 grid grid-cols-2 gap-2 shrink-0">
-            {#each build.runes.slice(0, 2) as page, idx}
-              {@const keystone = page.primary_runes?.[0]}
-              {@const isSelected = activeRunePageIndex === idx}
+        {#if $isMayhemActive}
+          <!-- Special ARAM Mayhem View: Runes disabled -->
+          <div class="flex flex-1 flex-col items-center justify-center p-6 text-center border border-amber-500/20 bg-amber-950/15 rounded-xl my-auto">
+            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-300 border border-amber-500/40 mb-3 shadow-lg ring-1 ring-amber-400/30">
+              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+            </div>
+            <span class="text-xs font-black text-amber-300 uppercase tracking-wider mb-1">ARAM Mayhem: Runen Deaktiviert</span>
+            <p class="text-[11px] text-slate-300 max-w-xs leading-relaxed">
+              In ARAM Mayhem existieren keine Runen. Alle Champions wählen stattdessen während der Partie mächtige Augments. Runen-Import ist ausgeschaltet.
+            </p>
+            <div class="mt-4 flex items-center gap-2">
               <button
                 type="button"
-                on:click={() => executeImportRunePage(idx)}
-                class="flex items-center justify-between rounded-xl p-2 transition-all border text-left cursor-pointer {isSelected
-                  ? 'border-purple-400/80 bg-purple-900/40 ring-1 ring-purple-400 shadow-md'
-                  : 'border-purple-500/20 bg-void-950/30 hover:border-purple-400/40 hover:bg-purple-950/20'}"
+                on:click={toggleMayhemMode}
+                class="rounded-lg border border-amber-500/30 bg-amber-950/60 px-2.5 py-1 text-[10px] font-semibold text-amber-200 hover:bg-amber-900/60 hover:text-white transition cursor-pointer"
               >
-                <div class="flex items-center gap-2">
-                  <div class="relative flex h-10 w-10 items-center justify-center rounded-full bg-void-950/70 p-0.5 ring-1 {isSelected ? 'ring-purple-400' : 'ring-purple-500/30'} shrink-0">
-                    {#if keystone}
-                      <img
-                        src={getRuneIconUrl(keystone.id)}
-                        alt={keystone.name || "Keystone"}
-                        class="h-full w-full object-contain"
-                      />
-                    {/if}
-                    <img
-                      src={runeStyleIconUrl(page.secondary_style?.id)}
-                      alt="Substyle"
-                      class="absolute -bottom-1 -right-1 h-4 w-4 object-contain rounded-full bg-void-950 ring-1 ring-purple-500/40"
-                    />
-                  </div>
-                </div>
-
-                <div class="flex flex-col items-end leading-tight shrink-0">
-                  <span class="text-xs font-black text-emerald-400">
-                    {formatWr(page.win_rate)}
-                  </span>
-                  {#if page.play}
-                    <span class="text-[9px] font-semibold text-slate-400 tracking-wider">
-                      {formatGames(page.play)}
-                    </span>
-                  {/if}
-                </div>
+                Runen wieder einschalten (Standard ARAM)
               </button>
-            {/each}
+            </div>
           </div>
-        {/if}
-
-        <!-- Interactive Full Rune Tree Display -->
-        {#if activeRunePage && primaryStyle}
-          <div class="flex flex-1 items-start justify-center gap-7 overflow-y-auto py-1">
-            <!-- Primary Tree -->
-            <div class="flex flex-col items-center gap-2">
-              <!-- Primary 5 Styles Bar -->
-              <div class="flex items-center gap-2 pb-1.5 border-b border-purple-500/15">
-                {#each runeStyles as s (s.id)}
-                  {@const isActiveStyle = s.id === primaryStyle.id}
-                  <img
-                    src={runeStyleIconUrl(s.id)}
-                    alt={s.name}
-                    class="h-5.5 w-5.5 object-contain transition-all {isActiveStyle
-                      ? 'scale-110 filter brightness-125 opacity-100 ring-1 ring-purple-400/60 rounded-full'
-                      : 'opacity-25 grayscale'}"
-                    title={s.name}
-                  />
-                {/each}
-              </div>
-
-              <!-- Primary Slots (Keystone + 3 Minor Rows) -->
-              {#each primaryStyle.slots as slot, slotIdx}
-                <div class="flex items-center gap-2">
-                  {#each slot.runes as rune (rune.id)}
-                    {@const isRuneSelected = primarySelectedSet.has(rune.id)}
-                    <div
-                      class="relative flex items-center justify-center rounded-full transition-all {slotIdx === 0
-                        ? 'h-11 w-11'
-                        : 'h-8 w-8'} {isRuneSelected
-                        ? (slotIdx === 0
-                            ? 'ring-2 ring-purple-400 bg-purple-950/70 shadow-md scale-110'
-                            : 'ring-1 ring-purple-400 bg-purple-900/60 shadow-sm scale-105')
-                        : 'opacity-25 grayscale hover:opacity-50'}"
-                      title={rune.name}
-                    >
+        {:else}
+          <!-- 2 Clickable Rune Page Cards -->
+          {#if build?.runes && build.runes.length > 0}
+            <div class="mb-2.5 grid grid-cols-2 gap-2 shrink-0">
+              {#each build.runes.slice(0, 2) as page, idx}
+                {@const keystone = page.primary_runes?.[0]}
+                {@const isSelected = activeRunePageIndex === idx}
+                <button
+                  type="button"
+                  on:click={() => executeImportRunePage(idx)}
+                  class="flex items-center justify-between rounded-xl p-2 transition-all border text-left cursor-pointer {isSelected
+                    ? 'border-purple-400/80 bg-purple-900/40 ring-1 ring-purple-400 shadow-md'
+                    : 'border-purple-500/20 bg-void-950/30 hover:border-purple-400/40 hover:bg-purple-950/20'}"
+                >
+                  <div class="flex items-center gap-2">
+                    <div class="relative flex h-10 w-10 items-center justify-center rounded-full bg-void-950/70 p-0.5 ring-1 {isSelected ? 'ring-purple-400' : 'ring-purple-500/30'} shrink-0">
+                      {#if keystone}
+                        <img
+                          src={getRuneIconUrl(keystone.id)}
+                          alt={keystone.name || "Keystone"}
+                          class="h-full w-full object-contain"
+                        />
+                      {/if}
                       <img
-                        src={getCdnImgUrl(rune.icon)}
-                        alt={rune.name}
-                        class="h-full w-full object-contain rounded-full"
+                        src={runeStyleIconUrl(page.secondary_style?.id)}
+                        alt="Substyle"
+                        class="absolute -bottom-1 -right-1 h-4 w-4 object-contain rounded-full bg-void-950 ring-1 ring-purple-500/40"
                       />
                     </div>
-                  {/each}
-                </div>
+                  </div>
+
+                  <div class="flex flex-col items-end leading-tight shrink-0">
+                    <span class="text-xs font-black text-emerald-400">
+                      {formatWr(page.win_rate)}
+                    </span>
+                    {#if page.play}
+                      <span class="text-[9px] font-semibold text-slate-400 tracking-wider">
+                        {formatGames(page.play)}
+                      </span>
+                    {/if}
+                  </div>
+                </button>
               {/each}
             </div>
+          {/if}
 
-            <!-- Secondary Tree & Shards -->
-            <div class="flex flex-col items-center gap-2">
-              {#if secondaryStyle}
-                <!-- Secondary 5 Styles Bar -->
+          <!-- Interactive Full Rune Tree Display -->
+          {#if activeRunePage && primaryStyle}
+            <div class="flex flex-1 items-start justify-center gap-7 overflow-y-auto py-1">
+              <!-- Primary Tree -->
+              <div class="flex flex-col items-center gap-2">
+                <!-- Primary 5 Styles Bar -->
                 <div class="flex items-center gap-2 pb-1.5 border-b border-purple-500/15">
                   {#each runeStyles as s (s.id)}
-                    {@const isActiveStyle = s.id === secondaryStyle.id}
+                    {@const isActiveStyle = s.id === primaryStyle.id}
                     <img
                       src={runeStyleIconUrl(s.id)}
                       alt={s.name}
@@ -636,14 +736,18 @@
                   {/each}
                 </div>
 
-                <!-- Secondary Slots (Slots 1, 2, 3 - without keystone) -->
-                {#each secondaryStyle.slots.slice(1) as slot}
+                <!-- Primary Slots (Keystone + 3 Minor Rows) -->
+                {#each primaryStyle.slots as slot, slotIdx}
                   <div class="flex items-center gap-2">
                     {#each slot.runes as rune (rune.id)}
-                      {@const isRuneSelected = secondarySelectedSet.has(rune.id)}
+                      {@const isRuneSelected = primarySelectedSet.has(rune.id)}
                       <div
-                        class="relative flex h-8 w-8 items-center justify-center rounded-full transition-all {isRuneSelected
-                          ? 'ring-1 ring-purple-400 bg-purple-900/60 shadow-sm scale-105'
+                        class="relative flex items-center justify-center rounded-full transition-all {slotIdx === 0
+                          ? 'h-11 w-11'
+                          : 'h-8 w-8'} {isRuneSelected
+                          ? (slotIdx === 0
+                              ? 'ring-2 ring-purple-400 bg-purple-950/70 shadow-md scale-110'
+                              : 'ring-1 ring-purple-400 bg-purple-900/60 shadow-sm scale-105')
                           : 'opacity-25 grayscale hover:opacity-50'}"
                         title={rune.name}
                       >
@@ -656,33 +760,74 @@
                     {/each}
                   </div>
                 {/each}
-              {/if}
+              </div>
 
-              <!-- Shards Divider -->
-              <div class="w-full border-t border-purple-500/15 my-0.5"></div>
-
-              <!-- 3 Rows of Stat Shards -->
-              {#each STAT_SHARD_ROWS as row, rowIdx}
-                <div class="flex items-center gap-2">
-                  {#each row as shard}
-                    {@const isShardSelected = shardsSelectedList[rowIdx] === shard.id}
-                    <div
-                      class="flex h-6 w-6 items-center justify-center rounded-full p-0.5 transition-all {isShardSelected
-                        ? 'border border-amber-400/80 bg-amber-500/20 ring-1 ring-amber-400/60 scale-110'
-                        : 'opacity-25 grayscale hover:opacity-50'}"
-                      title={shard.name}
-                    >
+              <!-- Secondary Tree & Shards -->
+              <div class="flex flex-col items-center gap-2">
+                {#if secondaryStyle}
+                  <!-- Secondary 5 Styles Bar -->
+                  <div class="flex items-center gap-2 pb-1.5 border-b border-purple-500/15">
+                    {#each runeStyles as s (s.id)}
+                      {@const isActiveStyle = s.id === secondaryStyle.id}
                       <img
-                        src={statModIconUrl(shard.id)}
-                        alt={shard.name}
-                        class="h-4 w-4 object-contain"
+                        src={runeStyleIconUrl(s.id)}
+                        alt={s.name}
+                        class="h-5.5 w-5.5 object-contain transition-all {isActiveStyle
+                          ? 'scale-110 filter brightness-125 opacity-100 ring-1 ring-purple-400/60 rounded-full'
+                          : 'opacity-25 grayscale'}"
+                        title={s.name}
                       />
+                    {/each}
+                  </div>
+
+                  <!-- Secondary Slots (Slots 1, 2, 3 - without keystone) -->
+                  {#each secondaryStyle.slots.slice(1) as slot}
+                    <div class="flex items-center gap-2">
+                      {#each slot.runes as rune (rune.id)}
+                        {@const isRuneSelected = secondarySelectedSet.has(rune.id)}
+                        <div
+                          class="relative flex h-8 w-8 items-center justify-center rounded-full transition-all {isRuneSelected
+                            ? 'ring-1 ring-purple-400 bg-purple-900/60 shadow-sm scale-105'
+                            : 'opacity-25 grayscale hover:opacity-50'}"
+                          title={rune.name}
+                        >
+                          <img
+                            src={getCdnImgUrl(rune.icon)}
+                            alt={rune.name}
+                            class="h-full w-full object-contain rounded-full"
+                          />
+                        </div>
+                      {/each}
                     </div>
                   {/each}
-                </div>
-              {/each}
+                {/if}
+
+                <!-- Shards Divider -->
+                <div class="w-full border-t border-purple-500/15 my-0.5"></div>
+
+                <!-- 3 Rows of Stat Shards -->
+                {#each STAT_SHARD_ROWS as row, rowIdx}
+                  <div class="flex items-center gap-2">
+                    {#each row as shard}
+                      {@const isShardSelected = shardsSelectedList[rowIdx] === shard.id}
+                      <div
+                        class="flex h-6 w-6 items-center justify-center rounded-full p-0.5 transition-all {isShardSelected
+                          ? 'border border-amber-400/80 bg-amber-500/20 ring-1 ring-amber-400/60 scale-110'
+                          : 'opacity-25 grayscale hover:opacity-50'}"
+                        title={shard.name}
+                      >
+                        <img
+                          src={statModIconUrl(shard.id)}
+                          alt={shard.name}
+                          class="h-4 w-4 object-contain"
+                        />
+                      </div>
+                    {/each}
+                  </div>
+                {/each}
+              </div>
             </div>
-          </div>
+          {/if}
         {/if}
       </div>
 
@@ -725,26 +870,26 @@
               type="button"
               on:click={toggleSpells}
               class="group inline-flex items-center gap-1.5 text-xs cursor-pointer select-none"
-              title={autoImportSpells ? "Auto-import is ON (Click to disable)" : "Auto-import is OFF (Click to enable)"}
+              title={activeAutoImportSpells ? "Auto-import is ON (Click to disable)" : "Auto-import is OFF (Click to enable)"}
             >
               <span class="text-[10px] font-semibold text-slate-400 group-hover:text-slate-300">
-                {autoImportSpells ? "Auto-Import" : "View Only"}
+                {activeAutoImportSpells ? "Auto-Import" : "View Only"}
               </span>
-              <div class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors duration-200 {autoImportSpells ? 'bg-emerald-500' : 'bg-slate-700'}">
-                <span class="inline-block h-3 w-3 transform rounded-full bg-white transition duration-200 {autoImportSpells ? 'translate-x-3.5' : 'translate-x-0.5'}"></span>
+              <div class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors duration-200 {activeAutoImportSpells ? 'bg-emerald-500' : 'bg-slate-700'}">
+                <span class="inline-block h-3 w-3 transform rounded-full bg-white transition duration-200 {activeAutoImportSpells ? 'translate-x-3.5' : 'translate-x-0.5'}"></span>
               </div>
             </button>
           </div>
 
           <!-- 2 Spell Combo Rows -->
-          {#if build?.summoner_spells && build.summoner_spells.length > 0}
+          {#if displayedSpells && displayedSpells.length > 0}
             <div class="flex flex-col gap-1.5">
-              {#each build.summoner_spells.slice(0, 2) as pair, sIdx (`${pair.ids.join('-')}-${flashKey}`)}
+              {#each displayedSpells as pair, sIdx (`${pair.ids.join('-')}-${flashKey}`)}
                 {@const isSelected = activeSpellIndex === sIdx}
                 {@const ordered = getOrderedSpells(pair.ids, flashKey)}
                 <button
                   type="button"
-                  on:click={() => executeImportSpells(sIdx)}
+                  on:click={() => executeImportSpells(sIdx, true)}
                   class="flex items-center justify-between rounded-xl px-2.5 py-1.5 transition-all border text-left cursor-pointer {isSelected
                     ? 'border-purple-400/80 bg-purple-900/40 ring-1 ring-purple-400 shadow-sm'
                     : 'border-purple-500/20 bg-void-950/30 hover:border-purple-400/40 hover:bg-purple-950/20'}"
@@ -773,12 +918,24 @@
                         F
                       </span>
                     </div>
+
+                    {#if $isAramActive}
+                      <span class="text-[10px] font-bold tracking-tight {sIdx === 0 ? 'text-purple-300' : 'text-cyan-300'}">
+                        {sIdx === 0 ? 'Top Combo (Ohne Smite)' : 'Flash + Schneeball'}
+                      </span>
+                    {/if}
                   </div>
 
                   <div class="flex items-center gap-2">
-                    <span class="text-xs font-black text-emerald-400">
-                      {formatWr(pair.win_rate)}
-                    </span>
+                    {#if pair.win_rate != null}
+                      <span class="text-xs font-black text-emerald-400">
+                        {formatWr(pair.win_rate)}
+                      </span>
+                    {:else if $isAramActive && sIdx === 1}
+                      <span class="rounded bg-cyan-500/20 px-1.5 py-0.5 text-[9px] font-bold text-cyan-300 border border-cyan-500/30">
+                        ARAM
+                      </span>
+                    {/if}
                     {#if pair.play}
                       <span class="text-[9px] font-semibold text-slate-400">
                         {formatGames(pair.play)}
@@ -807,15 +964,15 @@
               <button
                 type="button"
                 on:click={toggleItems}
-                title={autoImportItems ? "Auto-import is ON (Click to disable)" : "Auto-import is OFF (Click to enable)"}
+                title={activeAutoImportItems ? "Auto-import is ON (Click to disable)" : "Auto-import is OFF (Click to enable)"}
                 aria-label="Toggle auto-import items"
                 class="group inline-flex items-center gap-1.5 text-xs cursor-pointer select-none"
               >
                 <span class="text-[10px] font-semibold text-slate-400 group-hover:text-slate-300">
-                  {autoImportItems ? "Auto-Import" : "View Only"}
+                  {activeAutoImportItems ? "Auto-Import" : "View Only"}
                 </span>
-                <div class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors duration-200 {autoImportItems ? 'bg-emerald-500' : 'bg-slate-700'}">
-                  <span class="inline-block h-3 w-3 transform rounded-full bg-white transition duration-200 {autoImportItems ? 'translate-x-3.5' : 'translate-x-0.5'}"></span>
+                <div class="relative inline-flex h-4 w-7 items-center rounded-full transition-colors duration-200 {activeAutoImportItems ? 'bg-emerald-500' : 'bg-slate-700'}">
+                  <span class="inline-block h-3 w-3 transform rounded-full bg-white transition duration-200 {activeAutoImportItems ? 'translate-x-3.5' : 'translate-x-0.5'}"></span>
                 </div>
               </button>
             </div>

@@ -246,6 +246,22 @@ export const LATEST_PATCH_DATA: PatchNotesData = {
 
     // Rift Companion Updates
     {
+      id: "app-update-030",
+      type: "app",
+      category: "app",
+      title: "Rift Companion v0.3.0 - TFT Set 18 & ARAM Overhaul",
+      summary: "Full Teamfight Tactics (TFT Set 18) integration with Meta Comps and Team Builder, ARAM & ARAM Mayhem live match mode detection with dedicated auto-import settings, and landing page visual polish.",
+      details: [
+        "Teamfight Tactics (TFT Set 18) Integration: Dedicated TFT hub featuring real-time Set 18 tier lists, meta compositions, augments, and item pairings.",
+        "Interactive TFT Team Builder & Emblem Optimizer: Experiment with board compositions, preview live active trait tiers, and calculate optimal emblem combinations with real-time synergy evaluations.",
+        "ARAM Game Mode Differentiation: The Live Match view now automatically detects whether you are playing Summoner's Rift, Howling Abyss (ARAM), or ARAM Mayhem via client gameflow analysis.",
+        "Dedicated ARAM Auto-Import Settings: Separate configuration toggles under Settings -> ARAM & Auto-Import allow independent control over automatically applying Runes, Summoner Spells, and Item Sets in ARAM games.",
+        "ARAM Mayhem Rune Adaptation: Automatically identifies ARAM Mayhem and disables rune importing to match the game mode mechanics (where runes are replaced by augments).",
+        "Curated ARAM Summoner Spells: Automatically provides the highest pick-rate non-Smite spell combo as Primary, plus an instant 1-click Flash + Mark (Snowball) combo as Secondary.",
+        "Landing Page Polish: Removed the redundant Patch Notes changes button and centered the official patch notes link for a cleaner, streamlined start experience.",
+      ],
+    },
+    {
       id: "app-update-022",
       type: "app",
       category: "app",

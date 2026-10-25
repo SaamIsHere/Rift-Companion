@@ -1,6 +1,7 @@
 <script lang="ts">
   import { draft, gameflowPhase } from "../stores/draft";
   import { championCatalog } from "../stores/champions";
+  import { isAramActive, isMayhemActive } from "../stores/liveGameMode";
   import DraftBoard from "./DraftBoard.svelte";
   import RecommendationList from "./RecommendationList.svelte";
   import ChampionOverview from "./ChampionOverview.svelte";
@@ -40,7 +41,11 @@
           </span>
           <strong class="text-emerald-400 font-bold uppercase tracking-wider text-[11px]">In-Game:</strong>
           <strong class="text-purple-300 ml-0.5">{localChampName || (localChampId ? `ID ${localChampId}` : "Your Champion")}</strong>
-          {#if localRole}
+          {#if $isAramActive}
+            <span class="rounded bg-cyan-500/20 px-1.5 py-0.5 text-[10px] font-bold text-cyan-300 border border-cyan-500/30">
+              {$isMayhemActive ? 'ARAM Mayhem' : 'ARAM'}
+            </span>
+          {:else if localRole}
             <span class="text-purple-400/80 uppercase text-[10px]">({localRole})</span>
           {/if}
         </span>

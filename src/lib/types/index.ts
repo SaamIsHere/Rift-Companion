@@ -50,6 +50,17 @@ export interface DraftState {
   is_ban_phase?: boolean;
   local_ban_completed?: boolean;
   recent_bans?: number[];
+  game_mode?: string | null;
+  queue_id?: number | null;
+  is_aram?: boolean;
+  is_mayhem?: boolean;
+}
+
+export interface GameModeInfo {
+  game_mode?: string | null;
+  queue_id?: number | null;
+  is_aram: boolean;
+  is_mayhem: boolean;
 }
 
 export interface ScoreComponents {
@@ -131,6 +142,10 @@ export interface Settings {
   auto_import_runes?: boolean;
   auto_import_spells?: boolean;
   auto_import_items?: boolean;
+  aram_auto_import_runes?: boolean;
+  aram_auto_import_spells?: boolean;
+  aram_auto_import_items?: boolean;
+  aram_mayhem_mode?: boolean;
   flash_key?: "D" | "F";
   backdrop_blur?: number;
 }
@@ -635,6 +650,77 @@ export interface PostGameMatch {
   allParticipants: PostGameParticipant[]; // sorted by rank 1..10
   timeline?: PostGameTimeline | null;
 }
+
+export interface TftBoardCell {
+  x: number;
+  y: number;
+}
+
+export interface TftItemRef {
+  id: string;
+  name: string;
+  image_url: string;
+}
+
+export interface TftUnit {
+  id: string;
+  name: string;
+  cost: number;
+  star: number;
+  items: TftItemRef[];
+  cell: TftBoardCell;
+  is_carry?: boolean;
+  image_url?: string;
+}
+
+export interface TftTrait {
+  name: string;
+  count: number;
+  tier: string;
+  icon_url?: string;
+}
+
+export interface TftLevelStage {
+  stage: string;
+  level: number;
+  description: string;
+}
+
+export interface TftMetaDeck {
+  id: string;
+  name: string;
+  tier: "OP" | "S" | "A" | "B" | string;
+  avg_placement: number;
+  top4_rate: number;
+  pick_rate?: number;
+  play_style?: string;
+  difficulty?: string;
+  traits: TftTrait[];
+  units: TftUnit[];
+  leveling_guide: TftLevelStage[];
+}
+
+export interface TftItem {
+  id: string;
+  name: string;
+  is_component: boolean;
+  is_spatula?: boolean;
+  recipe?: string[];
+  description: string;
+  stats?: string;
+  image_url: string;
+  recommended_champions?: string[];
+}
+
+export interface TftAugment {
+  id: string;
+  name: string;
+  tier: "Silver" | "Gold" | "Prismatic" | string;
+  tier_num: number;
+  description: string;
+  image_url: string;
+}
+
 
 
 

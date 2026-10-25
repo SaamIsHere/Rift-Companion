@@ -13,6 +13,7 @@ pub mod draft;
 pub mod engine;
 pub mod lcu;
 pub mod opgg;
+pub mod tft;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -76,6 +77,10 @@ pub struct Shared {
     pub live_poller_running: Arc<AtomicBool>,
     /// Latest finished match data for post-game screen
     pub latest_post_game: Arc<Mutex<Option<serde_json::Value>>>,
+    /// Currently detected game mode (e.g. "ARAM", "CLASSIC", "MAYHEM", etc.)
+    pub current_game_mode: Arc<Mutex<Option<String>>>,
+    /// Currently detected queue ID (e.g. 450 for ARAM)
+    pub current_queue_id: Arc<Mutex<Option<i64>>>,
 }
 
 /// CLI entry point: install a normalized champion-stats JSON (the `Champion[]`
@@ -149,6 +154,8 @@ pub fn run() {
         post_game_fetching: Arc::new(AtomicBool::new(false)),
         live_poller_running: Arc::new(AtomicBool::new(false)),
         latest_post_game: Arc::new(Mutex::new(None)),
+        current_game_mode: Arc::new(Mutex::new(None)),
+        current_queue_id: Arc::new(Mutex::new(None)),
     };
 
     tauri::Builder::default()
@@ -165,6 +172,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_connection_status,
             commands::get_gameflow_phase,
+            commands::get_game_mode_info,
             commands::get_post_game_data,
             commands::clear_post_game_data,
             commands::fetch_latest_post_game,
@@ -211,6 +219,9 @@ pub fn run() {
             commands::save_custom_wallpaper,
             commands::delete_custom_wallpaper,
             commands::get_custom_wallpaper,
+            commands::get_tft_meta_decks,
+            commands::get_tft_item_combinations,
+            commands::get_tft_augments,
         ])
         .setup(move |app| {
             let is_quitting = Arc::new(AtomicBool::new(false));
@@ -342,6 +353,9 @@ pub fn run() {
                     lcu::run_watcher(handle, shared).await;
                 });
             }
+            // Seed TFT dataset to disk/memory if not yet cached
+            let _ = tft::load_or_seed_meta_decks();
+
             // Data refresher: If remote Rift Server URL is set, load directly from server on startup into memory.
             // Otherwise, fall back to local background refresher (OP.GG -> dataset; daily / on patch change).
             let (server_url, api_key) = {
@@ -356,6 +370,16 @@ pub fn run() {
                 tauri::async_runtime::spawn(async move {
                     let tier = *shared.rank_tier.lock().unwrap();
                     let _ = handle.emit("rank-refresh://status", "refreshing");
+
+                    // Synchronize TFT meta data alongside LoL dataset
+                    let s_url_tft = s_url.clone();
+                    let key_tft = key.clone();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) = tft::sync_from_server(&s_url_tft, Some(&key_tft)).await {
+                            tracing::debug!("TFT server sync not available ({e:#}); using local cached Set 18 data");
+                        }
+                    });
+
                     match opgg::remote::fetch_stats(&s_url, tier, Some(&key)).await {
                         Ok(champions) => {
                             let count = champions.len();

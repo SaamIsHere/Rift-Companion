@@ -14,14 +14,12 @@
   import { openInBrowser, getLatestPatchInfo, type PatchInfo } from "../ipc/tauri";
   import { inferRegionFromTag } from "../utils/profileNormalizer";
   import { activeTheme, customWallpaper, hasCustomWallpaper } from "../stores/theme";
-  import PatchNotesModal from "./PatchNotesModal.svelte";
   import { updateAvailable, updateVersion, showUpdateModal } from "../stores/updater";
   import { loadLivePatchNotes } from "../stores/patchNotes";
   import { settings } from "../stores/settings";
 
   let searchQuery = "";
   let showDropdown = false;
-  let showPatchNotesModal = false;
   let selectedSuggestionIndex = -1;
 
   $: hasCustom = $hasCustomWallpaper || Boolean($customWallpaper);
@@ -641,28 +639,6 @@
         </button>
       {/if}
 
-      <!-- Latest Changes Button (in-app Patch Notes Highlights) -->
-      <button
-        type="button"
-        on:click={() => (showPatchNotesModal = true)}
-        class="group flex items-center gap-3 rounded-xl border border-purple-400/30 bg-gradient-to-r from-purple-900/75 via-purple-800/65 to-purple-950/80 px-4 py-2 text-left shadow-md backdrop-blur-lg transition-all duration-200 hover:scale-[1.02] hover:border-purple-300 hover:from-purple-800/85 hover:to-purple-900/85 hover:shadow-lg active:scale-[0.98]"
-        title="View Latest Changes & Patch Highlights"
-      >
-        <div class="flex h-8 w-8 items-center justify-center rounded-lg border border-purple-400/30 bg-purple-950/50 text-purple-200 shadow-inner">
-          <svg class="h-4 w-4 text-purple-300 transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" y1="13" x2="8" y2="13" />
-            <line x1="16" y1="17" x2="8" y2="17" />
-            <polyline points="10 9 9 9 8 9" />
-          </svg>
-        </div>
-        <div class="flex flex-col">
-          <span class="text-[11px] font-semibold tracking-wide text-purple-200">Patch Notes</span>
-          <span class="text-sm font-bold text-white leading-none">Latest Changes</span>
-        </div>
-      </button>
-
       <!-- Latest Patch button (Full Riot Patch Notes in Browser) -->
       <button
         type="button"
@@ -697,11 +673,3 @@
     </div>
   </div>
 </div>
-
-{#if showPatchNotesModal}
-  <PatchNotesModal
-    isOpen={showPatchNotesModal}
-    {currentPatch}
-    onClose={() => (showPatchNotesModal = false)}
-  />
-{/if}

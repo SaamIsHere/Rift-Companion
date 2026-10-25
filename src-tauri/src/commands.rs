@@ -1,5 +1,6 @@
 //! Tauri command handlers exposed to the frontend via `invoke`.
 
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::data::models::{
@@ -40,6 +41,29 @@ pub fn get_recommendations(state: State<Shared>) -> Vec<Recommendation> {
 #[tauri::command]
 pub fn get_gameflow_phase(state: State<Shared>) -> String {
     state.gameflow_phase.lock().unwrap().clone()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GameModeInfo {
+    pub game_mode: Option<String>,
+    pub queue_id: Option<i64>,
+    pub is_aram: bool,
+    pub is_mayhem: bool,
+}
+
+#[tauri::command]
+pub fn get_game_mode_info(state: State<Shared>) -> GameModeInfo {
+    let mode = state.current_game_mode.lock().unwrap().clone();
+    let q_id = *state.current_queue_id.lock().unwrap();
+    let is_aram = q_id == Some(450)
+        || mode.as_ref().map_or(false, |m| m.to_uppercase().contains("ARAM"));
+    let is_mayhem = mode.as_ref().map_or(false, |m| m.to_uppercase().contains("MAYHEM"));
+    GameModeInfo {
+        game_mode: mode,
+        queue_id: q_id,
+        is_aram,
+        is_mayhem,
+    }
 }
 
 /// Retrieve the latest finished match post-game summary data.
@@ -579,6 +603,7 @@ pub fn force_refresh_data(state: State<Shared>, app: AppHandle) {
         tauri::async_runtime::spawn(async move {
             let _ = app_clone.emit("rank-refresh://status", "refreshing");
             let _ = opgg::remote::trigger_refresh(&server_url, Some(tier.as_opgg_tier()), Some(&api_key)).await;
+            let _ = crate::tft::sync_from_server(&server_url, Some(&api_key)).await;
             match opgg::remote::fetch_stats(&server_url, tier, Some(&api_key)).await {
                 Ok(champions) => {
                     let count = champions.len();
@@ -2068,6 +2093,22 @@ pub fn get_custom_wallpaper(app: AppHandle) -> Result<Option<String>, String> {
     }
     Ok(None)
 }
+
+#[tauri::command]
+pub async fn get_tft_meta_decks(lang: Option<String>) -> Result<Vec<crate::tft::models::TftMetaDeck>, String> {
+    crate::tft::fetch_meta_decks(lang.as_deref()).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_tft_item_combinations(lang: Option<String>) -> Result<Vec<crate::tft::models::TftItem>, String> {
+    crate::tft::fetch_item_combinations(lang.as_deref()).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_tft_augments(lang: Option<String>) -> Result<Vec<crate::tft::models::TftAugment>, String> {
+    crate::tft::fetch_augments(lang.as_deref()).await.map_err(|e| e.to_string())
+}
+
 
 
 

@@ -1,0 +1,1641 @@
+[
+  {
+    "id": "bf_sword",
+    "name": "B.F. Sword",
+    "is_component": true,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "+10% Attack Damage.",
+    "stats": "+10% AD",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Component_BFSword.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "recurve_bow",
+    "name": "Recurve Bow",
+    "is_component": true,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "+10% Attack Speed.",
+    "stats": "+10% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Component_RecurveBow.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "needlessly_large_rod",
+    "name": "Needlessly Large Rod",
+    "is_component": true,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "+10 Ability Power.",
+    "stats": "+10 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Component_NeedlesslyLargeRod.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "tear_of_the_goddess",
+    "name": "Tear of the Goddess",
+    "is_component": true,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "+15 Starting Mana.",
+    "stats": "+15 Mana",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Component_TearOfTheGoddess.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "chain_vest",
+    "name": "Chain Vest",
+    "is_component": true,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "+20 Armor.",
+    "stats": "+20 Armor",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Component_ChainVest.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "negatron_cloak",
+    "name": "Negatron Cloak",
+    "is_component": true,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "+20 Magic Resist.",
+    "stats": "+20 MR",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Component_NegatronCloak.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "giants_belt",
+    "name": "Giant's Belt",
+    "is_component": true,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "+150 Health.",
+    "stats": "+150 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Component_GiantsBelt.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "sparring_gloves",
+    "name": "Sparring Gloves",
+    "is_component": true,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "+20% Critical Strike Chance.",
+    "stats": "+20% Crit",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Component_SparringGloves.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "spatula",
+    "name": "Spatula",
+    "is_component": true,
+    "is_spatula": true,
+    "recipe": null,
+    "description": "It must do something... Combines into Origin Emblems and Tactician items.",
+    "stats": "Origin Crafter",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Component_Spatula.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "frying_pan",
+    "name": "Frying Pan",
+    "is_component": true,
+    "is_spatula": true,
+    "recipe": null,
+    "description": "Cooks up Class Emblems or Tactician items.",
+    "stats": "Class Crafter",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Component_FryingPan.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "deathblade",
+    "name": "Deathblade",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "bf_sword",
+      "bf_sword"
+    ],
+    "description": "Grants 50% bonus Attack Damage and 8% damage amp.",
+    "stats": "+50% AD",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Deathblade.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "giant_slayer",
+    "name": "Giant Slayer",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "bf_sword",
+      "recurve_bow"
+    ],
+    "description": "Deal 25% bonus damage to enemies with more than 1600 maximum Health.",
+    "stats": "+25% AD, +10% AS, +20 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_GiantSlayer.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "hextech_gunblade",
+    "name": "Hextech Gunblade",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "bf_sword",
+      "needlessly_large_rod"
+    ],
+    "description": "Grant 22% Omnivamp. Heals the lowest percent Health ally for 22% of damage dealt.",
+    "stats": "+10% AD, +10 AP, +22% Omnivamp",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_HextechGunblade.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "spear_of_shojin",
+    "name": "Spear of Shojin",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "bf_sword",
+      "tear_of_the_goddess"
+    ],
+    "description": "Attacks restore 5 additional Mana. Grants bonus AD and AP.",
+    "stats": "+20% AD, +20 AP, +15 Mana",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_SpearOfShojin.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "edge_of_night",
+    "name": "Edge of Night",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "bf_sword",
+      "chain_vest"
+    ],
+    "description": "Once per combat at 60% Health, briefly become untargetable and shed negative effects.",
+    "stats": "+10% AD, +20 Armor, +15% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_EdgeOfNight.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "bloodthirster",
+    "name": "Bloodthirster",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "bf_sword",
+      "negatron_cloak"
+    ],
+    "description": "20% Omnivamp. Once per combat at 40% Health, gain a 25% max HP shield for 5s.",
+    "stats": "+20% AD, +20 MR, 20% Omnivamp",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Bloodthirster.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "steraks_gage",
+    "name": "Sterak's Gage",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "bf_sword",
+      "giants_belt"
+    ],
+    "description": "Once per combat at 60% Health, gain 25% max HP and 35% Attack Damage for the rest of combat.",
+    "stats": "+15% AD, +200 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_SteraksGage.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "infinity_edge",
+    "name": "Infinity Edge",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "bf_sword",
+      "sparring_gloves"
+    ],
+    "description": "Abilities can critically strike. Gain 35% Critical Strike Chance and 10% Critical Strike Damage.",
+    "stats": "+35% AD, +35% Crit",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_InfinityEdge.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "red_buff",
+    "name": "Red Buff",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "recurve_bow",
+      "recurve_bow"
+    ],
+    "description": "Attacks apply 1% Burn and 33% Wound for 5 seconds. Grants 6% bonus damage amp.",
+    "stats": "+40% AS, 6% Amp",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_RedBuff.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "guinsoos_rageblade",
+    "name": "Guinsoo's Rageblade",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "recurve_bow",
+      "needlessly_large_rod"
+    ],
+    "description": "Attacks grant 5% stacking Attack Speed for the rest of combat.",
+    "stats": "+10% AS, +10 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_GuinsoosRageblade.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "void_staff",
+    "name": "Void Staff",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "recurve_bow",
+      "tear_of_the_goddess"
+    ],
+    "description": "Attacks and Abilities shred 30% Magic Resist. Every 3rd attack shocks 4 enemies for magic damage.",
+    "stats": "+15% AS, +15 Mana, +15 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_VoidStaff.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "titans_resolve",
+    "name": "Titan's Resolve",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "recurve_bow",
+      "chain_vest"
+    ],
+    "description": "Gain 2% Attack Damage and 2 Ability Power when attacking or taking damage, stacking up to 25 times. At max stacks, gain 20 Armor and 20 MR.",
+    "stats": "+10% AS, +20 Armor",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_TitansResolve.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "krakens_fury",
+    "name": "Kraken's Fury",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "recurve_bow",
+      "negatron_cloak"
+    ],
+    "description": "Every 3rd attack deals bonus physical damage to the target and fires bolts at nearby enemies.",
+    "stats": "+25% AS, +20 MR, +15% AD",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_KrakensFury.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "nashors_tooth",
+    "name": "Nashor's Tooth",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "recurve_bow",
+      "giants_belt"
+    ],
+    "description": "After casting an Ability, gain 40% Attack Speed for 5 seconds.",
+    "stats": "+10% AS, +150 HP, +30 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_NashorsTooth.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "last_whisper",
+    "name": "Last Whisper",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "recurve_bow",
+      "sparring_gloves"
+    ],
+    "description": "Physical damage from attacks or abilities Sunders the target's Armor by 30% for 3 seconds.",
+    "stats": "+25% AS, +20% Crit, +10% AD",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_LastWhisper.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "rabadons_deathcap",
+    "name": "Rabadon's Deathcap",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "needlessly_large_rod",
+      "needlessly_large_rod"
+    ],
+    "description": "Grants 50 Ability Power and 20% bonus damage amp.",
+    "stats": "+50 AP, 20% Amp",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_RabadonsDeathcap.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "archangels_staff",
+    "name": "Archangel's Staff",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "needlessly_large_rod",
+      "tear_of_the_goddess"
+    ],
+    "description": "Combat start: Gain 20 Ability Power every 5 seconds.",
+    "stats": "+20 AP, +15 Mana",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_ArchangelsStaff.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "crownguard",
+    "name": "Crownguard",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "needlessly_large_rod",
+      "chain_vest"
+    ],
+    "description": "Combat start: Gain a 30% max HP shield for 8 seconds. When broken, gain 35 Ability Power.",
+    "stats": "+20 AP, +20 Armor, +100 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Crownguard.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "ionic_spark",
+    "name": "Ionic Spark",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "needlessly_large_rod",
+      "negatron_cloak"
+    ],
+    "description": "Shreds Magic Resist of enemies within 2 hexes by 30%. When enemies cast, they take magic damage.",
+    "stats": "+15 AP, +25 MR, +100 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_IonicSpark.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "morellonomicon",
+    "name": "Morellonomicon",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "needlessly_large_rod",
+      "giants_belt"
+    ],
+    "description": "Magic and true damage Burns enemies for 1% max HP per second and applies 33% Wound.",
+    "stats": "+25 AP, +150 HP, +10% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Morellonomicon.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "jeweled_gauntlet",
+    "name": "Jeweled Gauntlet",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "needlessly_large_rod",
+      "sparring_gloves"
+    ],
+    "description": "Magic and True damage from Abilities can critically strike. Grants 35% Critical Strike Chance.",
+    "stats": "+35 AP, +35% Crit",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_JeweledGauntlet.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "blue_buff",
+    "name": "Blue Buff",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "tear_of_the_goddess",
+      "tear_of_the_goddess"
+    ],
+    "description": "Reduces max Mana by 10. Casts grant 8% bonus damage for 8 seconds.",
+    "stats": "+30 Mana, +20 AP, +20% AD",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_BlueBuff.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "protectors_vow",
+    "name": "Protector's Vow",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "tear_of_the_goddess",
+      "chain_vest"
+    ],
+    "description": "Once per combat at 40% Health, gain a 25% max HP shield for 5 seconds and 20 Armor/MR.",
+    "stats": "+30 Mana, +20 Armor",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_ProtectorsVow.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "adaptive_helm",
+    "name": "Adaptive Helm",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "tear_of_the_goddess",
+      "negatron_cloak"
+    ],
+    "description": "Front 2 rows: +40 Armor and MR. Back 2 rows: +20 AP and 10 Mana every 3 seconds.",
+    "stats": "+15 Mana, +20 MR, +15 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_AdaptiveHelm.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "spirit_visage",
+    "name": "Spirit Visage",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "tear_of_the_goddess",
+      "giants_belt"
+    ],
+    "description": "Regenerates 2.5% of maximum Health every second and grants 250 bonus Health.",
+    "stats": "+250 HP, +15 Mana, 2.5% HP Regen",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_SpiritVisage.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "hand_of_justice",
+    "name": "Hand of Justice",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "tear_of_the_goddess",
+      "sparring_gloves"
+    ],
+    "description": "Grant 15% AD/AP and 10% Omnivamp. Each round, double one of these bonuses.",
+    "stats": "+15 Mana, +20% Crit, +15% AD/AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_HandOfJustice.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "bramble_vest",
+    "name": "Bramble Vest",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "chain_vest",
+      "chain_vest"
+    ],
+    "description": "Negates 8% critical strike damage. When hit by an attack, deal magic damage to adjacent enemies.",
+    "stats": "+65 Armor, +8% Crit Reduction",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_BrambleVest.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "gargoyle_stoneplate",
+    "name": "Gargoyle Stoneplate",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "chain_vest",
+      "negatron_cloak"
+    ],
+    "description": "Gain 10 Armor and 10 MR for each enemy targeting the holder.",
+    "stats": "+35 Armor, +35 MR, +100 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_GargoyleStoneplate.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "sunfire_cape",
+    "name": "Sunfire Cape",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "chain_vest",
+      "giants_belt"
+    ],
+    "description": "Every 2 seconds, an enemy within 2 hexes is Burned for 1% max HP per second and 33% Wounded.",
+    "stats": "+20 Armor, +250 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_SunfireCape.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "steadfast_heart",
+    "name": "Steadfast Heart",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "chain_vest",
+      "sparring_gloves"
+    ],
+    "description": "Take 8% less damage. While above 50% Health, take 15% less damage instead.",
+    "stats": "+25 Armor, +20% Crit, +200 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_SteadfastHeart.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "dragons_claw",
+    "name": "Dragon's Claw",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "negatron_cloak",
+      "negatron_cloak"
+    ],
+    "description": "Gain 75 Magic Resist. Regenerate 5% maximum Health every 2 seconds.",
+    "stats": "+75 MR, 5% HP Regen",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_DragonsClaw.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "evenshroud",
+    "name": "Evenshroud",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "negatron_cloak",
+      "giants_belt"
+    ],
+    "description": "30% Sunder enemies within 2 hexes. Gain 25 Armor and MR for the first 15 seconds of combat.",
+    "stats": "+20 MR, +150 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Evenshroud.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "quicksilver",
+    "name": "Quicksilver",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "negatron_cloak",
+      "sparring_gloves"
+    ],
+    "description": "Immune to crowd control for 14 seconds at combat start. Gain 2% AS every 2s for 14 seconds.",
+    "stats": "+20 MR, +20% Crit, +20% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Quicksilver.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "warmogs_armor",
+    "name": "Warmog's Armor",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "giants_belt",
+      "giants_belt"
+    ],
+    "description": "Gain 800 bonus Health and 12% max Health amp.",
+    "stats": "+800 HP, +12% Max HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_WarmogsArmor.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "strikers_flail",
+    "name": "Striker's Flail",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "giants_belt",
+      "sparring_gloves"
+    ],
+    "description": "Attacks and abilities deal 25% bonus damage to shielded enemies for 3 seconds.",
+    "stats": "+150 HP, +20% Crit, +20 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_StrikersFlail.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "thiefs_gloves",
+    "name": "Thief's Gloves",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": [
+      "sparring_gloves",
+      "sparring_gloves"
+    ],
+    "description": "Each round, equip 2 random temporary completed items.",
+    "stats": "+20% Crit, +150 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_ThiefsGloves.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "tacticians_crown",
+    "name": "Tactician's Crown",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "spatula",
+      "spatula"
+    ],
+    "description": "Your team gains +1 maximum team size.",
+    "stats": "+1 Team Size",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_TacticiansCrown.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "tacticians_cape",
+    "name": "Tactician's Cape",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "spatula",
+      "frying_pan"
+    ],
+    "description": "Your team gains +1 maximum team size and 10% chance to drop 1 gold on unit death.",
+    "stats": "+1 Team Size, Gold Drop",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_TacticiansCape.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "tacticians_shield",
+    "name": "Tactician's Shield",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "frying_pan",
+      "frying_pan"
+    ],
+    "description": "Your team gains +1 maximum team size and holders gain 100 Health.",
+    "stats": "+1 Team Size, +100 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_TacticiansShield.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "fae_emblem",
+    "name": "Fae Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "spatula",
+      "bf_sword"
+    ],
+    "description": "The holder gains the Fae trait and +10% Attack Damage.",
+    "stats": "Fae Trait, +10% AD",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemFae.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "elderwood_emblem",
+    "name": "Elderwood Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "spatula",
+      "chain_vest"
+    ],
+    "description": "The holder gains the Elderwood trait and +20 Armor.",
+    "stats": "Elderwood Trait, +20 Armor",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemElderwood.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "blackthorn_emblem",
+    "name": "Blackthorn Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "spatula",
+      "giants_belt"
+    ],
+    "description": "The holder gains the Blackthorn trait and +150 Health.",
+    "stats": "Blackthorn Trait, +150 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemBlackthorn.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "blossom_emblem",
+    "name": "Blossom Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "spatula",
+      "needlessly_large_rod"
+    ],
+    "description": "The holder gains the Blossom trait and +10 Ability Power.",
+    "stats": "Blossom Trait, +10 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemBlossom.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "sprykin_emblem",
+    "name": "Sprykin Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "spatula",
+      "negatron_cloak"
+    ],
+    "description": "The holder gains the Sprykin trait and +20 Magic Resist.",
+    "stats": "Sprykin Trait, +20 MR",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemSprykin.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "inferno_emblem",
+    "name": "Inferno Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "spatula",
+      "recurve_bow"
+    ],
+    "description": "The holder gains the Inferno trait and +10% Attack Speed.",
+    "stats": "Inferno Trait, +10% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemInferno.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "lunar_emblem",
+    "name": "Lunar Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "spatula",
+      "tear_of_the_goddess"
+    ],
+    "description": "The holder gains the Lunar trait and +15 Starting Mana.",
+    "stats": "Lunar Trait, +15 Mana",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemLunar.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "primal_emblem",
+    "name": "Primal Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "spatula",
+      "sparring_gloves"
+    ],
+    "description": "The holder gains the Primal trait and +20% Critical Strike Chance.",
+    "stats": "Primal Trait, +20% Crit",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemPrimal.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "hunter_emblem",
+    "name": "Hunter Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "frying_pan",
+      "bf_sword"
+    ],
+    "description": "The holder gains the Hunter trait and +10% Attack Damage.",
+    "stats": "Hunter Trait, +10% AD",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemHunter.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "vanguard_emblem",
+    "name": "Vanguard Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "frying_pan",
+      "chain_vest"
+    ],
+    "description": "The holder gains the Vanguard trait and +20 Armor.",
+    "stats": "Vanguard Trait, +20 Armor",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemVanguard.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "brawler_emblem",
+    "name": "Brawler Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "frying_pan",
+      "giants_belt"
+    ],
+    "description": "The holder gains the Brawler trait and +150 Health.",
+    "stats": "Brawler Trait, +150 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemBrawler.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "spellweaver_emblem",
+    "name": "Spellweaver Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "frying_pan",
+      "needlessly_large_rod"
+    ],
+    "description": "The holder gains the Spellweaver trait and +10 Ability Power.",
+    "stats": "Spellweaver Trait, +10 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemSpellweaver.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "ravager_emblem",
+    "name": "Ravager Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "frying_pan",
+      "negatron_cloak"
+    ],
+    "description": "The holder gains the Ravager trait and +20 Magic Resist.",
+    "stats": "Ravager Trait, +20 MR",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemSlayer.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "rapidfire_emblem",
+    "name": "Rapidfire Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "frying_pan",
+      "recurve_bow"
+    ],
+    "description": "The holder gains the Rapidfire trait and +10% Attack Speed.",
+    "stats": "Rapidfire Trait, +10% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemRapidfire.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "invoker_emblem",
+    "name": "Invoker Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "frying_pan",
+      "tear_of_the_goddess"
+    ],
+    "description": "The holder gains the Invoker trait and +15 Starting Mana.",
+    "stats": "Invoker Trait, +15 Mana",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemInvoker.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "executioner_emblem",
+    "name": "Executioner Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": [
+      "frying_pan",
+      "sparring_gloves"
+    ],
+    "description": "The holder gains the Executioner trait and +20% Critical Strike Chance.",
+    "stats": "Executioner Trait, +20% Crit",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemExecutioner.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "defender_emblem",
+    "name": "Defender Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": null,
+    "description": "The holder gains the Defender trait. (Uncraftable - Augment / Carousel only)",
+    "stats": "Defender Trait",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemDefender.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "juggernaut_emblem",
+    "name": "Juggernaut Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": null,
+    "description": "The holder gains the Juggernaut trait. (Uncraftable - Augment / Carousel only)",
+    "stats": "Juggernaut Trait",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemJuggernaut.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "coven_emblem",
+    "name": "Coven Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": null,
+    "description": "The holder gains the Coven trait. (Uncraftable - Augment / Carousel only)",
+    "stats": "Coven Trait",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemCoven.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "flora_fatalis_emblem",
+    "name": "Flora Fatalis Emblem",
+    "is_component": false,
+    "is_spatula": true,
+    "recipe": null,
+    "description": "The holder gains the Flora Fatalis trait. (Uncraftable - Augment only)",
+    "stats": "Flora Fatalis Trait",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_18_EmblemFloraFatalis.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_dragon_s_claw",
+    "name": "Radiant Dragon's Claw",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Gain 28% max health. Every 2 seconds, heal 5% max Health.",
+    "stats": "+120 MR, +28% Max HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_DragonsClawRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_void_staff",
+    "name": "Radiant Void Staff",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Damage from attacks and Abilities 30% Shred the target for the rest of combat . This effect does not stack. Shred : Reduce Magic Resist",
+    "stats": "+75 AP, +30% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_VoidStaffRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_crownguard",
+    "name": "Radiant Crownguard",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Combat Start: Gain a 50% max Health Shield for 8 seconds. When the Shield expires, gain 50% Ability Power .",
+    "stats": "+40 AP, +40 Armor, +200 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_CrownguardRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_spirit_visage",
+    "name": "Radiant Spirit Visage",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Regenerate 4% of missing Health each second.",
+    "stats": "+700 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_SpiritVisage_Radiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_kraken_s_fury",
+    "name": "Radiant Kraken's Fury",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Attacks grant 7% stacking Attack Damage, up to 15 attacks. After 15 attacks, gain 30% Attack Speed.",
+    "stats": "+20% AD, +40 MR, +20% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_KrakensFury_Radiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_jeweled_gauntlet",
+    "name": "Radiant Jeweled Gauntlet",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Gain Precision .",
+    "stats": "+75 AP, +75% Crit",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_JeweledGauntletRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_last_whisper",
+    "name": "Radiant Last Whisper",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Damage from attacks and Abilities 30% Sunder the target for the rest of combat. This effect does not stack. Sunder : Reduce Armor",
+    "stats": "+45% AD, +40% AS, +40% Crit",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_LastWhisperRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_infinity_edge",
+    "name": "Radiant Infinity Edge",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Gain Precision .",
+    "stats": "+75% AD, +75% Crit",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_InfinityEdgeRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_protector_s_vow",
+    "name": "Radiant Protector's Vow",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Combat Start: Gain 40 Mana. At 40% Health, gain 30 Mana and a Shield equal to 50% max Health .",
+    "stats": "+50 Armor, +50 MR",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_ProtectorsVowRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_morellonomicon",
+    "name": "Radiant Morellonomicon",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Attacks and Abilities deal 2% Burn and 33% Wound to enemies for 10 seconds. Burn : Deals a percent of the target's max Health as true damage every second Wound : Reduces healing received",
+    "stats": "+35 AP, +300 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_MorellonomiconRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_sterak_s_gage",
+    "name": "Radiant Sterak's Gage",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "At 60% Health, gain a Shield equal to 80% of the wearer's maximum Health that rapidly decays over 6 seconds.",
+    "stats": "+90% AD, +600 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_SteraksGageRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_edge_of_night",
+    "name": "Radiant Edge of Night",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "At 60% Health, briefly become untargetable, shed negative effects, and heal all missing health .",
+    "stats": "+30% AD, +30 AP, +40 Armor, +30% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_EdgeOfNightRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_rabadon_s_deathcap",
+    "name": "Radiant Rabadon's Deathcap",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "It's witnessed - and unleashed - miracles and calamities both.",
+    "stats": "+100 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_RabadonsDeathcap_Radiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_evenshroud",
+    "name": "Radiant Evenshroud",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "30% Sunder enemies within 3 hexes. Gain 50 Armor and Magic Resist for the first 20 seconds of combat. Sunder : Reduce Armor",
+    "stats": "+40 MR, +500 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_EvenshroudRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_bloodthirster",
+    "name": "Radiant Bloodthirster",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Once per combat: At 40% Health, gain a 50% max Health Shield that lasts up to 5 seconds.",
+    "stats": "+30% AD, +30 AP, +40 MR, +40% Omnivamp",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_BloodthirsterRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_archangel_s_staff",
+    "name": "Radiant Archangel's Staff",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Combat start: Gain 40% Ability Power every 5 seconds in combat.",
+    "stats": "+60 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_ArchangelsStaffRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_deathblade",
+    "name": "Radiant Deathblade",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "It glows in the presence of enemies. Or friends. Or anything alive, really.",
+    "stats": "+1% AD",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_DeathbladeRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_spear_of_shojin",
+    "name": "Radiant Spear of Shojin",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Attacks grant 10 bonus Mana .",
+    "stats": "+30% AD, +30 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_SpearOfShojinRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_giant_slayer",
+    "name": "Radiant Giant Slayer",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Gain 30% additional Damage Amp against Tanks.",
+    "stats": "+30% AD, +30 AP, +30% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_GiantSlayer_Radiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_titan_s_resolve",
+    "name": "Radiant Titan's Resolve",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Gain 4% Attack Damage and 4% Ability Power when attacking or taking damage, stacking up to 25 times. At full stacks, gain 20% Damage Amp and gain immunity to crowd control.",
+    "stats": "+40 Armor, +20% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_TitansResolve_Radiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_hand_of_justice",
+    "name": "Radiant Hand of Justice",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Gain 2 effects: 30% Attack Damage and 30% Ability Power. 24% Omnivamp. While above 50% health, double the Attack Damage and Ability Power. While below 50% Health, double the Omnivamp.",
+    "stats": "+40% Crit",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_HandOfJusticeRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_guinsoo_s_rageblade",
+    "name": "Radiant Guinsoo's Rageblade",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Gain 16% stacking Attack Speed every second.",
+    "stats": "+20 AP, +25% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_GuinsoosRagebladeRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_hextech_gunblade",
+    "name": "Radiant Hextech Gunblade",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Heal the lowest percent Health ally for 40% of damage dealt. Ally Healing:",
+    "stats": "+40% AD, +40 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_HextechGunbladeRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_ionic_spark",
+    "name": "Radiant Ionic Spark",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "30% Shred enemies within 2 hexes. When enemies cast an Ability, deal magic damage equal to 300% of the Mana spent. [Direct damage item] Shred : Reduce Magic Resist",
+    "stats": "+30 AP, +70 MR, +500 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_IonicSparkRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_striker_s_flail",
+    "name": "Radiant Striker's Flail",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Critical Strikes grant 10% Damage Amp for 5 seconds, stacking up to 4 times.",
+    "stats": "+300 HP, +20% AS, +40% Crit",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_StrikersFlailRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_blue_buff",
+    "name": "Radiant Blue Buff",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Gain 20% additional Attack Damage and Ability Power from all sources.",
+    "stats": "+30% AD, +30 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_BlueBuffRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_thief_s_gloves",
+    "name": "Radiant Thief's Gloves",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Each round: Equip 2 random Radiant items. [Consumes 3 item slots.]",
+    "stats": "+150 HP, +20% Crit",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_ThiefsGlovesRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_quicksilver",
+    "name": "Radiant Quicksilver",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Combat Start: Gain immunity to crowd control for 45 seconds. Gain 6% stacking Attack Speed every second.",
+    "stats": "+40 MR, +40% AS, +40% Crit",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_QuicksilverRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_sunfire_cape",
+    "name": "Radiant Sunfire Cape",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Gain 16% max Health. Every 2 seconds, deal 2% Burn and 33% Wound to an enemy within 2 hexes for 10 seconds. Burn : Deals a percent of the target's max Health as true damage every second Wound : reduces healing received",
+    "stats": "+40 Armor, +300 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_SunfireCape_Radiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_red_buff",
+    "name": "Radiant Red Buff",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Attacks and Abilities 2% Burn and 33% Wound enemies for 5 seconds. Burn : Deals a percent of the target's max Health as true damage every second Wound : Reduces healing received",
+    "stats": "+80% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_RedBuffRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_adaptive_helm",
+    "name": "Radiant Adaptive Helm",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Gain an additional 30% Mana from all sources. The wearer gains an additional bonus based on their Role: Tank/Fighter: Gain 80 Armor and Magic Resistance. Marksman/Caster: Gain 40% Attack Damage and Ability Power.",
+    "stats": "+40 MR",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_AdaptiveHelm_Radiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_warmog_s_armor",
+    "name": "Radiant Warmog's Armor",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Gain 36% max Health.",
+    "stats": "+1200 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_WarmogsArmorRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_steadfast_heart",
+    "name": "Radiant Steadfast Heart",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Gain 10% durability. While above 50% Health, instead gain 30% Durability.",
+    "stats": "+40 Armor, +600 HP, +40% Crit",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_SteadfastHeartRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_bramble_vest",
+    "name": "Radiant Bramble Vest",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Gain 12% max health. Take 10% reduced damage from attacks. When struck by any attack, deal 200 magic damage to all adjacent enemies. Cooldown: 2 seconds",
+    "stats": "+100 Armor, +12% Max HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_BrambleVestRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_gargoyle_stoneplate",
+    "name": "Radiant Gargoyle Stoneplate",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Gain 20 Armor and 20 Magic Resist for each enemy targeting the holder.",
+    "stats": "+50 Armor, +50 MR, +300 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_GargoyleStoneplate_Radiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "radiant_nashor_s_tooth",
+    "name": "Radiant Nashor's Tooth",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Attacks grant 4 bonus Mana, increased to 6 if they critically strike.",
+    "stats": "+30 AP, +300 HP, +20% AS, +40% Crit",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_NashorsToothRadiant.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_wit_s_end",
+    "name": "Wit's End",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Attacks deal bonus magic damage. Heals the holder for 30% of all magic damage dealt. Damage increases based on Stage.",
+    "stats": "+20 Armor, +20 MR, +400 HP, +25% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_WitsEnd.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_mittens",
+    "name": "Mittens",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Shrinks the holder, granting them increased movement speed and immunity to Slow , Burn , and Wound .",
+    "stats": "+65% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_Mittens.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_titanic_hydra",
+    "name": "Titanic Hydra",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Attacks deal 4% of the holder's max Health plus 6% of their Attack Damage as bonus physical damage to the target and adjacent enemies.",
+    "stats": "+20% AD, +300 HP, +20% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_TitanicHydra.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_zhonya_s_paradox",
+    "name": "Zhonya's Paradox",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Once per combat at 40% Health, become invulnerable and untargetable for 3 seconds. [Unique - only 1 per champion]",
+    "stats": "+25 AP, +25 Armor, +25 MR",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_ZhonyasParadox.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_void_gauntlet",
+    "name": "Void Gauntlet",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Combat start: Store 30% max Health and 2.5% more every second. On death, unleash the stored Health as magic damage split between enemies within 4-hexes. [Unique - only 1 per champion]",
+    "stats": "+300 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_VoidGauntlet.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_lightshield_crest",
+    "name": "Lightshield Crest",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Every 3 seconds, Shields the lowest percent Health ally for 70% of the holder's combined Armor and Magic Resist for 5 seconds. On death grants this shield to all allies.",
+    "stats": "+55 Armor, +55 MR",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_LightshieldCrest.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_luden_s_tempest",
+    "name": "Luden's Tempest",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "100% of overkill damage plus 100 is dealt as magic damage to the two enemies nearest to the target.",
+    "stats": "+60% AD, +60 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_LudensTempest.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_rapid_firecannon",
+    "name": "Rapid Firecannon",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Attacks and Abilities 2% Burn and 33% Wound enemies for 5 seconds. Burn : Deals a percent of the target's max Health as true damage every second Wound : Reduces healing received",
+    "stats": "+80% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_RapidFireCannon.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_hellfire_hatchet",
+    "name": "Hellfire Hatchet",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Attacks deal 3% of the holder's max Health as bonus physical damage. For every 1% missing Health, gain 1% Attack Speed.",
+    "stats": "+20% AD, +150 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_HellfireHatchet.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_lich_bane",
+    "name": "Lich Bane",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "The holder's first attack after each Ability cast deals bonus magic damage. Damage increases based on Stage.",
+    "stats": "+55 AP, +10% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_LichBane.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_forbidden_idol",
+    "name": "Forbidden Idol",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Shields have 50% of their value converted to max Health instead.",
+    "stats": "+25 Armor, +25 MR, +200 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_ForbiddenIdol.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_fishbones",
+    "name": "Fishbones",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "The holder's attacks target random enemies.",
+    "stats": "+50% AD, +50% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_Fishbones.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_aegis_of_dusk",
+    "name": "Aegis of Dusk",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Every 2.5 seconds, steal 3 Magic Resist from enemies within 1 hex and deal % of the holder's Magic Resist as magic damage. If Aegis of Dawn is also equipped, trigger this item's effect every 1.25 seconds instead. Damage increases based on Stage.",
+    "stats": "+70 MR, +400 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_AegisOfDusk.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_gold_collector",
+    "name": "Gold Collector",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Attacks and Abilities execute enemies below 12% of their maximum Health. Executions have a 33% chance to drop %i:goldCoins% 1 gold. Gold Collected: g [Unique - only 1 per champion]",
+    "stats": "+35% AD, +20% Crit",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_GoldCollector.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_statikk_shiv",
+    "name": "Statikk Shiv",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Damage from attacks and Abilities 30% Shred the target for the rest of combat . This effect does not stack. Shred : Reduce Magic Resist",
+    "stats": "+75 AP, +30% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_StatikkShiv.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_horizon_focus",
+    "name": "Horizon Focus",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Gain 40% Damage Amp against targets 4 or more hexes away.",
+    "stats": "+20% AD, +20 AP, +20% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_HorizonFocus.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_dawncore",
+    "name": "Dawncore",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Reduce the holder's max Mana by 10. Subsequent spellcasts reduce max Mana by 10%, to a minimum of 10.",
+    "stats": "+15% AD, +15 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_Dawncore.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_the_indomitable",
+    "name": "The Indomitable",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "The holder's Move Speed is drastically reduced. Gain 15% max Health, stun immunity, and pull the current target into melee range.",
+    "stats": "+20 Armor, +20 MR, +500 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_TheIndomitable.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_aegis_of_dawn",
+    "name": "Aegis of Dawn",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Every 2.5 seconds, steal 3 Armor from enemies within 1-hex and heal % of the holder's Armor. If Aegis of Dusk is also equipped, trigger this item's effect every 1.25 seconds instead. Healing increases based on Stage.",
+    "stats": "+50 Armor, +400 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_AegisOfDawn.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_seeker_s_armguard",
+    "name": "Seeker's Armguard",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Takedowns increase the holder's Armor, Magic Resist, and Ability Power by 20.",
+    "stats": "+25 AP, +10 Armor, +10 MR",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_SeekersArmguard.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_eternal_pact",
+    "name": "Eternal Pact",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Combat start: Form a pact with the highest Health allied champion, if they die, gain 10 Mana regen and 40% Ability Power. When the ally uses their ability, gain 15 Mana. Every 6 seconds, shield your ally for 200% of the holder's Ability Power.",
+    "stats": "+40 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_EternalPact.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_silvermere_dawn",
+    "name": "Silvermere Dawn",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Grants immunity to Stuns and the holder's attacks Stun the target for 0.8 seconds. The holder's Attack Speed is locked at 0.5.",
+    "stats": "+1% AD, +80 Armor, +80 MR",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_SilvermereDawn.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_hullcrusher",
+    "name": "Hullcrusher",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Combat Start: If there are no adjacent allies, gain 400 Health, 10% Attack Damage, and 10% Ability Power.",
+    "stats": "+60 Armor, +60 MR",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_Hullcrusher.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_manazane",
+    "name": "Manazane",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "After casting the first time in combat, gain 100 Mana over 5 seconds. [Unique - only 1 per champion]",
+    "stats": "+15% AD, +10 AP, +15% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_Manazane.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_gambler_s_blade",
+    "name": "Gambler's Blade",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Grant %i:scaleAS% 1.5% bonus Attack Speed per %i:goldCoins% gold in your bank (up to %i:goldCoins% 60 gold). Each attack has a 7% chance to drop %i:goldCoins% 1 gold. Gold generated this game:",
+    "stats": "+15 AP, +15% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_GamblersBlade.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_infinity_force",
+    "name": "Infinity Force",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Tons of EVERYTHING!",
+    "stats": "+30% AD, +30 AP, +30 Armor, +30 MR, +300 HP, +30% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_InfinityForce.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_flickerblades",
+    "name": "Flickerblades",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Attacks grant 5% stacking Attack Speed. Every 3 attacks also grant 2% Attack Damage and 2% Ability Power.",
+    "stats": "+10 AP, +20% AS",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_NavoriFlickerblade.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_mogul_s_mail",
+    "name": "Mogul's Mail",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Grants 1 Armor, 1 Magic Resist, and 10 Health when taking damage, stacking up to 35 times. At full stacks, grant %i:goldCoins% 2 gold. Gold generated this game:",
+    "stats": "+350 HP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_MogulsMail.png",
+    "recommended_champions": null
+  },
+  {
+    "id": "artifact_blighting_jewel",
+    "name": "Blighting Jewel",
+    "is_component": false,
+    "is_spatula": false,
+    "recipe": null,
+    "description": "Dealing magic damage reduces the target's Magic Resist by 6. If their Magic Resist is 0, grant the holder 2 Mana instead. Ability damage can only trigger on each enemy once every 0.5 seconds.",
+    "stats": "+60 AP",
+    "image_url": "https://c-tft-api.op.gg/img/set/18/tft-item/DA_Artifact_BlightingJewel.png",
+    "recommended_champions": null
+  }
+]

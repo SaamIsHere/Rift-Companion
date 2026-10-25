@@ -2,7 +2,7 @@ import { writable, get } from "svelte/store";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
-export const APP_VERSION = "0.2.2";
+export const APP_VERSION = "0.3.0";
 
 export const updateAvailable = writable<boolean>(false);
 export const availableUpdate = writable<Update | null>(null);

@@ -10,12 +10,14 @@ import { scoringMode } from "../stores/scoring";
 import { settings, activationOpen } from "../stores/settings";
 import { recentBans, banHistory } from "../stores/bans";
 import { postGameMatch, loadPostGameFromRaw } from "../stores/postGame";
+import { updateLiveGameMode } from "../stores/liveGameMode";
 import type {
   ChampionBuildStats,
   ChampionOverviewData,
   CloseBehavior,
   ConnectionStatus,
   DraftState,
+  GameModeInfo,
   ItemSetBlock,
   PairwiseStat,
   RankTier,
@@ -28,6 +30,9 @@ import type {
   SimulatedMatchAnalysis,
   StartupBehavior,
   Summoner,
+  TftAugment,
+  TftItem,
+  TftMetaDeck,
   WallpaperScope,
   Weights,
 } from "../types";
@@ -55,6 +60,9 @@ export async function initIpc(): Promise<void> {
   );
   await listen<string>("gameflow://phase", (e) => {
     gameflowPhase.set(e.payload);
+  });
+  await listen<GameModeInfo>("gameflow://game-mode", (e) => {
+    updateLiveGameMode(e.payload);
   });
   await listen<Summoner | null>("lcu://profile", (e) => profile.set(e.payload));
   await listen<DraftState | null>("champ-select://update", (e) => {
@@ -103,6 +111,10 @@ export async function initIpc(): Promise<void> {
     try {
       const phase = await invoke<string>("get_gameflow_phase");
       if (phase) gameflowPhase.set(phase);
+    } catch (_) {}
+    try {
+      const modeInfo = await invoke<GameModeInfo>("get_game_mode_info");
+      if (modeInfo) updateLiveGameMode(modeInfo);
     } catch (_) {}
     profile.set(await invoke<Summoner | null>("get_profile"));
     const initialDraft = await invoke<DraftState | null>("get_draft_state");
@@ -841,6 +853,37 @@ export async function getGameflowPhase(): Promise<string> {
     return "None";
   }
 }
+
+export async function getTftMetaDecks(lang?: string): Promise<TftMetaDeck[]> {
+  if (!isTauri) return [];
+  try {
+    return await invoke<TftMetaDeck[]>("get_tft_meta_decks", { lang });
+  } catch (err) {
+    console.error("Failed to get TFT meta decks", err);
+    return [];
+  }
+}
+
+export async function getTftItemCombinations(lang?: string): Promise<TftItem[]> {
+  if (!isTauri) return [];
+  try {
+    return await invoke<TftItem[]>("get_tft_item_combinations", { lang });
+  } catch (err) {
+    console.error("Failed to get TFT item combinations", err);
+    return [];
+  }
+}
+
+export async function getTftAugments(lang?: string): Promise<TftAugment[]> {
+  if (!isTauri) return [];
+  try {
+    return await invoke<TftAugment[]>("get_tft_augments", { lang });
+  } catch (err) {
+    console.error("Failed to get TFT augments", err);
+    return [];
+  }
+}
+
 
 
 

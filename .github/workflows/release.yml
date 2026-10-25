@@ -89,12 +89,15 @@ jobs:
             ## Rift Companion Release ${{ steps.get_version.outputs.tag }}
 
             ### Highlights
-            * **Live Match Skill Order Display:**
-              * **Ability Max Priority:** Displays the champion's recommended ability max priority flow (e.g. Q > W > E) with rich spell icons, hotkey badges, and tooltips in the Live Match dashboard.
-              * **Level 1–15 Upgrade Matrix:** Complete level-by-level skill progression matrix from levels 1 through 15, along with pick rate, win rate, and game count statistics.
-            * **In-Game Live Client Role Detection & Alignment:**
-              * Prioritizes Riot's active in-game position reports from Live Client Data, resolving draft/champ-select inferred role collisions during live matches.
-              * Added automatic Smite summoner spell detection fallback for accurate Jungler role identification.
+            * **Teamfight Tactics (TFT Set 18) Meta Hub & Team Builder:**
+              * Dedicated TFT hub featuring real-time Set 18 tier lists, meta compositions, augments, and item pairings.
+              * Interactive Team Builder with live trait breakpoint tracking and smart emblem synergy optimizer.
+            * **ARAM & ARAM Mayhem Live Match Mode Differentiation:**
+              * Dedicated auto-import settings under Settings -> ARAM & Auto-Import for runes, spells, and items.
+              * Automatic ARAM Mayhem detection with rune import suppression (since runes are disabled in Mayhem).
+              * Tailored ARAM summoner spell recommendations: top non-Smite combo as primary and instant Flash + Mark (Snowball) as secondary.
+            * **Landing Page & Navigation Streamline:**
+              * Cleaned up home landing page with centered official patch notes link and integrated mode navigation.
 
             ### Download & Installation
             * **Windows Installer:** Download `Rift-Companion_${{ steps.get_version.outputs.version }}_x64-setup.exe` below and double-click to install.

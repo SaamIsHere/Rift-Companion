@@ -4,7 +4,7 @@
   import { initIpc } from "./lib/ipc/tauri";
   import { initChampions } from "./lib/stores/champions";
   import { collapsed, isMaximized } from "./lib/stores/ui";
-  import { activeTab } from "./lib/stores/navigation";
+  import { activeTab, activeGameMode } from "./lib/stores/navigation";
   import { viewedProfile, loadPlayerProfile } from "./lib/stores/profile";
   import { initTheme, activeTheme, customWallpaper, hasCustomWallpaper, wallpaperScope } from "./lib/stores/theme";
   import TopNavBar from "./lib/components/TopNavBar.svelte";
@@ -15,6 +15,7 @@
   import LiveMatchView from "./lib/components/LiveMatchView.svelte";
   import MatchSimulationView from "./lib/components/MatchSimulationView.svelte";
   import PostGameView from "./lib/components/PostGameView.svelte";
+  import TftView from "./lib/components/TftView.svelte";
   import SettingsModal from "./lib/components/SettingsModal.svelte";
   import UpdateModal from "./lib/components/UpdateModal.svelte";
   import ActivationModal from "./lib/components/ActivationModal.svelte";
@@ -105,20 +106,24 @@
   <!-- Main view container (hidden when rolled-up into window-shade mode) -->
   {#if !$collapsed}
     <div class="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
-      {#if $activeTab === "startseite"}
-        <LandingPage />
-      {:else if $activeTab === "live_match"}
-        <LiveMatchView />
-      {:else if $activeTab === "profil"}
-        <ProfileView />
-      {:else if $activeTab === "champions"}
-        <ChampionsView />
-      {:else if $activeTab === "ranglisten"}
-        <RankingsView />
-      {:else if $activeTab === "simulation"}
-        <MatchSimulationView />
-      {:else if $activeTab === "post_game"}
-        <PostGameView />
+      {#if $activeGameMode === "tft"}
+        <TftView />
+      {:else}
+        {#if $activeTab === "startseite"}
+          <LandingPage />
+        {:else if $activeTab === "live_match"}
+          <LiveMatchView />
+        {:else if $activeTab === "profil"}
+          <ProfileView />
+        {:else if $activeTab === "champions"}
+          <ChampionsView />
+        {:else if $activeTab === "ranglisten"}
+          <RankingsView />
+        {:else if $activeTab === "simulation"}
+          <MatchSimulationView />
+        {:else if $activeTab === "post_game"}
+          <PostGameView />
+        {/if}
       {/if}
     </div>
   {/if}

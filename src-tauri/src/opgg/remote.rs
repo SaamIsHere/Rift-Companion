@@ -183,4 +183,26 @@ pub async fn save_cached_profile(
     Ok(())
 }
 
+/// Fetch the pre-computed TFT meta dataset from the Rift Server.
+pub async fn fetch_tft_meta(
+    server_url: &str,
+    api_key: Option<&str>,
+) -> Result<Vec<crate::tft::models::TftMetaDeck>> {
+    let url = format!("{}/api/tft/meta", server_url.trim_end_matches('/'));
+    let client = client_with_auth(15, api_key)?;
+    let res = client
+        .get(&url)
+        .send()
+        .await
+        .with_context(|| format!("fetching TFT meta from {url}"))?;
+    if !res.status().is_success() {
+        bail!("server returned status {}: {}", res.status(), res.text().await.unwrap_or_default());
+    }
+    let decks: Vec<crate::tft::models::TftMetaDeck> = res
+        .json()
+        .await
+        .context("parsing TFT meta dataset from server")?;
+    Ok(decks)
+}
+
 

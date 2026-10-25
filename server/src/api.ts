@@ -2,6 +2,7 @@ import express from "express";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { SUPPORTED_TIERS } from "./crawler.js";
 
 function normalizeTier(tier) {
@@ -93,6 +94,8 @@ export function createApiRouter(scheduler: any, dataDir: string) {
       res.json({
         patch: meta?.patch || null,
         last_updated: meta?.last_updated || null,
+        tft_last_updated: meta?.tft_last_updated || null,
+        tft_decks_count: meta?.tft_decks_count || null,
         crawling: crawlerStatus.crawling,
         crawl_progress: crawlerStatus.progress,
         tiers: meta?.tiers || {},
@@ -329,10 +332,37 @@ export function createApiRouter(scheduler: any, dataDir: string) {
     }
   });
 
+  // Fetch TFT Set 18 meta deck recommendations
+  router.get("/api/tft/meta", async (req, res) => {
+    let targetFile = path.join(dataDir, "tft_meta.json");
+    if (!fs.existsSync(targetFile)) {
+      const fallback = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "tft_seed.json");
+      if (fs.existsSync(fallback)) {
+        targetFile = fallback;
+      } else {
+        return res.status(404).json({
+          error: "No TFT meta dataset available yet. A crawl may be in progress.",
+          crawling: scheduler.getStatus().crawling,
+        });
+      }
+    }
+
+    res.setHeader("Content-Type", "application/json");
+    const stream = fs.createReadStream(targetFile);
+    stream.pipe(res);
+  });
+
   // Manually trigger a refresh (Admin only)
   router.post("/api/refresh", requireAdminKey, async (req, res) => {
     const requestedTier = req.query.tier || req.body?.tier || "emerald_plus";
-    const tiers = requestedTier === "all" ? SUPPORTED_TIERS : [normalizeTier(requestedTier)];
+    let tiers: string[];
+    if (requestedTier === "all") {
+      tiers = [...SUPPORTED_TIERS, "tft"];
+    } else if (requestedTier === "tft") {
+      tiers = ["tft"];
+    } else {
+      tiers = [normalizeTier(requestedTier)];
+    }
 
     try {
       const result = await scheduler.triggerCrawl(tiers);

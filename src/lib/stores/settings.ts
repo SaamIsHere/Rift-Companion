@@ -19,6 +19,10 @@ function getInitialSettings(): Settings {
     auto_import_runes: false,
     auto_import_spells: false,
     auto_import_items: false,
+    aram_auto_import_runes: false,
+    aram_auto_import_spells: false,
+    aram_auto_import_items: false,
+    aram_mayhem_mode: false,
     flash_key: "D",
     backdrop_blur: 12,
   };
@@ -40,6 +44,14 @@ function getInitialSettings(): Settings {
       if (savedSpells !== null) s.auto_import_spells = savedSpells === "true";
       const savedItems = localStorage.getItem("rift_auto_import_items");
       if (savedItems !== null) s.auto_import_items = savedItems === "true";
+      const savedAramRunes = localStorage.getItem("rift_aram_auto_import_runes");
+      if (savedAramRunes !== null) s.aram_auto_import_runes = savedAramRunes === "true";
+      const savedAramSpells = localStorage.getItem("rift_aram_auto_import_spells");
+      if (savedAramSpells !== null) s.aram_auto_import_spells = savedAramSpells === "true";
+      const savedAramItems = localStorage.getItem("rift_aram_auto_import_items");
+      if (savedAramItems !== null) s.aram_auto_import_items = savedAramItems === "true";
+      const savedAramMayhem = localStorage.getItem("rift_aram_mayhem_mode");
+      if (savedAramMayhem !== null) s.aram_mayhem_mode = savedAramMayhem === "true";
       const savedFlash = localStorage.getItem("rift_flash_key") as "D" | "F";
       if (savedFlash === "D" || savedFlash === "F") s.flash_key = savedFlash;
       const savedBlur = localStorage.getItem("rift_backdrop_blur");

@@ -213,6 +213,19 @@
       box-shadow: 0 0 24px rgba(168, 85, 247, 0.6);
       transform: translateY(-1px);
     }
+    button.tft-gold {
+      background: linear-gradient(135deg, rgba(200, 170, 110, 0.22) 0%, rgba(147, 51, 234, 0.28) 100%);
+      border: 1px solid var(--border-gold);
+      color: #f0e6d2;
+      font-weight: 600;
+      box-shadow: 0 0 16px rgba(200, 170, 110, 0.18);
+    }
+    button.tft-gold:hover:not(:disabled) {
+      background: linear-gradient(135deg, rgba(200, 170, 110, 0.38) 0%, rgba(147, 51, 234, 0.42) 100%);
+      border-color: #f0e6d2;
+      box-shadow: 0 0 22px rgba(200, 170, 110, 0.35);
+      transform: translateY(-1px);
+    }
 
     /* Daily Auto-Crawl Card */
     .card-schedule {
@@ -532,6 +545,9 @@
         <button class="primary" id="btnCrawlAll" onclick="triggerCrawl('all')">
           ⚡ Alle Ränge crawlen (Full Sync)
         </button>
+        <button class="tft-gold" id="btnCrawlTft" onclick="triggerCrawl('tft')">
+          🎲 TFT Meta crawlen
+        </button>
         <select id="selectTier">
           <option value="emerald_plus" selected>Emerald+</option>
           <option value="diamond_plus">Diamond+</option>
@@ -540,6 +556,7 @@
           <option value="silver_plus">Silver+</option>
           <option value="bronze_plus">Bronze+</option>
           <option value="iron_plus">Iron+</option>
+          <option value="tft">TFT Set 18 Meta</option>
         </select>
         <button id="btnCrawlTier" onclick="triggerSelectedTier()">
           Rang crawlen
@@ -563,7 +580,7 @@
               <span id="scheduleBadge" class="badge badge-idle">Aktiv (06:00 Uhr)</span>
             </div>
             <p style="font-size: 0.8rem; color: var(--slate); margin-top: 3px;">
-              Crawlt täglich automatisch alle Rangstufen (Diamond+ bis Iron+), um OP.GG-Statistiken aktuell zu halten.
+              Crawlt täglich automatisch alle Rangstufen (Diamond+ bis Iron+) sowie TFT Set 18 Metadecks, um OP.GG-Statistiken aktuell zu halten.
             </p>
           </div>
         </div>
@@ -622,7 +639,7 @@
 
     <!-- Available Tiers Grid -->
     <div>
-      <div class="section-title">📊 Verfügbare Datensätze (Rank Tiers)</div>
+      <div class="section-title">📊 Verfügbare Datensätze (Rank Tiers & TFT)</div>
       <div class="grid-tiers" id="tiersGrid">
         <!-- Filled dynamically -->
       </div>
@@ -871,30 +888,42 @@
         const banner = document.getElementById("crawlBanner");
         const statusBadge = document.getElementById("statusBadge");
         const statusText = document.getElementById("statusText");
+        const btnCrawlAll = document.getElementById("btnCrawlAll");
+        const btnCrawlTft = document.getElementById("btnCrawlTft");
+        const btnCrawlTier = document.getElementById("btnCrawlTier");
 
         if (data.crawling && data.crawl_progress) {
           statusBadge.className = "badge badge-crawling";
           statusBadge.querySelector(".dot").className = "dot dot-crawling";
           statusText.innerText = "Crawlt…";
 
+          if (btnCrawlAll) btnCrawlAll.disabled = true;
+          if (btnCrawlTft) btnCrawlTft.disabled = true;
+          if (btnCrawlTier) btnCrawlTier.disabled = true;
+
           banner.style.display = "flex";
-          document.getElementById("crawlTierLabel").innerText = data.crawl_progress.tier;
+          const isTft = data.crawl_progress.tier === "tft";
+          document.getElementById("crawlTierLabel").innerText = isTft ? "TFT Set 18 Meta" : data.crawl_progress.tier;
           const done = data.crawl_progress.done || 0;
           const total = data.crawl_progress.total || 1;
           const pct = Math.round((done / total) * 100);
 
-          document.getElementById("crawlPercent").innerText = pct + "%";
-          document.getElementById("progressBar").style.width = pct + "%";
-          document.getElementById("crawlChampion").innerText = "Aktuell: " + (data.crawl_progress.champion || "Verarbeite…");
-          document.getElementById("crawlCounts").innerText = `${done} / ${total}`;
+          document.getElementById("crawlPercent").innerText = isTft ? "Sync…" : pct + "%";
+          document.getElementById("progressBar").style.width = isTft ? "100%" : pct + "%";
+          document.getElementById("crawlChampion").innerText = (isTft ? "Metadecks: " : "Aktuell: ") + (data.crawl_progress.champion || "Verarbeite…");
+          document.getElementById("crawlCounts").innerText = isTft ? "OP.GG MCP" : `${done} / ${total}`;
         } else {
           statusBadge.className = "badge badge-idle";
           statusBadge.querySelector(".dot").className = "dot dot-idle";
           statusText.innerText = "Bereit";
           banner.style.display = "none";
+
+          if (btnCrawlAll) btnCrawlAll.disabled = false;
+          if (btnCrawlTft) btnCrawlTft.disabled = false;
+          if (btnCrawlTier) btnCrawlTier.disabled = false;
         }
 
-        renderTiersGrid(data.tiers, data.crawl_progress);
+        renderTiersGrid(data.tiers, data.crawl_progress, data);
 
         if (data.schedule) {
           updateScheduleUI(data.schedule);
@@ -1035,12 +1064,12 @@
       saveSchedule();
     }
 
-    function renderTiersGrid(tiersData, activeProgress) {
+    function renderTiersGrid(tiersData, activeProgress, fullData) {
       const grid = document.getElementById("tiersGrid");
       const key = getAuthKey();
       const keyParam = key ? `&key=${encodeURIComponent(key)}` : "";
 
-      grid.innerHTML = ALL_TIERS.map(t => {
+      const lolHtml = ALL_TIERS.map(t => {
         const meta = tiersData?.[t.id];
         const isCurrentCrawling = activeProgress?.tier === t.id;
         const isReady = !!meta;
@@ -1068,6 +1097,39 @@
           </div>
         `;
       }).join("");
+
+      // TFT Set 18 Meta Card
+      const isTftCrawling = activeProgress?.tier === "tft";
+      const isTftReady = fullData?.tft_last_updated != null;
+      const tftCount = fullData?.tft_decks_count ?? (isTftReady ? "10" : "–");
+
+      const tftHtml = `
+        <div class="card-tier ${isTftCrawling ? 'active-crawl' : ''}" style="border: 1px solid rgba(200, 170, 110, 0.4); background: linear-gradient(135deg, rgba(22, 12, 46, 0.95) 0%, rgba(35, 20, 52, 0.85) 100%); box-shadow: 0 0 20px rgba(200, 170, 110, 0.08);">
+          <div class="tier-header">
+            <span class="tier-name" style="color: #f0e6d2; display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.15rem;">🎲</span>
+              <span>TFT Set 18 Meta</span>
+            </span>
+            ${isTftCrawling 
+              ? '<span class="badge badge-crawling" style="padding: 2px 8px; font-size: 0.7rem;">Wird gecrawlt</span>'
+              : isTftReady 
+                ? '<span class="badge badge-idle" style="padding: 2px 8px; font-size: 0.7rem; border-color: rgba(200, 170, 110, 0.5); color: #f0e6d2; background: rgba(200, 170, 110, 0.15);">Bereit</span>'
+                : '<span class="badge badge-info" style="padding: 2px 8px; font-size: 0.7rem;">Ausstehend</span>'
+            }
+          </div>
+          <div class="tier-stats">
+            <div>Metadecks: <strong>${tftCount} Compositions</strong></div>
+            <div>Quelle: <strong>OP.GG MCP</strong> • Guides: <strong>Standard Tempo</strong></div>
+            <div>Zuletzt aktualisiert: <strong>${formatTime(fullData?.tft_last_updated)}</strong></div>
+          </div>
+          <div class="tier-actions">
+            <button class="tft-gold" onclick="triggerCrawl('tft')" style="padding: 6px 14px; font-size: 0.8rem;">Jetzt crawlen</button>
+            <a href="/api/tft/meta${keyParam}" target="_blank" class="badge badge-info" style="border-radius: 8px; border-color: rgba(200, 170, 110, 0.4); color: #f0e6d2;">JSON</a>
+          </div>
+        </div>
+      `;
+
+      grid.innerHTML = lolHtml + tftHtml;
     }
 
     async function triggerCrawl(tier) {
@@ -1075,7 +1137,8 @@
         const res = await authFetch(`/api/refresh?tier=${tier}`, { method: "POST" });
         const data = await res.json();
         if (res.ok) {
-          showToast(`Crawl für '${tier}' erfolgreich gestartet!`);
+          const name = tier === "tft" ? "TFT Set 18 Meta" : (tier === "all" ? "Alle Ränge + TFT" : tier);
+          showToast(`Crawl für '${name}' erfolgreich gestartet!`);
           fetchStatus();
         } else {
           showToast(data.error || "Crawl konnte nicht gestartet werden (Admin-Rechte erforderlich).");

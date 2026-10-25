@@ -31,6 +31,14 @@ pub struct DraftState {
     pub local_ban_completed: bool,
     #[serde(default)]
     pub recent_bans: Vec<u32>,
+    #[serde(default)]
+    pub game_mode: Option<String>,
+    #[serde(default)]
+    pub queue_id: Option<i64>,
+    #[serde(default)]
+    pub is_aram: bool,
+    #[serde(default)]
+    pub is_mayhem: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -185,6 +193,7 @@ pub fn from_session(repo: &Repository, s: &ChampSelectSession) -> DraftState {
         is_ban_phase,
         local_ban_completed,
         recent_bans,
+        ..Default::default()
     }
 }
 
@@ -392,6 +401,19 @@ pub fn from_gameflow(
     assign_unique_roles(repo, &mut allies);
     assign_unique_roles(repo, &mut enemies);
 
+    let queue_id = session.game_data.as_ref().and_then(|g| g.queue.as_ref()).map(|q| q.id);
+    let game_mode = session.game_data.as_ref().map(|g| g.game_mode.clone())
+        .or_else(|| session.map.as_ref().map(|m| m.game_mode.clone()));
+    let map_id = session.map.as_ref().map(|m| m.id);
+
+    let is_aram = queue_id == Some(450)
+        || map_id == Some(12)
+        || game_mode.as_ref().map_or(false, |m| m.to_uppercase().contains("ARAM"))
+        || session.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| q.game_mode.to_uppercase().contains("ARAM"));
+
+    let is_mayhem = game_mode.as_ref().map_or(false, |m| m.to_uppercase().contains("MAYHEM"))
+        || session.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| q.game_mode.to_uppercase().contains("MAYHEM"));
+
     Some(DraftState {
         local_role,
         local_champion_id,
@@ -403,6 +425,10 @@ pub fn from_gameflow(
         is_ban_phase: false,
         local_ban_completed: true,
         recent_bans: crate::data::store::get_recent_ban_suggestions(),
+        game_mode,
+        queue_id,
+        is_aram,
+        is_mayhem,
     })
 }
 
@@ -903,6 +929,13 @@ pub fn from_live_client(
     assign_unique_roles(repo, &mut allies);
     assign_unique_roles(repo, &mut enemies);
 
+    let game_mode = existing.and_then(|e| e.game_mode.clone());
+    let queue_id = existing.and_then(|e| e.queue_id);
+    let is_aram = game_mode.as_ref().map_or(false, |m| m.to_uppercase().contains("ARAM"))
+        || existing.map_or(false, |e| e.is_aram);
+    let is_mayhem = game_mode.as_ref().map_or(false, |m| m.to_uppercase().contains("MAYHEM"))
+        || existing.map_or(false, |e| e.is_mayhem);
+
     Some(DraftState {
         local_role,
         local_champion_id,
@@ -914,6 +947,10 @@ pub fn from_live_client(
         is_ban_phase: false,
         local_ban_completed: true,
         recent_bans: crate::data::store::get_recent_ban_suggestions(),
+        game_mode,
+        queue_id,
+        is_aram,
+        is_mayhem,
     })
 }
 

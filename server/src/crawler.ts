@@ -1192,3 +1192,341 @@ export async function saveDataset(dataDir, result) {
   await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), "utf8");
   return { path: targetPath, count: champions.length };
 }
+
+/**
+ * Known Set 18 champions map with their costs and clean names.
+ */
+export const TFT_SET18_CHAMPIONS: Record<string, { name: string; cost: number }> = {
+  // 1-Cost
+  DA_18_Akali_AD: { name: "Akali", cost: 1 },
+  DA_18_Camille: { name: "Camille", cost: 1 },
+  DA_18_Ornn: { name: "Ornn", cost: 1 },
+  DA_18_RekSai: { name: "RekSai", cost: 1 },
+  DA_18_Varus: { name: "Varus", cost: 1 },
+  DA_18_Veigar: { name: "Veigar", cost: 1 },
+  DA_18_Xayah: { name: "Xayah", cost: 1 },
+  DA_18_Leona: { name: "Leona", cost: 1 },
+  DA_Cinderling18: { name: "Cinderling", cost: 1 },
+  DA_18_Yorick: { name: "Yorick", cost: 1 },
+  DA_Karma18: { name: "Karma", cost: 1 },
+  DA_18_Kobuko: { name: "Kobuko", cost: 1 },
+  DA_18_Rakan: { name: "Rakan", cost: 1 },
+  DA_18_Sentry: { name: "Sentry", cost: 1 },
+  DA_Elderwood18_Lifeblossom: { name: "Lifeblossom", cost: 1 },
+
+  // 2-Cost
+  DA_18_Alistar: { name: "Alistar", cost: 2 },
+  DA_18_Caitlyn: { name: "Caitlyn", cost: 2 },
+  DA_18_Elise: { name: "Elise", cost: 2 },
+  DA_18_Kayle: { name: "Kayle", cost: 2 },
+  DA_18_LeBlanc: { name: "LeBlanc", cost: 2 },
+  DA_Murkwolf18: { name: "Murkwolf", cost: 2 },
+  DA_Scuttlecrab18: { name: "Scuttlecrab", cost: 2 },
+  DA_18_Sejuani: { name: "Sejuani", cost: 2 },
+  DA_18_Teemo: { name: "Teemo", cost: 2 },
+  DA_18_Warwick: { name: "Warwick", cost: 2 },
+  DA_18_Yunara: { name: "Yunara", cost: 2 },
+  DA_18_Shen: { name: "Shen", cost: 2 },
+  DA_Gromp18_AP: { name: "Gromp", cost: 2 },
+  DA_Elderwood18_StonebarkTree: { name: "Stonebark", cost: 2 },
+
+  // 3-Cost
+  DA_18_Azir: { name: "Azir", cost: 3 },
+  DA_18_Cassiopeia: { name: "Cassiopeia", cost: 3 },
+  DA_18_Diana: { name: "Diana", cost: 3 },
+  DA_Fiddlesticks18: { name: "Fiddlesticks", cost: 3 },
+  DA_18_Hecarim: { name: "Hecarim", cost: 3 },
+  DA_18_KhaZix: { name: "Kha'Zix", cost: 3 },
+  DA_Krug18: { name: "Krug", cost: 3 },
+  DA_18_MasterYi_AD: { name: "Master Yi", cost: 3 },
+  DA_18_Rammus: { name: "Rammus", cost: 3 },
+  DA_18_Rengar: { name: "Rengar", cost: 3 },
+  DA_18_Tristana: { name: "Tristana", cost: 3 },
+  DA_Vi18: { name: "Vi", cost: 3 },
+  DA_KogMaw18_AD: { name: "KogMaw", cost: 3 },
+  DA_CrimsonRaptor18: { name: "CrimsonRaptor", cost: 3 },
+
+  // 4-Cost
+  DA_18_Ahri: { name: "Ahri", cost: 4 },
+  DA_Amumu18: { name: "Amumu", cost: 4 },
+  DA_18_Aphelios: { name: "Aphelios", cost: 4 },
+  DA_Brambleback18: { name: "Brambleback", cost: 4 },
+  DA_18_Ezreal: { name: "Ezreal", cost: 4 },
+  DA_18_Lillia: { name: "Lillia", cost: 4 },
+  DA_18_Malphite: { name: "Malphite", cost: 4 },
+  DA_18_Morgana: { name: "Morgana", cost: 4 },
+  DA_Nidalee18_AP: { name: "Nidalee", cost: 4 },
+  DA_Sentinel18: { name: "Sentinel", cost: 4 },
+  DA_18_Sett: { name: "Sett", cost: 4 },
+  DA_18_Sivir: { name: "Sivir", cost: 4 },
+  DA_18_Soraka: { name: "Soraka", cost: 4 },
+  DA_18_Zyra: { name: "Zyra", cost: 4 },
+
+  // 5-Cost
+  DA_18_Alune: { name: "Alune", cost: 5 },
+  DA_18_Ashe: { name: "Ashe", cost: 5 },
+  DA_Draven18: { name: "Draven", cost: 5 },
+  DA_18_ElderDragon: { name: "Elder Dragon", cost: 5 },
+  DA_Lux18_Base: { name: "Lux", cost: 5 },
+  DA_18_Lux_Inferno: { name: "Lux (Inferno)", cost: 5 },
+  DA_18_Maokai: { name: "Maokai", cost: 5 },
+  DA_18_Kennen: { name: "Kennen", cost: 5 },
+  DA_18_GnarSmall: { name: "GnarSmall", cost: 5 },
+  DA_Taric18: { name: "Taric", cost: 5 },
+  DA_18_Ivern: { name: "Ivern", cost: 5 },
+};
+
+function generateStandardLevelingGuide(playStyle: string): any[] {
+  if (playStyle.includes("Lvl 6")) {
+    return [
+      { stage: "Stage 2", level: 4, description: "Play strongest early board to preserve HP. Collect 2-cost copies without rolling." },
+      { stage: "Stage 3", level: 6, description: "Level to 6 at Stage 3-2. Roll down to stabilize, then slow roll above 50 gold for 3-star core units." },
+      { stage: "Stage 4", level: 7, description: "Once core 2-costs are 3-starred, push to Level 7 to add synergies and frontlines." },
+      { stage: "Stage 5", level: 8, description: "Level to 8 to round out traits and cap your final late-game formation." },
+    ];
+  }
+  if (playStyle.includes("Lvl 7")) {
+    return [
+      { stage: "Stage 2", level: 4, description: "Play generic strong early board. Save gold and maintain economy win or loss streak." },
+      { stage: "Stage 3", level: 6, description: "Level to 6 at Stage 3-2. Do not roll; prioritize reaching 50 gold safely." },
+      { stage: "Stage 4", level: 7, description: "Level to 7 at Stage 4-1. Roll down to find 2-star carry, then slow roll above 50 gold for 3-star." },
+      { stage: "Stage 5", level: 8, description: "Once core 3-star is secured, level to 8 to cap board with high-cost frontlines." },
+    ];
+  }
+  if (playStyle.includes("Lvl 5") || playStyle.includes("Hyper Roll")) {
+    return [
+      { stage: "Stage 2", level: 4, description: "Do not level or spend gold before Krugs. Maximize early interest income." },
+      { stage: "Stage 3", level: 5, description: "Slow roll or roll down at Level 5 before naturally hitting Level 6 to 3-star 1-costs." },
+      { stage: "Stage 4", level: 6, description: "Push Level 6 once key 1-costs are 3-starred and add complementary synergies." },
+      { stage: "Stage 5", level: 8, description: "Level to 8 to cap out late game board with supporting synergies." },
+    ];
+  }
+  return [
+    { stage: "Stage 2", level: 4, description: "Slam flexible items on early item holders. Play for win streak or loss streak econ." },
+    { stage: "Stage 3", level: 6, description: "Level to 6 at Stage 3-2. Upgrade a couple 2-costs if weak, but stay above 30-40 gold." },
+    { stage: "Stage 4", level: 8, description: "Level to 8 at Stage 4-2. Roll down to find 4-cost core carries and frontline tanks." },
+    { stage: "Stage 5", level: 9, description: "Stabilize on 2-star 4-costs, then econ up to Level 9 for 5-cost legendary cap." },
+  ];
+}
+
+/**
+ * Crawl full set of TFT meta decks (all 50 comps across OP, S, A, B, C, D tiers)
+ * directly from OP.GG's meta trends React Server Component stream.
+ */
+async function fetchOpggTftWebDecks(): Promise<any[] | null> {
+  const url = "https://op.gg/tft/meta-trends/comps";
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+
+    const chunkRegex = /self\.__next_f\.push\(\[1,"(.*?[^\\])"\]\)/gs;
+    let fullStream = "";
+    for (const m of html.matchAll(chunkRegex)) {
+      try {
+        const unescaped = JSON.parse(`"${m[1]}"`);
+        fullStream += unescaped;
+      } catch {}
+    }
+
+    if (!fullStream) return null;
+
+    const lines = fullStream.split("\n");
+    const rawList: any[] = [];
+    for (const line of lines) {
+      if (line.includes('"name":{"') || line.includes('"opTier"')) {
+        const m = line.match(/^([0-9a-f]+):(.*)$/);
+        const jsonStr = m ? m[2] : line;
+        try {
+          const parsed = JSON.parse(jsonStr);
+          function findDecks(obj: any) {
+            if (!obj || typeof obj !== "object") return;
+            if (obj.name && (obj.name.en_US || typeof obj.name === "string") && (obj.units || obj.stat)) {
+              rawList.push(obj);
+              return;
+            }
+            if (Array.isArray(obj)) {
+              obj.forEach(findDecks);
+            } else {
+              Object.values(obj).forEach(findDecks);
+            }
+          }
+          findDecks(parsed);
+        } catch {}
+      }
+    }
+
+    if (rawList.length > 0) {
+      const seen = new Set<string>();
+      const unique = rawList.filter((d: any) => {
+        const key = d.id || (typeof d.name === "string" ? d.name : d.name?.en_US);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      console.log(`[crawler] Extracted ${unique.length} TFT meta decks directly from OP.GG web stream.`);
+      return unique;
+    }
+    return null;
+  } catch (err: any) {
+    console.warn(`[crawler] OP.GG web stream fetch failed: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Crawl current Set 18 TFT meta decks from OP.GG (web stream or MCP fallback) and save to tft_meta.json.
+ */
+export async function crawlTftMeta(options: { dataDir: string }) {
+  console.log("[crawler] Crawling TFT meta decks from OP.GG...");
+
+  // 1. Try pulling all 50 meta decks from the OP.GG web stream first
+  let rawList = await fetchOpggTftWebDecks();
+
+  // 2. Fall back to OP.GG MCP client if web stream returned no decks
+  if (!rawList || rawList.length === 0) {
+    console.log("[crawler] Falling back to OP.GG MCP client for TFT meta decks...");
+    const client = new McpClient();
+    await client.initialize();
+
+    const response = await client.callTool("tft_list_meta_decks", {});
+    rawList = response?.data || response?.decks || (Array.isArray(response) ? response : []);
+  }
+
+  if (!Array.isArray(rawList) || rawList.length === 0) {
+    throw new Error("OP.GG returned 0 TFT meta decks");
+  }
+
+  const decks = rawList.map((d: any, idx: number) => {
+    const opTier = d.stat?.opTier;
+    let tier = "D";
+    if (opTier === "OP" || opTier === "S") {
+      tier = "S";
+    } else if (opTier === "A") {
+      tier = "A";
+    } else if (opTier === "B") {
+      tier = "B";
+    } else if (opTier === "C") {
+      tier = "C";
+    } else {
+      tier = "D";
+    }
+    const badges = Array.isArray(d.badge) ? d.badge : [];
+    const diffBadge = badges.find((b: any) => b.key === "difficulty");
+    const rerollBadge = badges.find((b: any) => b.key === "reroll");
+
+    let difficulty = "Medium";
+    if (diffBadge) {
+      if (diffBadge.value === 1) difficulty = "Easy";
+      else if (diffBadge.value === 3) difficulty = "Hard";
+    }
+
+    let playStyle = "Standard";
+    if (rerollBadge && rerollBadge.value) {
+      playStyle = `Slow Roll Lvl ${rerollBadge.value}`;
+    } else if (d.cost >= 70) {
+      playStyle = "Fast 8";
+    }
+
+    const units = (d.units || []).map((u: any) => {
+      const info = TFT_SET18_CHAMPIONS[u.key] || {
+        name: u.meta?.name || u.key.replace(/^DA_18_|^DA_|_AD$|_AP$|18$/g, "").replace(/([a-z])([A-Z])/g, "$1 $2"),
+        cost: u.meta?.cost || 3,
+      };
+      return {
+        id: u.key,
+        name: info.name,
+        cost: info.cost,
+        star: u.tier || 2,
+        items: (u.items || []).map((itKey: string) => ({
+          id: itKey,
+          name: itKey.replace(/^DA_/, "").replace(/([a-z])([A-Z])/g, "$1 $2"),
+          image_url: `https://c-tft-api.op.gg/img/set/18/tft-item/${itKey}.png`,
+        })),
+        cell: { x: u.cell?.x ?? 1, y: u.cell?.y ?? 1 },
+        is_carry: Boolean(u.isCore || (u.items && u.items.length > 0)),
+        image_url: u.meta?.imageUrl || `https://assets.tftacademy.com/champions/champion_icons/${u.key}.webp`,
+      };
+    });
+
+    // Ensure all units have distinct cell coordinates on the 4x7 grid
+    const occupiedCells = new Set<string>();
+    units.forEach((u: any, uIdx: number) => {
+      const cellKey = ${u.cell.x},;
+      if (occupiedCells.has(cellKey)) {
+        const preferredY = uIdx < 4 ? 4 : 1;
+        let placed = false;
+        for (const y of [preferredY, 4, 3, 2, 1]) {
+          for (const x of [4, 3, 5, 2, 6, 1, 7]) {
+            const cand = ${x},;
+            if (!occupiedCells.has(cand)) {
+              u.cell = { x, y };
+              occupiedCells.add(cand);
+              placed = true;
+              break;
+            }
+          }
+          if (placed) break;
+        }
+      } else {
+        occupiedCells.add(cellKey);
+      }
+    });
+
+    const traits = (d.traits || [])
+      .filter((t: any) => t.style > 0)
+      .map((t: any) => {
+        let tName = t.meta?.name || t.key.replace(/^DA_18_|^DA_|18$|UniqueTrait$/g, "");
+        tName = tName.replace(/([a-z])([A-Z])/g, "$1 $2");
+        let tierStr = "bronze";
+        if (t.style === 2) tierStr = "silver";
+        if (t.style === 3) tierStr = "gold";
+        if (t.style === 4) tierStr = "prismatic";
+        return {
+          name: tName,
+          count: t.numUnits,
+          tier: tierStr,
+          icon_url: t.meta?.imageUrl || `https://assets.tftacademy.com/traits/${t.key}.svg`,
+        };
+      });
+
+    return {
+      id: d.id || `opgg-tft-${idx}`,
+      name: d.name?.en_US || d.name?.en_GB || (typeof d.name === "string" ? d.name : Object.values(d.name || {})[0]) || "Meta Comp",
+      tier,
+      avg_placement: d.stat?.deck?.avgPlacement || d.stat?.label?.avgPlacement || 4.0,
+      top4_rate: Math.round(((d.stat?.deck?.top4Rate ?? 0.5) * 100) * 10) / 10,
+      pick_rate: Math.round(((d.stat?.deck?.pickRate ?? 0.05) * 100) * 100) / 100,
+      play_style: playStyle,
+      difficulty,
+      traits,
+      units,
+      leveling_guide: generateStandardLevelingGuide(playStyle),
+    };
+  });
+
+  const targetPath = path.join(options.dataDir, "tft_meta.json");
+  await fs.mkdir(options.dataDir, { recursive: true });
+  await fs.writeFile(targetPath, JSON.stringify(decks, null, 2), "utf8");
+  console.log(`[crawler] Saved ${decks.length} TFT meta decks to ${targetPath}`);
+
+  // Update meta.json
+  const metaPath = path.join(options.dataDir, "meta.json");
+  try {
+    let meta: any = {};
+    try {
+      meta = JSON.parse(await fs.readFile(metaPath, "utf8"));
+    } catch {}
+    meta.tft_last_updated = Math.floor(Date.now() / 1000);
+    meta.tft_decks_count = decks.length;
+    await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), "utf8");
+  } catch {}
+
+  return decks;
+}
