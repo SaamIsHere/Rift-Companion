@@ -8,8 +8,6 @@
     isAramActive,
     isMayhemActive,
     activeLiveMode,
-    setManualLiveMode,
-    toggleMayhemMode,
   } from "../stores/liveGameMode";
   import {
     getChampionBuild,
@@ -129,7 +127,7 @@
   function toggleRunes() {
     if ($isAramActive) {
       if ($isMayhemActive) {
-        showFeedback("⚠️ In ARAM Mayhem gibt es keine Runen");
+        showFeedback("⚠️ Runes are disabled in ARAM Mayhem");
         return;
       }
       const nextVal = !($settings.aram_auto_import_runes ?? false);
@@ -556,44 +554,12 @@
       </div>
     </div>
 
-    <!-- Mode Selector & Controls -->
-    <div class="flex items-center gap-2">
-      <!-- Mode Toggle Pill -->
-      <div class="inline-flex items-center rounded-lg border border-purple-500/25 bg-void-950/80 p-0.5 text-[10px]">
-        <button
-          type="button"
-          on:click={() => setManualLiveMode("classic")}
-          class="flex items-center gap-1 rounded px-2 py-0.5 font-bold transition-all cursor-pointer {!$isAramActive
-            ? 'bg-purple-600 text-white shadow-sm'
-            : 'text-slate-400 hover:text-white'}"
-          title="Summoner's Rift Mode"
-        >
-          <span>🌲 Rift</span>
-        </button>
-        <button
-          type="button"
-          on:click={() => setManualLiveMode("aram")}
-          class="flex items-center gap-1 rounded px-2 py-0.5 font-bold transition-all cursor-pointer {$isAramActive
-            ? 'bg-cyan-600/70 text-cyan-100 shadow-sm border border-cyan-400/40'
-            : 'text-slate-400 hover:text-white'}"
-          title="ARAM Mode"
-        >
-          <span>❄️ ARAM</span>
-        </button>
-      </div>
-
+    <!-- Detected Mode Badge -->
+    <div class="flex items-center gap-1.5">
       {#if $isAramActive}
-        <!-- ARAM Mayhem Toggle Button -->
-        <button
-          type="button"
-          on:click={toggleMayhemMode}
-          class="flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-bold transition-all cursor-pointer {$isMayhemActive
-            ? 'border-amber-400/60 bg-amber-500/25 text-amber-200 shadow-sm'
-            : 'border-purple-500/25 bg-void-950/70 text-slate-400 hover:text-amber-200'}"
-          title="ARAM Mayhem (Keine Runen / Augments-Modus)"
-        >
-          <span>⚡ Mayhem {$isMayhemActive ? '(Runen aus)' : ''}</span>
-        </button>
+        <span class="inline-flex items-center gap-1 rounded-md border border-cyan-500/30 bg-cyan-950/40 px-2 py-0.5 text-[10px] font-bold text-cyan-200 shadow-sm">
+          <span>{$isMayhemActive ? 'ARAM Mayhem (No Runes)' : 'ARAM'}</span>
+        </span>
       {/if}
     </div>
   </div>
@@ -608,30 +574,22 @@
   {:else}
     <div class="relative z-10 flex min-h-0 flex-1 divide-x divide-purple-500/15 overflow-hidden">
       <!-- ==================== LEFT COLUMN: RUNES ==================== -->
-      <div class="flex min-h-0 flex-1 flex-col p-3 overflow-y-auto">
-        <!-- Runes Header with Toggle -->
-        <div class="mb-2 flex items-center justify-between shrink-0">
-          <div class="flex items-center gap-2">
-            <span class="text-xs font-black tracking-wide text-purple-200 uppercase">
-              {$isMayhemActive ? 'Runen (Deaktiviert)' : 'Runes'}
-            </span>
-            {#if $isMayhemActive}
-              <span class="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold text-amber-300 border border-amber-500/30">
-                Mayhem
+      {#if !$isMayhemActive}
+        <div class="flex min-h-0 flex-1 flex-col p-3 overflow-y-auto">
+          <!-- Runes Header with Toggle -->
+          <div class="mb-2 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-black tracking-wide text-purple-200 uppercase">
+                Runes
               </span>
-            {:else if $isAramActive}
-              <span class="rounded bg-cyan-500/20 px-1.5 py-0.5 text-[9px] font-bold text-cyan-300 border border-cyan-500/30">
-                ARAM
-              </span>
-            {/if}
-          </div>
-
-          <!-- Runes Auto-Import Toggle -->
-          {#if $isMayhemActive}
-            <div class="text-[10px] font-semibold text-amber-400/90 bg-amber-950/40 border border-amber-500/30 rounded-md px-2 py-0.5">
-              Runen ausgemacht
+              {#if $isAramActive}
+                <span class="rounded bg-cyan-500/20 px-1.5 py-0.5 text-[9px] font-bold text-cyan-300 border border-cyan-500/30">
+                  ARAM
+                </span>
+              {/if}
             </div>
-          {:else}
+
+            <!-- Runes Auto-Import Toggle -->
             <button
               type="button"
               on:click={toggleRunes}
@@ -645,32 +603,8 @@
                 <span class="inline-block h-3 w-3 transform rounded-full bg-white transition duration-200 {activeAutoImportRunes ? 'translate-x-3.5' : 'translate-x-0.5'}"></span>
               </div>
             </button>
-          {/if}
-        </div>
-
-        {#if $isMayhemActive}
-          <!-- Special ARAM Mayhem View: Runes disabled -->
-          <div class="flex flex-1 flex-col items-center justify-center p-6 text-center border border-amber-500/20 bg-amber-950/15 rounded-xl my-auto">
-            <div class="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/20 text-amber-300 border border-amber-500/40 mb-3 shadow-lg ring-1 ring-amber-400/30">
-              <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-              </svg>
-            </div>
-            <span class="text-xs font-black text-amber-300 uppercase tracking-wider mb-1">ARAM Mayhem: Runen Deaktiviert</span>
-            <p class="text-[11px] text-slate-300 max-w-xs leading-relaxed">
-              In ARAM Mayhem existieren keine Runen. Alle Champions wählen stattdessen während der Partie mächtige Augments. Runen-Import ist ausgeschaltet.
-            </p>
-            <div class="mt-4 flex items-center gap-2">
-              <button
-                type="button"
-                on:click={toggleMayhemMode}
-                class="rounded-lg border border-amber-500/30 bg-amber-950/60 px-2.5 py-1 text-[10px] font-semibold text-amber-200 hover:bg-amber-900/60 hover:text-white transition cursor-pointer"
-              >
-                Runen wieder einschalten (Standard ARAM)
-              </button>
-            </div>
           </div>
-        {:else}
+
           <!-- 2 Clickable Rune Page Cards -->
           {#if build?.runes && build.runes.length > 0}
             <div class="mb-2.5 grid grid-cols-2 gap-2 shrink-0">
@@ -828,8 +762,8 @@
               </div>
             </div>
           {/if}
-        {/if}
-      </div>
+        </div>
+      {/if}
 
       <!-- ==================== RIGHT COLUMN: SUMMONER SPELLS & ITEMS ==================== -->
       <div class="flex min-h-0 flex-1 flex-col p-3 overflow-y-auto gap-3">

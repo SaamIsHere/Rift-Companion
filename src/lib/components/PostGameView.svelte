@@ -475,7 +475,6 @@
               </span>
               {#if match.modeType === "aram"}
                 <span class="rounded-lg bg-sky-500/20 border border-sky-400/40 px-2 py-0.5 text-xs font-bold text-sky-200 shadow-sm flex items-center gap-1">
-                  <span>❄️</span>
                   <span>ARAM • Howling Abyss</span>
                 </span>
               {:else if match.modeType === "arena"}

@@ -3,9 +3,9 @@
 
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct ChampSelectSession {
-    #[serde(rename = "localPlayerCellId")]
+    #[serde(default, rename = "localPlayerCellId")]
     pub local_player_cell_id: i64,
     #[serde(default, rename = "myTeam")]
     pub my_team: Vec<PlayerSlot>,
@@ -15,6 +15,12 @@ pub struct ChampSelectSession {
     pub actions: Vec<Vec<Action>>,
     #[serde(default)]
     pub bans: Bans,
+    #[serde(default, rename = "benchEnabled")]
+    pub bench_enabled: bool,
+    #[serde(default, rename = "rerollsRemaining")]
+    pub rerolls_remaining: i64,
+    #[serde(default, rename = "benchChampions")]
+    pub bench_champions: Vec<serde_json::Value>,
 }
 
 #[derive(Debug, Default, Deserialize)]

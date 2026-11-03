@@ -781,7 +781,7 @@
               type="button"
               on:click|stopPropagation={() => removeRecentSearch(recent.riot_id, recent.region)}
               class="flex items-center justify-center p-1 pr-2 text-purple-400/40 transition hover:text-rose-400"
-              title="Aus Verlauf entfernen"
+              title="Remove from history"
               aria-label="Remove search"
             >
               <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
@@ -795,7 +795,7 @@
             type="button"
             on:click={clearAllRecentSearches}
             class="ml-1 text-[10px] text-purple-400/50 underline underline-offset-2 transition hover:text-rose-400"
-            title="Alle kürzlich gesuchten Profile löschen"
+            title="Clear all recent profiles"
           >
             Clear all
           </button>

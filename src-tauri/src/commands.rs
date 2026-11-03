@@ -55,9 +55,18 @@ pub struct GameModeInfo {
 pub fn get_game_mode_info(state: State<Shared>) -> GameModeInfo {
     let mode = state.current_game_mode.lock().unwrap().clone();
     let q_id = *state.current_queue_id.lock().unwrap();
+    let is_mayhem = q_id == Some(2400)
+        || mode.as_ref().map_or(false, |m| {
+            let u = m.to_uppercase();
+            u.contains("MAYHEM") || u.contains("KIWI")
+        });
     let is_aram = q_id == Some(450)
-        || mode.as_ref().map_or(false, |m| m.to_uppercase().contains("ARAM"));
-    let is_mayhem = mode.as_ref().map_or(false, |m| m.to_uppercase().contains("MAYHEM"));
+        || q_id == Some(2400)
+        || is_mayhem
+        || mode.as_ref().map_or(false, |m| {
+            let u = m.to_uppercase();
+            u.contains("ARAM") || u.contains("KIWI") || u.contains("MAYHEM")
+        });
     GameModeInfo {
         game_mode: mode,
         queue_id: q_id,
@@ -289,6 +298,16 @@ pub async fn import_item_set(
     )
     .await
     .map_err(|e| e.to_string())
+}
+
+/// Cleans up all old Rift Companion item sets from the League of Legends client.
+/// Returns the number of deleted item sets.
+#[tauri::command]
+pub async fn cleanup_rift_item_sets() -> Result<u32, String> {
+    let lock = crate::lcu::lockfile::find().ok_or_else(|| "League client not detected. Please start the League of Legends client first.".to_string())?;
+    crate::lcu::client::delete_all_rift_item_sets_in_lcu(&lock)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Compute full scoring and matchup recommendation for a specific champion on-demand

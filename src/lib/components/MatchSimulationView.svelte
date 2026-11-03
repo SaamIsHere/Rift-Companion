@@ -442,7 +442,7 @@
       const activeSummoner = localSummoner || viewed;
 
       if (!activeSummoner) {
-        showImportFeedback("error", "Kein Spielerprofil oder verbundener League-Client gefunden.");
+        showImportFeedback("error", "No player profile or connected League client found.");
         return;
       }
 
@@ -499,7 +499,7 @@
       }
 
       if (!participants || participants.length === 0) {
-        showImportFeedback("error", "Teilnehmer des letzten Matches konnten nicht geladen werden.");
+        showImportFeedback("error", "Could not load participants from the last match.");
         return;
       }
 

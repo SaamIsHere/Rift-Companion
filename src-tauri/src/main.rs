@@ -88,6 +88,7 @@ fn run_internal_tests() {
             their_team: vec![],
             actions: vec![],
             bans: Bans::default(),
+            ..Default::default()
         };
 
         let state = draft::from_session(&repo, &empty_session);
@@ -178,6 +179,7 @@ fn run_internal_tests() {
                 },
             ]],
             bans: Bans::default(),
+            ..Default::default()
         };
 
         let state = draft::from_session(&repo, &session);
@@ -235,6 +237,7 @@ fn run_internal_tests() {
             their_team: vec![],
             actions: vec![],
             bans: Bans::default(),
+            ..Default::default()
         };
 
         let state = draft::from_session(&repo, &session);

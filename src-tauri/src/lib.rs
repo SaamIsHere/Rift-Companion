@@ -192,6 +192,7 @@ pub fn run() {
             commands::import_rune_page,
             commands::import_summoner_spells,
             commands::import_item_set,
+            commands::cleanup_rift_item_sets,
             commands::get_champion_recommendation,
             commands::set_enemy_role,
             commands::set_champion_role,

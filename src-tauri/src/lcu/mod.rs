@@ -151,6 +151,45 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                     if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
                         if let Ok(s) = serde_json::from_value::<models::GameflowSession>(gf_val.clone()) {
                             is_tft_init = is_tft_session(&s);
+                            let q_id = s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map(|q| q.id);
+                            let m_id = s.map.as_ref().map(|m| m.id);
+                            let raw_mode = s.game_data.as_ref().map(|g| g.game_mode.clone())
+                                .or_else(|| s.map.as_ref().map(|m| m.game_mode.clone()))
+                                .or_else(|| s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map(|q| q.game_mode.clone()));
+
+                            let is_mayhem = q_id == Some(2400)
+                                || raw_mode.as_ref().map_or(false, |m| {
+                                    let u = m.to_uppercase();
+                                    u.contains("MAYHEM") || u.contains("KIWI")
+                                })
+                                || s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| {
+                                    let u = q.game_mode.to_uppercase();
+                                    u.contains("MAYHEM") || u.contains("KIWI") || q.id == 2400
+                                });
+
+                            let is_aram = q_id == Some(450)
+                                || q_id == Some(2400)
+                                || m_id == Some(12)
+                                || is_mayhem
+                                || raw_mode.as_ref().map_or(false, |m| {
+                                    let u = m.to_uppercase();
+                                    u.contains("ARAM") || u.contains("KIWI") || u.contains("MAYHEM")
+                                })
+                                || s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| {
+                                    let u = q.game_mode.to_uppercase();
+                                    u.contains("ARAM") || u.contains("KIWI") || u.contains("MAYHEM") || q.id == 450 || q.id == 2400
+                                });
+
+                            *shared.current_game_mode.lock().unwrap() = raw_mode.clone();
+                            *shared.current_queue_id.lock().unwrap() = q_id;
+
+                            let mode_info = serde_json::json!({
+                                "game_mode": raw_mode,
+                                "queue_id": q_id,
+                                "is_aram": is_aram,
+                                "is_mayhem": is_mayhem,
+                            });
+                            let _ = app.emit("gameflow://game-mode", &mode_info);
                         }
                     }
                 }
@@ -284,13 +323,28 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                                             .or_else(|| s.map.as_ref().map(|m| m.game_mode.clone()))
                                             .or_else(|| s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map(|q| q.game_mode.clone()));
 
-                                        let is_aram = q_id == Some(450)
-                                            || m_id == Some(12)
-                                            || raw_mode.as_ref().map_or(false, |m| m.to_uppercase().contains("ARAM"))
-                                            || s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| q.game_mode.to_uppercase().contains("ARAM"));
+                                        let is_mayhem = q_id == Some(2400)
+                                            || raw_mode.as_ref().map_or(false, |m| {
+                                                let u = m.to_uppercase();
+                                                u.contains("MAYHEM") || u.contains("KIWI")
+                                            })
+                                            || s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| {
+                                                let u = q.game_mode.to_uppercase();
+                                                u.contains("MAYHEM") || u.contains("KIWI") || q.id == 2400
+                                            });
 
-                                        let is_mayhem = raw_mode.as_ref().map_or(false, |m| m.to_uppercase().contains("MAYHEM"))
-                                            || s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| q.game_mode.to_uppercase().contains("MAYHEM"));
+                                        let is_aram = q_id == Some(450)
+                                            || q_id == Some(2400)
+                                            || m_id == Some(12)
+                                            || is_mayhem
+                                            || raw_mode.as_ref().map_or(false, |m| {
+                                                let u = m.to_uppercase();
+                                                u.contains("ARAM") || u.contains("KIWI") || u.contains("MAYHEM")
+                                            })
+                                            || s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| {
+                                                let u = q.game_mode.to_uppercase();
+                                                u.contains("ARAM") || u.contains("KIWI") || u.contains("MAYHEM") || q.id == 450 || q.id == 2400
+                                            });
 
                                         *shared.current_game_mode.lock().unwrap() = raw_mode.clone();
                                         *shared.current_queue_id.lock().unwrap() = q_id;
@@ -386,7 +440,8 @@ fn parse_event(txt: &str) -> Option<LcuEvent> {
 
 pub async fn check_liveclient_data(app: &AppHandle, shared: &Shared) -> bool {
     // 1. Check liveclient gamestats first to filter out TFT
-    if let Ok(Some(stats)) = client::get_liveclient_gamestats().await {
+    let live_stats = client::get_liveclient_gamestats().await.ok().flatten();
+    if let Some(ref stats) = live_stats {
         if stats.game_mode.eq_ignore_ascii_case("TFT") || stats.game_mode.to_uppercase().contains("TFT") {
             tracing::info!(game_mode = %stats.game_mode, "ignoring active TFT match in Live Client API");
             return false;
@@ -405,6 +460,41 @@ pub async fn check_liveclient_data(app: &AppHandle, shared: &Shared) -> bool {
         return false;
     }
 
+    // Active in-game ARAM & ARAM Mayhem detection from Live Client API
+    let is_live_mayhem = live_stats.as_ref().map_or(false, |s| {
+        let u = s.game_mode.to_uppercase();
+        u.contains("MAYHEM") || u.contains("KIWI")
+    });
+
+    let is_live_aram = is_live_mayhem
+        || live_stats.as_ref().map_or(false, |s| {
+            s.map_number == 12 || s.map_name.contains("12") || s.game_mode.to_uppercase().contains("ARAM")
+        })
+        || players.iter().any(|p| {
+            p.summoner_spells.as_ref().map_or(false, |spells| {
+                let s1 = spells.summoner_spell_one.as_ref().map_or(false, |s| {
+                    s.display_name.eq_ignore_ascii_case("Mark") || s.raw_display_name.contains("Mark") || s.raw_description.to_lowercase().contains("snowball")
+                });
+                let s2 = spells.summoner_spell_two.as_ref().map_or(false, |s| {
+                    s.display_name.eq_ignore_ascii_case("Mark") || s.raw_display_name.contains("Mark") || s.raw_description.to_lowercase().contains("snowball")
+                });
+                s1 || s2
+            })
+        });
+
+    if is_live_aram {
+        let mode_str = if is_live_mayhem { "KIWI" } else { "ARAM" };
+        let q_id = if is_live_mayhem { 2400 } else { 450 };
+        *shared.current_game_mode.lock().unwrap() = Some(mode_str.to_string());
+        *shared.current_queue_id.lock().unwrap() = Some(q_id);
+        let _ = app.emit("gameflow://game-mode", serde_json::json!({
+            "game_mode": mode_str,
+            "queue_id": q_id,
+            "is_aram": true,
+            "is_mayhem": is_live_mayhem,
+        }));
+    }
+
     let active = client::get_liveclient_activeplayer().await.ok().flatten();
 
     let repo = shared.repo.lock().unwrap().clone();
@@ -416,6 +506,12 @@ pub async fn check_liveclient_data(app: &AppHandle, shared: &Shared) -> bool {
         active.as_ref(),
         existing_draft.as_ref(),
     ) {
+        if is_live_aram {
+            state.is_aram = true;
+            state.is_mayhem = is_live_mayhem;
+            state.game_mode = Some((if is_live_mayhem { "KIWI" } else { "ARAM" }).to_string());
+            state.queue_id = Some(if is_live_mayhem { 2400 } else { 450 });
+        }
         if !state.allies.is_empty() || !state.enemies.is_empty() {
             // Re-apply any enemy role overrides
             {
@@ -630,9 +726,46 @@ fn handle_session(app: &AppHandle, shared: &Shared, data: serde_json::Value) {
     let mut state = draft::from_session(repo.as_ref(), &session);
     state.game_mode = shared.current_game_mode.lock().unwrap().clone();
     state.queue_id = *shared.current_queue_id.lock().unwrap();
+
+    let is_aram_from_session = session.bench_enabled
+        || session.rerolls_remaining > 0
+        || !session.bench_champions.is_empty()
+        || session.my_team.iter().chain(session.their_team.iter()).any(|p| p.spell1_id == 32 || p.spell2_id == 32);
+
+    let is_mayhem_from_mode = state.queue_id == Some(2400)
+        || state.game_mode.as_ref().map_or(false, |m| {
+            let u = m.to_uppercase();
+            u.contains("MAYHEM") || u.contains("KIWI")
+        });
+
+    state.is_mayhem = is_mayhem_from_mode;
     state.is_aram = state.queue_id == Some(450)
-        || state.game_mode.as_ref().map_or(false, |m| m.to_uppercase().contains("ARAM"));
-    state.is_mayhem = state.game_mode.as_ref().map_or(false, |m| m.to_uppercase().contains("MAYHEM"));
+        || state.queue_id == Some(2400)
+        || is_mayhem_from_mode
+        || state.game_mode.as_ref().map_or(false, |m| {
+            let u = m.to_uppercase();
+            u.contains("ARAM") || u.contains("KIWI") || u.contains("MAYHEM")
+        })
+        || is_aram_from_session;
+
+    if state.is_aram {
+        if state.game_mode.is_none() {
+            let default_mode = if state.is_mayhem { "KIWI" } else { "ARAM" };
+            state.game_mode = Some(default_mode.to_string());
+            *shared.current_game_mode.lock().unwrap() = Some(default_mode.to_string());
+        }
+        if state.queue_id.is_none() {
+            let default_qid = if state.is_mayhem { 2400 } else { 450 };
+            state.queue_id = Some(default_qid);
+            *shared.current_queue_id.lock().unwrap() = Some(default_qid);
+        }
+        let _ = app.emit("gameflow://game-mode", serde_json::json!({
+            "game_mode": state.game_mode,
+            "queue_id": state.queue_id,
+            "is_aram": true,
+            "is_mayhem": state.is_mayhem,
+        }));
+    }
 
     // Re-apply any manual enemy-role reassignments from the draft board, since
     // `state` above is rebuilt from scratch on every session push. Overrides

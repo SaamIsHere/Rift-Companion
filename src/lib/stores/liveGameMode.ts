@@ -26,14 +26,20 @@ export const liveGameMode = writable<LiveGameModeState>(initialState);
 
 export function updateLiveGameMode(info: GameModeInfo) {
   liveGameMode.update((state) => {
+    const modeUpper = info.game_mode ? info.game_mode.toUpperCase() : "";
+    const isMayhem = Boolean(
+      info.is_mayhem ||
+      info.queue_id === 2400 ||
+      modeUpper.includes("MAYHEM") ||
+      modeUpper.includes("KIWI")
+    );
     const isAram = Boolean(
       info.is_aram ||
       info.queue_id === 450 ||
-      (info.game_mode && info.game_mode.toUpperCase().includes("ARAM"))
-    );
-    const isMayhem = Boolean(
-      info.is_mayhem ||
-      (info.game_mode && info.game_mode.toUpperCase().includes("MAYHEM"))
+      info.queue_id === 2400 ||
+      isMayhem ||
+      modeUpper.includes("ARAM") ||
+      modeUpper.includes("KIWI")
     );
     return {
       ...state,
@@ -48,14 +54,20 @@ export function updateLiveGameMode(info: GameModeInfo) {
 // Automatically react to draft updates as well
 draft.subscribe((d) => {
   if (d) {
+    const modeUpper = d.game_mode ? d.game_mode.toUpperCase() : "";
+    const isMayhem = Boolean(
+      d.is_mayhem ||
+      d.queue_id === 2400 ||
+      modeUpper.includes("MAYHEM") ||
+      modeUpper.includes("KIWI")
+    );
     const isAram = Boolean(
       d.is_aram ||
       d.queue_id === 450 ||
-      (d.game_mode && d.game_mode.toUpperCase().includes("ARAM"))
-    );
-    const isMayhem = Boolean(
-      d.is_mayhem ||
-      (d.game_mode && d.game_mode.toUpperCase().includes("MAYHEM"))
+      d.queue_id === 2400 ||
+      isMayhem ||
+      modeUpper.includes("ARAM") ||
+      modeUpper.includes("KIWI")
     );
     if (isAram || d.game_mode || d.queue_id) {
       liveGameMode.update((s) => ({

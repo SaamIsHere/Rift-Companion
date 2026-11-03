@@ -246,6 +246,21 @@ export const LATEST_PATCH_DATA: PatchNotesData = {
 
     // Rift Companion Updates
     {
+      id: "app-update-031",
+      type: "app",
+      category: "app",
+      title: "Rift Companion v0.3.1 - Automatic Mode Detection, ARAM Mayhem & Item Set Cleanup",
+      summary: "Fully automated Summoner's Rift & ARAM / ARAM Mayhem detection, runes auto-hidden in Mayhem mode, automatic replacement of old item sets to prevent client spam, dedicated item sets cleanup tool, and refined English UI.",
+      details: [
+        "Automatic Game Mode Detection: Replaced manual mode switching in Live Match with 100% automated detection for Summoner's Rift, standard ARAM (Queue 450), and ARAM Mayhem (Queue 2400 / KIWI / MAYHEM) via LCU gameflow and live client streaming.",
+        "ARAM Mayhem Rune Suppression: In ARAM Mayhem matches, the runes column is automatically hidden since Mayhem replaces runes with augments, expanding Summoner Spells and Item Sets across the full view.",
+        "Item Set Spam Prevention & Replacement: Fixed an issue where companion item sets accumulated indefinitely across matches. Importing an item set now automatically cleans up previous Rift Companion sets, keeping only the active champion's build.",
+        "Manual Item Sets Cleanup Tool: Added a new 'Clean Up Item Sets' action in Settings under Item Sets Cleanup to immediately purge any accumulated Rift Companion item sets from the League of Legends client.",
+        "Settings UI Redesign: Streamlined auto-import settings with overarching tabs for Summoner's Rift and ARAM, each featuring compact, unified buttons for Runes, Summoners, and Item Sets.",
+        "Visual Polish & Localization: Removed all tree and snowflake emojis across tabs and badges for a cleaner look, and finalized full English localization across all remaining settings and modals.",
+      ],
+    },
+    {
       id: "app-update-030",
       type: "app",
       category: "app",

@@ -406,13 +406,28 @@ pub fn from_gameflow(
         .or_else(|| session.map.as_ref().map(|m| m.game_mode.clone()));
     let map_id = session.map.as_ref().map(|m| m.id);
 
-    let is_aram = queue_id == Some(450)
-        || map_id == Some(12)
-        || game_mode.as_ref().map_or(false, |m| m.to_uppercase().contains("ARAM"))
-        || session.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| q.game_mode.to_uppercase().contains("ARAM"));
+    let is_mayhem = queue_id == Some(2400)
+        || game_mode.as_ref().map_or(false, |m| {
+            let u = m.to_uppercase();
+            u.contains("MAYHEM") || u.contains("KIWI")
+        })
+        || session.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| {
+            let u = q.game_mode.to_uppercase();
+            u.contains("MAYHEM") || u.contains("KIWI") || q.id == 2400
+        });
 
-    let is_mayhem = game_mode.as_ref().map_or(false, |m| m.to_uppercase().contains("MAYHEM"))
-        || session.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| q.game_mode.to_uppercase().contains("MAYHEM"));
+    let is_aram = queue_id == Some(450)
+        || queue_id == Some(2400)
+        || map_id == Some(12)
+        || is_mayhem
+        || game_mode.as_ref().map_or(false, |m| {
+            let u = m.to_uppercase();
+            u.contains("ARAM") || u.contains("KIWI") || u.contains("MAYHEM")
+        })
+        || session.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| {
+            let u = q.game_mode.to_uppercase();
+            u.contains("ARAM") || u.contains("KIWI") || u.contains("MAYHEM")
+        });
 
     Some(DraftState {
         local_role,
@@ -931,10 +946,32 @@ pub fn from_live_client(
 
     let game_mode = existing.and_then(|e| e.game_mode.clone());
     let queue_id = existing.and_then(|e| e.queue_id);
-    let is_aram = game_mode.as_ref().map_or(false, |m| m.to_uppercase().contains("ARAM"))
-        || existing.map_or(false, |e| e.is_aram);
-    let is_mayhem = game_mode.as_ref().map_or(false, |m| m.to_uppercase().contains("MAYHEM"))
+    let has_mark_spell = players.iter().any(|p| {
+        p.summoner_spells.as_ref().map_or(false, |spells| {
+            let s1 = spells.summoner_spell_one.as_ref().map_or(false, |s| {
+                s.display_name.eq_ignore_ascii_case("Mark") || s.raw_display_name.contains("Mark") || s.raw_description.to_lowercase().contains("snowball")
+            });
+            let s2 = spells.summoner_spell_two.as_ref().map_or(false, |s| {
+                s.display_name.eq_ignore_ascii_case("Mark") || s.raw_display_name.contains("Mark") || s.raw_description.to_lowercase().contains("snowball")
+            });
+            s1 || s2
+        })
+    });
+    let is_mayhem = queue_id == Some(2400)
+        || game_mode.as_ref().map_or(false, |m| {
+            let u = m.to_uppercase();
+            u.contains("MAYHEM") || u.contains("KIWI")
+        })
         || existing.map_or(false, |e| e.is_mayhem);
+    let is_aram = queue_id == Some(450)
+        || queue_id == Some(2400)
+        || is_mayhem
+        || game_mode.as_ref().map_or(false, |m| {
+            let u = m.to_uppercase();
+            u.contains("ARAM") || u.contains("KIWI") || u.contains("MAYHEM")
+        })
+        || existing.map_or(false, |e| e.is_aram)
+        || has_mark_spell;
 
     Some(DraftState {
         local_role,

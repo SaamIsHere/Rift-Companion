@@ -31,7 +31,7 @@
     updateVersion,
   } from "../stores/updater";
   import { banHistory } from "../stores/bans";
-  import { getBanHistory, clearBanHistory } from "../ipc/tauri";
+  import { getBanHistory, clearBanHistory, cleanupRiftItemSets } from "../ipc/tauri";
 
   let testing = false;
   let testResult: { success: boolean; message: string } | null = null;
@@ -46,6 +46,9 @@
   let cropSourceFileName = "";
 
   let banStatusMessage: string | null = null;
+  let cleaningItemSets = false;
+  let itemSetCleanupMessage: string | null = null;
+  let autoImportTab: "rift" | "aram" = "rift";
 
   $: if ($settingsOpen) {
     void getBanHistory();
@@ -55,6 +58,24 @@
     await clearBanHistory();
     banStatusMessage = "Ban history cleared";
     setTimeout(() => { banStatusMessage = null; }, 2500);
+  }
+
+  async function handleCleanupItemSets() {
+    cleaningItemSets = true;
+    itemSetCleanupMessage = null;
+    try {
+      const count = await cleanupRiftItemSets();
+      if (count > 0) {
+        itemSetCleanupMessage = `Removed ${count} item set${count === 1 ? '' : 's'}`;
+      } else {
+        itemSetCleanupMessage = "No Rift item sets found";
+      }
+    } catch (err: any) {
+      itemSetCleanupMessage = typeof err === "string" ? err : (err?.message || "League client not reachable");
+    } finally {
+      cleaningItemSets = false;
+      setTimeout(() => { itemSetCleanupMessage = null; }, 3500);
+    }
   }
 
   $: isCustomServer =
@@ -692,7 +713,7 @@
           <div class="mb-3 flex items-center justify-between">
             <div class="flex flex-col">
               <h3 class="text-xs font-bold uppercase tracking-wide text-purple-300">Live Match &amp; Auto-Import</h3>
-              <span class="text-[11px] text-slate-400">Automatische Übernahme von Runen, Spells und Item-Sets</span>
+              <span class="text-[11px] text-slate-400">Automatically import builds during champion select</span>
             </div>
 
             <!-- Flash Key Preference -->
@@ -719,115 +740,154 @@
             </div>
           </div>
 
-          <div class="flex flex-col gap-3">
-            <!-- SUMMONER'S RIFT (CLASSIC) -->
-            <div class="rounded-lg border border-purple-500/10 bg-void-950/40 p-2.5">
-              <div class="text-[11px] font-bold uppercase tracking-wider text-purple-200 mb-2 flex items-center gap-1.5">
-                <span>🌲 Summoner's Rift (Kluft)</span>
-              </div>
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <!-- Mode Overarching Tabs: Summoner's Rift | ARAM -->
+          <div class="mb-2.5 flex items-center justify-between">
+            <div class="inline-flex items-center rounded-lg border border-purple-500/25 bg-void-950/80 p-0.5 text-xs shadow-inner">
+              <button
+                type="button"
+                on:click={() => autoImportTab = "rift"}
+                class="flex items-center gap-1.5 rounded-md px-3 py-1 font-bold transition-all cursor-pointer {autoImportTab === 'rift'
+                  ? 'bg-purple-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'}"
+              >
+                <span>Summoner's Rift</span>
+              </button>
+              <button
+                type="button"
+                on:click={() => autoImportTab = "aram"}
+                class="flex items-center gap-1.5 rounded-md px-3 py-1 font-bold transition-all cursor-pointer {autoImportTab === 'aram'
+                  ? 'bg-cyan-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'}"
+              >
+                <span>ARAM</span>
+              </button>
+            </div>
+
+            <!-- Active imports summary pill -->
+            <span class="text-[11px] text-slate-400">
+              {#if autoImportTab === "rift"}
+                {[
+                  $settings.auto_import_runes ? 'Runes' : null,
+                  $settings.auto_import_spells ? 'Summoners' : null,
+                  $settings.auto_import_items ? 'Items' : null,
+                ].filter(Boolean).join(' • ') || 'All disabled'}
+              {:else}
+                {[
+                  $settings.aram_auto_import_runes ? 'Runes' : null,
+                  $settings.aram_auto_import_spells ? 'Summoners' : null,
+                  $settings.aram_auto_import_items ? 'Items' : null,
+                ].filter(Boolean).join(' • ') || 'All disabled'}
+              {/if}
+            </span>
+          </div>
+
+          <!-- 3 Smaller Buttons / Tabs underneath for active mode -->
+          {#if autoImportTab === "rift"}
+            <div class="flex flex-col gap-2">
+              <div class="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   on:click={() => toggleSetting("auto_import_runes")}
-                  class="flex items-center justify-between rounded-lg border p-2 transition cursor-pointer {$settings.auto_import_runes
-                    ? 'border-emerald-500/50 bg-emerald-950/30 text-emerald-200'
-                    : 'border-white/5 bg-void-950/60 text-slate-400 hover:text-slate-200'}"
+                  class="flex items-center justify-center gap-1.5 rounded-lg border py-1.5 px-2 text-xs font-semibold transition cursor-pointer {$settings.auto_import_runes
+                    ? 'border-purple-400/60 bg-purple-600/35 text-white shadow-sm ring-1 ring-purple-400/40'
+                    : 'border-white/10 bg-void-950/60 text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
+                  title="Auto-import recommended runes for your champion"
                 >
-                  <span class="text-xs font-semibold">Runen</span>
-                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded {$settings.auto_import_runes ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/5 text-slate-500'}">
-                    {$settings.auto_import_runes ? 'AN' : 'AUS'}
-                  </span>
+                  <span class="text-[10px]">{$settings.auto_import_runes ? '✓' : '○'}</span>
+                  <span>Runes</span>
                 </button>
 
                 <button
                   type="button"
                   on:click={() => toggleSetting("auto_import_spells")}
-                  class="flex items-center justify-between rounded-lg border p-2 transition cursor-pointer {$settings.auto_import_spells
-                    ? 'border-emerald-500/50 bg-emerald-950/30 text-emerald-200'
-                    : 'border-white/5 bg-void-950/60 text-slate-400 hover:text-slate-200'}"
+                  class="flex items-center justify-center gap-1.5 rounded-lg border py-1.5 px-2 text-xs font-semibold transition cursor-pointer {$settings.auto_import_spells
+                    ? 'border-purple-400/60 bg-purple-600/35 text-white shadow-sm ring-1 ring-purple-400/40'
+                    : 'border-white/10 bg-void-950/60 text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
+                  title="Auto-import top summoner spells"
                 >
-                  <span class="text-xs font-semibold">Summoner Spells</span>
-                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded {$settings.auto_import_spells ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/5 text-slate-500'}">
-                    {$settings.auto_import_spells ? 'AN' : 'AUS'}
-                  </span>
+                  <span class="text-[10px]">{$settings.auto_import_spells ? '✓' : '○'}</span>
+                  <span>Summoners</span>
                 </button>
 
                 <button
                   type="button"
                   on:click={() => toggleSetting("auto_import_items")}
-                  class="flex items-center justify-between rounded-lg border p-2 transition cursor-pointer {$settings.auto_import_items
-                    ? 'border-emerald-500/50 bg-emerald-950/30 text-emerald-200'
-                    : 'border-white/5 bg-void-950/60 text-slate-400 hover:text-slate-200'}"
+                  class="flex items-center justify-center gap-1.5 rounded-lg border py-1.5 px-2 text-xs font-semibold transition cursor-pointer {$settings.auto_import_items
+                    ? 'border-purple-400/60 bg-purple-600/35 text-white shadow-sm ring-1 ring-purple-400/40'
+                    : 'border-white/10 bg-void-950/60 text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
+                  title="Auto-import item sets into the in-game shop"
                 >
-                  <span class="text-xs font-semibold">Item-Sets</span>
-                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded {$settings.auto_import_items ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/5 text-slate-500'}">
-                    {$settings.auto_import_items ? 'AN' : 'AUS'}
-                  </span>
+                  <span class="text-[10px]">{$settings.auto_import_items ? '✓' : '○'}</span>
+                  <span>Item Sets</span>
                 </button>
               </div>
             </div>
-
-            <!-- ARAM SETTINGS -->
-            <div class="rounded-lg border border-cyan-500/20 bg-cyan-950/10 p-2.5">
-              <div class="flex items-center justify-between mb-2">
-                <div class="text-[11px] font-bold uppercase tracking-wider text-cyan-200 flex items-center gap-1.5">
-                  <span>❄️ ARAM &amp; Mayhem</span>
-                  <span class="text-[9px] font-normal text-slate-400 lowercase">(Separates Setting)</span>
-                </div>
-
-                <!-- Mayhem Mode Switch -->
-                <button
-                  type="button"
-                  on:click={() => toggleSetting("aram_mayhem_mode")}
-                  class="flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-bold transition cursor-pointer {$settings.aram_mayhem_mode
-                    ? 'border-amber-400/60 bg-amber-500/20 text-amber-200'
-                    : 'border-white/10 bg-void-950/60 text-slate-400 hover:text-amber-200'}"
-                  title="In ARAM Mayhem gibt es keine Runen"
-                >
-                  <span>⚡ ARAM Mayhem ({$settings.aram_mayhem_mode ? 'Runen aus' : 'Inaktiv'})</span>
-                </button>
-              </div>
-
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {:else}
+            <div class="flex flex-col gap-2">
+              <div class="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   on:click={() => toggleSetting("aram_auto_import_runes")}
-                  class="flex items-center justify-between rounded-lg border p-2 transition cursor-pointer {$settings.aram_auto_import_runes
-                    ? 'border-cyan-500/50 bg-cyan-950/30 text-cyan-200'
-                    : 'border-white/5 bg-void-950/60 text-slate-400 hover:text-slate-200'}"
+                  class="flex items-center justify-center gap-1.5 rounded-lg border py-1.5 px-2 text-xs font-semibold transition cursor-pointer {$settings.aram_auto_import_runes
+                    ? 'border-cyan-400/60 bg-cyan-600/35 text-white shadow-sm ring-1 ring-cyan-400/40'
+                    : 'border-white/10 bg-void-950/60 text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
+                  title="Auto-import recommended ARAM runes"
                 >
-                  <span class="text-xs font-semibold">ARAM Runen</span>
-                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded {$settings.aram_auto_import_runes ? 'bg-cyan-500/20 text-cyan-300' : 'bg-white/5 text-slate-500'}">
-                    {$settings.aram_auto_import_runes ? 'AN' : 'AUS'}
-                  </span>
+                  <span class="text-[10px]">{$settings.aram_auto_import_runes ? '✓' : '○'}</span>
+                  <span>Runes</span>
                 </button>
 
                 <button
                   type="button"
                   on:click={() => toggleSetting("aram_auto_import_spells")}
-                  class="flex items-center justify-between rounded-lg border p-2 transition cursor-pointer {$settings.aram_auto_import_spells
-                    ? 'border-cyan-500/50 bg-cyan-950/30 text-cyan-200'
-                    : 'border-white/5 bg-void-950/60 text-slate-400 hover:text-slate-200'}"
+                  class="flex items-center justify-center gap-1.5 rounded-lg border py-1.5 px-2 text-xs font-semibold transition cursor-pointer {$settings.aram_auto_import_spells
+                    ? 'border-cyan-400/60 bg-cyan-600/35 text-white shadow-sm ring-1 ring-cyan-400/40'
+                    : 'border-white/10 bg-void-950/60 text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
+                  title="Auto-import ARAM summoner spells (non-Smite top combo)"
                 >
-                  <span class="text-xs font-semibold">ARAM Spells</span>
-                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded {$settings.aram_auto_import_spells ? 'bg-cyan-500/20 text-cyan-300' : 'bg-white/5 text-slate-500'}">
-                    {$settings.aram_auto_import_spells ? 'AN' : 'AUS'}
-                  </span>
+                  <span class="text-[10px]">{$settings.aram_auto_import_spells ? '✓' : '○'}</span>
+                  <span>Summoners</span>
                 </button>
 
                 <button
                   type="button"
                   on:click={() => toggleSetting("aram_auto_import_items")}
-                  class="flex items-center justify-between rounded-lg border p-2 transition cursor-pointer {$settings.aram_auto_import_items
-                    ? 'border-cyan-500/50 bg-cyan-950/30 text-cyan-200'
-                    : 'border-white/5 bg-void-950/60 text-slate-400 hover:text-slate-200'}"
+                  class="flex items-center justify-center gap-1.5 rounded-lg border py-1.5 px-2 text-xs font-semibold transition cursor-pointer {$settings.aram_auto_import_items
+                    ? 'border-cyan-400/60 bg-cyan-600/35 text-white shadow-sm ring-1 ring-cyan-400/40'
+                    : 'border-white/10 bg-void-950/60 text-slate-400 hover:text-slate-200 hover:bg-white/5'}"
+                  title="Auto-import ARAM item set"
                 >
-                  <span class="text-xs font-semibold">ARAM Item-Sets</span>
-                  <span class="text-[10px] font-bold px-1.5 py-0.5 rounded {$settings.aram_auto_import_items ? 'bg-cyan-500/20 text-cyan-300' : 'bg-white/5 text-slate-500'}">
-                    {$settings.aram_auto_import_items ? 'AN' : 'AUS'}
-                  </span>
+                  <span class="text-[10px]">{$settings.aram_auto_import_items ? '✓' : '○'}</span>
+                  <span>Item Sets</span>
                 </button>
               </div>
+            </div>
+          {/if}
+        </section>
+
+        <!-- ITEM SETS CLEANUP -->
+        <section class="rounded-xl border border-purple-500/15 bg-purple-950/20 p-3.5">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex flex-col">
+              <h3 class="text-xs font-bold uppercase tracking-wide text-purple-300">Item Sets Cleanup</h3>
+              <span class="text-[11px] text-slate-400">
+                Remove all previously imported Rift Companion item sets from your League client
+              </span>
+            </div>
+            <div class="flex items-center gap-2">
+              {#if itemSetCleanupMessage}
+                <span class="text-[10px] font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded animate-fade-in">
+                  {itemSetCleanupMessage}
+                </span>
+              {/if}
+              <button
+                type="button"
+                on:click={handleCleanupItemSets}
+                disabled={cleaningItemSets}
+                class="rounded-lg border border-purple-500/30 bg-purple-950/40 px-3 py-1.5 text-xs font-semibold text-purple-200 transition hover:bg-purple-900/40 hover:text-white disabled:opacity-50 cursor-pointer"
+              >
+                {cleaningItemSets ? 'Cleaning…' : 'Clean Up Item Sets'}
+              </button>
             </div>
           </div>
         </section>

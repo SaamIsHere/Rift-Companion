@@ -322,9 +322,9 @@
       }}
       on:keydown={handleKeydown}
       placeholder={$tftSelectedFilterTokens.length >= 4
-        ? 'Max. 4 Filter aktiv'
+        ? 'Max 4 filters active'
         : $tftSelectedFilterTokens.length > 0
-        ? 'Filter hinzufügen (bis 4)...'
+        ? 'Add filter (up to 4)...'
         : 'Search champions or items…'}
       class="w-full min-w-0 bg-transparent text-xs text-white placeholder-purple-300/40 focus:outline-none disabled:cursor-not-allowed disabled:text-slate-400"
     />

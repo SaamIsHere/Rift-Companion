@@ -89,15 +89,23 @@ jobs:
             ## Rift Companion Release ${{ steps.get_version.outputs.tag }}
 
             ### Highlights
-            * **Teamfight Tactics (TFT Set 18) Meta Hub & Team Builder:**
-              * Dedicated TFT hub featuring real-time Set 18 tier lists, meta compositions, augments, and item pairings.
-              * Interactive Team Builder with live trait breakpoint tracking and smart emblem synergy optimizer.
-            * **ARAM & ARAM Mayhem Live Match Mode Differentiation:**
-              * Dedicated auto-import settings under Settings -> ARAM & Auto-Import for runes, spells, and items.
-              * Automatic ARAM Mayhem detection with rune import suppression (since runes are disabled in Mayhem).
-              * Tailored ARAM summoner spell recommendations: top non-Smite combo as primary and instant Flash + Mark (Snowball) as secondary.
-            * **Landing Page & Navigation Streamline:**
-              * Cleaned up home landing page with centered official patch notes link and integrated mode navigation.
+            * **Automatic Game Mode & ARAM Mayhem Detection:**
+              * Replaced manual mode switching in the Live Match view with seamless automatic detection for Summoner's Rift, ARAM (Queue 450), and ARAM Mayhem (Queue 2400 / KIWI / MAYHEM).
+              * Direct real-time synchronization with LCU gameflow session, live client polling, and WebSocket events.
+            * **ARAM Mayhem Rune Suppression:**
+              * Automatically hides the runes column in Live Match when ARAM Mayhem is active, as runes are replaced by augments in Mayhem.
+              * Dynamically expands Summoner Spells and Item Sets across the entire container width with a clear `ARAM Mayhem (No Runes)` status badge.
+            * **Item Set Accumulation Fix & Automatic Replacement:**
+              * Fixed a persistent bug where companion item sets accumulated indefinitely across matches.
+              * Importing an item set (auto or manual) now automatically replaces previous Rift Companion item sets, keeping only the active champion's set while preserving all user-made custom sets.
+            * **Dedicated Item Sets Cleanup Tool:**
+              * Added a new **"Clean Up Item Sets"** action in Settings (under Item Sets Cleanup) to immediately purge all accumulated Rift Companion item sets from the League client via LCU API.
+            * **Settings UI Redesign:**
+              * Redesigned Auto-Import settings with overarching tabs for *Summoner's Rift* and *ARAM*, each containing three compact, unified buttons for *Runes*, *Summoners*, and *Item Sets*.
+              * Removed the obsolete manual ARAM Mayhem toggle since detection is now 100% automated.
+            * **Visual Polish & Complete English Localization:**
+              * Removed tree (🌲) and snowflake (❄️) emojis across settings tabs, live match badges, and post-game screens.
+              * Standardized all remaining German UI strings across settings, profile, and simulation views to clean, consistent English.
 
             ### Download & Installation
             * **Windows Installer:** Download `Rift-Companion_${{ steps.get_version.outputs.version }}_x64-setup.exe` below and double-click to install.

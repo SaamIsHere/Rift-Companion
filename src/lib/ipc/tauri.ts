@@ -135,6 +135,12 @@ export async function initIpc(): Promise<void> {
       if (mode) scoringMode.set(mode);
     } catch (_) {}
     try {
+      const gameModeInfo = await invoke<GameModeInfo>("get_game_mode_info");
+      if (gameModeInfo) {
+        updateLiveGameMode(gameModeInfo);
+      }
+    } catch (_) {}
+    try {
       const postGame = await invoke<any>("get_post_game_data");
       if (postGame && postGame.game) {
         loadPostGameFromRaw(postGame, false);
@@ -157,6 +163,15 @@ export async function initIpc(): Promise<void> {
         if (savedItems !== null) s.auto_import_items = savedItems === "true";
         const savedFlash = localStorage.getItem("rift_flash_key") as "D" | "F";
         if (savedFlash === "D" || savedFlash === "F") s.flash_key = savedFlash;
+
+        const savedAramRunes = localStorage.getItem("rift_aram_auto_import_runes");
+        if (savedAramRunes !== null) s.aram_auto_import_runes = savedAramRunes === "true";
+        const savedAramSpells = localStorage.getItem("rift_aram_auto_import_spells");
+        if (savedAramSpells !== null) s.aram_auto_import_spells = savedAramSpells === "true";
+        const savedAramItems = localStorage.getItem("rift_aram_auto_import_items");
+        if (savedAramItems !== null) s.aram_auto_import_items = savedAramItems === "true";
+        const savedAramMayhem = localStorage.getItem("rift_aram_mayhem_mode");
+        if (savedAramMayhem !== null) s.aram_mayhem_mode = savedAramMayhem === "true";
       } catch {}
     }
     settings.set(s);
@@ -338,6 +353,23 @@ export async function importItemSet(
     });
   } catch (err) {
     console.error("Failed to import item set via IPC", err);
+    throw err;
+  }
+}
+
+/**
+ * Removes all old Rift Companion item sets from the League of Legends client.
+ * Returns the number of removed item sets.
+ */
+export async function cleanupRiftItemSets(): Promise<number> {
+  if (!isTauri) {
+    console.log("[Mock] cleanupRiftItemSets");
+    return 0;
+  }
+  try {
+    return await invoke<number>("cleanup_rift_item_sets");
+  } catch (err) {
+    console.error("Failed to cleanup rift item sets via IPC", err);
     throw err;
   }
 }

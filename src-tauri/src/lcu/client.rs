@@ -817,12 +817,26 @@ pub async fn set_summoner_spells_in_lcu(
     Ok(resp.status().is_success())
 }
 
+/// Returns true if an item set title was created by Rift Companion.
+pub fn is_rift_item_set(title: &str) -> bool {
+    let t = title.trim();
+    let lower = t.to_lowercase();
+    lower.starts_with("rift:")
+        || lower.starts_with("rift :")
+        || lower.starts_with("rift -")
+        || lower.starts_with("rift-")
+        || lower.starts_with("rift ")
+        || lower.starts_with("rift companion")
+        || lower.starts_with("[rift]")
+        || lower == "rift"
+}
+
 async fn save_item_sets_to_url(
     client: &reqwest::Client,
     lock: &Lockfile,
     target_id: u64,
     account_id: u64,
-    champion_id: u32,
+    _champion_id: u32,
     set_title: &str,
     new_set: &serde_json::Value,
 ) -> Result<bool> {
@@ -848,11 +862,11 @@ async fn save_item_sets_to_url(
                     root_account_id = acc;
                 }
                 if let Some(existing_sets) = current_data.get_mut("itemSets").and_then(|v| v.as_array_mut()) {
+                    // Remove all previous Rift Companion item sets to avoid spamming the client with sets for every champion
                     existing_sets.retain(|s| {
                         let title = s.get("title").and_then(|v| v.as_str()).unwrap_or("");
-                        let champs = s.get("associatedChampions").and_then(|v| v.as_array());
-                        let has_champ = champs.map(|c| c.iter().any(|cid| cid.as_u64() == Some(champion_id as u64))).unwrap_or(false);
-                        !(title == set_title || (title.starts_with("Rift:") && has_champ))
+                        let is_rift = is_rift_item_set(title) || title == set_title;
+                        !is_rift
                     });
                     item_sets = std::mem::take(existing_sets);
                 }
@@ -967,4 +981,94 @@ pub async fn set_item_set_in_lcu(
     }
 
     Ok(false)
+}
+
+/// Deletes all Rift Companion item sets from the League client via LCU API.
+/// Returns the total number of deleted item sets.
+pub async fn delete_all_rift_item_sets_in_lcu(lock: &Lockfile) -> Result<u32> {
+    let client = http_client()?;
+    let current_summoner_url = format!("https://127.0.0.1:{}/lol-summoner/v1/current-summoner", lock.port);
+    let summoner_resp = client
+        .get(&current_summoner_url)
+        .header("Authorization", auth_header(lock))
+        .send()
+        .await?;
+
+    if !summoner_resp.status().is_success() {
+        return Err(anyhow::anyhow!("League client is not responding. Please make sure the League client is logged in."));
+    }
+
+    let summoner_json: serde_json::Value = summoner_resp.json().await?;
+    let summoner_id = summoner_json.get("summonerId").and_then(|v| v.as_u64()).unwrap_or(0);
+    let account_id = summoner_json.get("accountId").and_then(|v| v.as_u64()).unwrap_or(summoner_id);
+
+    if summoner_id == 0 && account_id == 0 {
+        return Err(anyhow::anyhow!("Could not determine summoner or account ID from League client."));
+    }
+
+    let mut target_ids = Vec::new();
+    if summoner_id > 0 {
+        target_ids.push(summoner_id);
+    }
+    if account_id > 0 && account_id != summoner_id {
+        target_ids.push(account_id);
+    }
+
+    let mut total_removed: u32 = 0;
+
+    for target_id in target_ids {
+        let sets_url = format!("https://127.0.0.1:{}/lol-item-sets/v1/item-sets/{}/sets", lock.port, target_id);
+        let get_res = client
+            .get(&sets_url)
+            .header("Authorization", auth_header(lock))
+            .send()
+            .await;
+
+        if let Ok(resp) = get_res {
+            if resp.status().is_success() {
+                if let Ok(mut current_data) = resp.json::<serde_json::Value>().await {
+                    let root_account_id = current_data.get("accountId").and_then(|v| v.as_u64()).unwrap_or(account_id);
+                    if let Some(existing_sets) = current_data.get_mut("itemSets").and_then(|v| v.as_array_mut()) {
+                        let initial_count = existing_sets.len();
+                        existing_sets.retain(|s| {
+                            let title = s.get("title").and_then(|v| v.as_str()).unwrap_or("");
+                            !is_rift_item_set(title)
+                        });
+                        let removed = (initial_count.saturating_sub(existing_sets.len())) as u32;
+                        if removed > 0 {
+                            total_removed += removed;
+                            let now = std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .map(|d| d.as_millis() as u64)
+                                .unwrap_or(0);
+                            let payload = serde_json::json!({
+                                "accountId": root_account_id,
+                                "itemSets": existing_sets,
+                                "timestamp": now
+                            });
+                            let put_resp = client
+                                .put(&sets_url)
+                                .header("Authorization", auth_header(lock))
+                                .json(&payload)
+                                .send()
+                                .await;
+
+                            if let Ok(resp) = put_resp {
+                                if !resp.status().is_success() {
+                                    let _ = client
+                                        .post(&sets_url)
+                                        .header("Authorization", auth_header(lock))
+                                        .json(&payload)
+                                        .send()
+                                        .await;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(total_removed)
 }

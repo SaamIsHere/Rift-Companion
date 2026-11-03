@@ -490,7 +490,7 @@ function assignBadges(
         name: "Abyss Legend",
         category: "special",
         tier: "gold",
-        icon: "❄️",
+        icon: "👑",
         description: "Match MVP on the Howling Abyss with dominant teamfight execution.",
         valueDisplay: `Score ${p.overallScore.toFixed(1)}`,
         isHighlight: true,
