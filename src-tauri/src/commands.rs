@@ -226,28 +226,42 @@ pub async fn ban_champion(champion_id: u32, lock_in: bool) -> Result<bool, Strin
         .map_err(|e| e.to_string())
 }
 
+fn active_puuid(state: &State<Shared>) -> Option<String> {
+    state
+        .profile
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|p| p.puuid.clone())
+        .filter(|p| !p.trim().is_empty())
+}
+
 /// Get the up to 5 most recent unique ban suggestions.
 #[tauri::command]
-pub fn get_recent_bans() -> Vec<u32> {
-    crate::data::store::get_recent_ban_suggestions()
+pub fn get_recent_bans(state: State<Shared>) -> Vec<u32> {
+    let puuid = active_puuid(&state);
+    crate::data::store::get_recent_ban_suggestions_for(puuid.as_deref())
 }
 
 /// Get full recorded ban history (up to 20 bans).
 #[tauri::command]
-pub fn get_ban_history() -> Vec<u32> {
-    crate::data::store::read_ban_history()
+pub fn get_ban_history(state: State<Shared>) -> Vec<u32> {
+    let puuid = active_puuid(&state);
+    crate::data::store::read_ban_history_for(puuid.as_deref())
 }
 
 /// Record a ban into FIFO history.
 #[tauri::command]
-pub fn record_ban(champion_id: u32) -> Vec<u32> {
-    crate::data::store::record_ban(champion_id)
+pub fn record_ban(state: State<Shared>, champion_id: u32) -> Vec<u32> {
+    let puuid = active_puuid(&state);
+    crate::data::store::record_ban_for(puuid.as_deref(), champion_id)
 }
 
 /// Clear recorded ban history.
 #[tauri::command]
-pub fn clear_ban_history() -> Result<(), String> {
-    crate::data::store::clear_ban_history().map_err(|e| e.to_string())
+pub fn clear_ban_history(state: State<Shared>) -> Result<(), String> {
+    let puuid = active_puuid(&state);
+    crate::data::store::clear_ban_history_for(puuid.as_deref()).map_err(|e| e.to_string())
 }
 
 /// Import a rune page into the League of Legends client.
@@ -622,7 +636,9 @@ pub fn force_refresh_data(state: State<Shared>, app: AppHandle) {
         tauri::async_runtime::spawn(async move {
             let _ = app_clone.emit("rank-refresh://status", "refreshing");
             let _ = opgg::remote::trigger_refresh(&server_url, Some(tier.as_opgg_tier()), Some(&api_key)).await;
-            let _ = crate::tft::sync_from_server(&server_url, Some(&api_key)).await;
+            if let Ok(decks) = crate::tft::sync_from_server(&server_url, Some(&api_key)).await {
+                let _ = app_clone.emit("tft://updated", &decks);
+            }
             match opgg::remote::fetch_stats(&server_url, tier, Some(&api_key)).await {
                 Ok(champions) => {
                     let count = champions.len();

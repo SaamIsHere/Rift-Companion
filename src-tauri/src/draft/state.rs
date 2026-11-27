@@ -72,6 +72,10 @@ fn parse_player_slot_name(p: &crate::lcu::models::PlayerSlot) -> Option<String> 
 }
 
 pub fn from_session(repo: &Repository, s: &ChampSelectSession) -> DraftState {
+    from_session_for(repo, s, None)
+}
+
+pub fn from_session_for(repo: &Repository, s: &ChampSelectSession, local_puuid: Option<&str>) -> DraftState {
     let local_cell = s.local_player_cell_id;
     let local_slot = s.my_team.iter().find(|p| p.cell_id == local_cell);
 
@@ -177,10 +181,11 @@ pub fn from_session(repo: &Repository, s: &ChampSelectSession) -> DraftState {
     let is_ban_phase = s.actions.iter().any(|round| {
         round.iter().any(|a| a.action_type == "ban" && a.is_in_progress)
     });
-    let local_ban_completed = s.actions.iter().any(|round| {
-        round.iter().any(|a| a.actor_cell_id == local_cell && a.action_type == "ban" && a.completed)
-    });
-    let recent_bans = crate::data::store::get_recent_ban_suggestions();
+    let local_ban_completed = local_cell >= 0
+        && s.actions.iter().any(|round| {
+            round.iter().any(|a| a.actor_cell_id == local_cell && a.action_type == "ban" && a.completed)
+        });
+    let recent_bans = crate::data::store::get_recent_ban_suggestions_for(local_puuid);
 
     DraftState {
         local_role,
@@ -439,7 +444,7 @@ pub fn from_gameflow(
         enemies,
         is_ban_phase: false,
         local_ban_completed: true,
-        recent_bans: crate::data::store::get_recent_ban_suggestions(),
+        recent_bans: crate::data::store::get_recent_ban_suggestions_for(local_puuid),
         game_mode,
         queue_id,
         is_aram,
@@ -983,7 +988,7 @@ pub fn from_live_client(
         enemies,
         is_ban_phase: false,
         local_ban_completed: true,
-        recent_bans: crate::data::store::get_recent_ban_suggestions(),
+        recent_bans: existing.map(|d| d.recent_bans.clone()).unwrap_or_else(crate::data::store::get_recent_ban_suggestions),
         game_mode,
         queue_id,
         is_aram,

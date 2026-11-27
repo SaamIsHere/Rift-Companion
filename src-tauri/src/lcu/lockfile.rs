@@ -27,7 +27,11 @@ pub struct Lockfile {
 pub fn is_league_process_alive(pid: u32) -> bool {
     let mut sys = System::new();
     let sys_pid = sysinfo::Pid::from_u32(pid);
-    sys.refresh_processes(ProcessesToUpdate::Some(&[sys_pid]), true);
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::Some(&[sys_pid]),
+        true,
+        sysinfo::ProcessRefreshKind::new(),
+    );
     if let Some(proc) = sys.process(sys_pid) {
         let name = proc.name().to_string_lossy().to_lowercase();
         name.starts_with("leagueclient")

@@ -306,6 +306,22 @@ export async function fetchOpggBuildData(championKey, role, tier, dd) {
       return dd?.spellsById?.get(id) || alt || `Spell ${id}`;
     }
 
+    function parseRowStats(str) {
+      const prMatch = str.match(/"tabular-nums","children":"([0-9.]+)%"\}/);
+      const wrMatch = str.match(/tabular-nums text-[^"]*","children":"([0-9.]+)%"\}/);
+      let games = null;
+      const gMatch1 = str.match(/"children":"([0-9,]+)\s+games"\}/i);
+      const gMatch2 = str.match(/"children":\["([0-9,]+)",(?:"\s*",)?\s*"games"\]/i);
+      if (gMatch1) games = parseInt(gMatch1[1].replace(/,/g, ""), 10);
+      else if (gMatch2) games = parseInt(gMatch2[1].replace(/,/g, ""), 10);
+
+      return {
+        pick_rate: prMatch ? round3(parseFloat(prMatch[1]) / 100) : null,
+        win_rate: wrMatch ? round3(parseFloat(wrMatch[1]) / 100) : null,
+        play: games,
+      };
+    }
+
     function parseRow(rowNode) {
       const str = JSON.stringify(rowNode);
       const itemIds = [];
@@ -318,20 +334,10 @@ export async function fetchOpggBuildData(championKey, role, tier, dd) {
         itemNames.push(getItemName(id, m[2]));
       }
 
-      const prMatch = str.match(/"tabular-nums","children":"([0-9.]+)%"\}/);
-      const wrMatch = str.match(/tabular-nums text-[^"]*","children":"([0-9.]+)%"\}/);
-      let games = null;
-      const gMatch1 = str.match(/"children":"([0-9,]+) Games"\}/);
-      const gMatch2 = str.match(/"children":\["([0-9,]+)","\s*","Games"\]/);
-      if (gMatch1) games = parseInt(gMatch1[1].replace(/,/g, ""), 10);
-      else if (gMatch2) games = parseInt(gMatch2[1].replace(/,/g, ""), 10);
-
       return {
         ids: itemIds,
         names: itemNames,
-        pick_rate: prMatch ? round3(parseFloat(prMatch[1]) / 100) : null,
-        win_rate: wrMatch ? round3(parseFloat(wrMatch[1]) / 100) : null,
-        play: games,
+        ...parseRowStats(str),
       };
     }
 
@@ -438,20 +444,10 @@ export async function fetchOpggBuildData(championKey, role, tier, dd) {
           }
         }
         if (spellIds.length >= 2) {
-          const prMatch = str.match(/"tabular-nums","children":"([0-9.]+)%"\}/);
-          const wrMatch = str.match(/tabular-nums text-[^"]*","children":"([0-9.]+)%"\}/);
-          let games = null;
-          const gMatch1 = str.match(/"children":"([0-9,]+) Games"\}/);
-          const gMatch2 = str.match(/"children":\["([0-9,]+)","\s*","Games"\]/);
-          if (gMatch1) games = parseInt(gMatch1[1].replace(/,/g, ""), 10);
-          else if (gMatch2) games = parseInt(gMatch2[1].replace(/,/g, ""), 10);
-
           result.summoner_spells.push({
             ids: spellIds.slice(0, 2),
             names: spellNames.slice(0, 2),
-            pick_rate: prMatch ? round3(parseFloat(prMatch[1]) / 100) : null,
-            win_rate: wrMatch ? round3(parseFloat(wrMatch[1]) / 100) : null,
-            play: games,
+            ...parseRowStats(str),
           });
         }
       }
@@ -517,20 +513,10 @@ export async function fetchOpggBuildData(championKey, role, tier, dd) {
           if (!prio.includes(p)) prio.push(p);
         }
 
-        const prMatch = str.match(/"tabular-nums","children":"([0-9.]+)%"\}/);
-        const wrMatch = str.match(/tabular-nums text-[^"]*","children":"([0-9.]+)%"\}/);
-        let games = null;
-        const gMatch1 = str.match(/"children":"([0-9,]+) Games"\}/);
-        const gMatch2 = str.match(/"children":\["([0-9,]+)","\s*","Games"\]/);
-        if (gMatch1) games = parseInt(gMatch1[1].replace(/,/g, ""), 10);
-        else if (gMatch2) games = parseInt(gMatch2[1].replace(/,/g, ""), 10);
-
         result.skill_order = {
           priority: prio.slice(0, 3),
           order: null, // enriched via MCP
-          pick_rate: prMatch ? round3(parseFloat(prMatch[1]) / 100) : null,
-          win_rate: wrMatch ? round3(parseFloat(wrMatch[1]) / 100) : null,
-          play: games,
+          ...parseRowStats(str),
         };
       }
     }
@@ -1032,6 +1018,16 @@ export async function crawlBaseTier(opggTier = "emerald_plus", options: Record<s
         }
 
         if (buildData) {
+          // Ensure depth items (4th, 5th, 6th) and boots have pick_rate populated from game counts when omitted by OP.GG web tables
+          if (rs.games > 0) {
+            for (const slot of ["fourth_items", "fifth_items", "sixth_items", "boots"]) {
+              for (const item of buildData[slot] || []) {
+                if (item.pick_rate == null && item.play != null && item.play > 0) {
+                  item.pick_rate = round4(item.play / rs.games);
+                }
+              }
+            }
+          }
           rs.build = buildData;
         }
       } catch (e) {
@@ -1301,6 +1297,14 @@ function generateStandardLevelingGuide(playStyle: string): any[] {
       { stage: "Stage 5", level: 8, description: "Level to 8 to cap out late game board with supporting synergies." },
     ];
   }
+  if (playStyle.includes("Fast 9")) {
+    return [
+      { stage: "Stage 2", level: 4, description: "Play strongest board with win-streak tempo or economy augments to preserve HP for Stage 4." },
+      { stage: "Stage 3", level: 6, description: "Level to 6 at Stage 3-2 and 7 at Stage 3-5/4-1 without over-rolling." },
+      { stage: "Stage 4", level: 8, description: "Level to 8 at Stage 4-2, stabilize on 2-star 4-costs, and preserve gold to push 9." },
+      { stage: "Stage 5", level: 9, description: "Level to 9 on Stage 5-1/5-2 and roll down to cap around 2-star 5-cost legendaries." },
+    ];
+  }
   return [
     { stage: "Stage 2", level: 4, description: "Slam flexible items on early item holders. Play for win streak or loss streak econ." },
     { stage: "Stage 3", level: 6, description: "Level to 6 at Stage 3-2. Upgrade a couple 2-costs if weak, but stay above 30-40 gold." },
@@ -1309,9 +1313,20 @@ function generateStandardLevelingGuide(playStyle: string): any[] {
   ];
 }
 
+const TFT_TANK_ITEM_KEYWORDS = [
+  "warmog", "bramble", "dragonclaw", "dragonsclaw", "gargoyle", "sunfire",
+  "protectorsvow", "steadfast", "evenshroud", "crownguard", "adaptivehelm",
+  "spiritvisage", "redemption", "titansresolve", "bloodthirster", "ionic", "frozenheart",
+];
+
+function isTftTankItemKey(itemIdOrName: string): boolean {
+  const clean = (itemIdOrName || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return TFT_TANK_ITEM_KEYWORDS.some((kw) => clean.includes(kw));
+}
+
 /**
- * Crawl full set of TFT meta decks (all 50 comps across OP, S, A, B, C, D tiers)
- * directly from OP.GG's meta trends React Server Component stream.
+ * Crawl full set of TFT meta decks (all comps across OP, S, A, B, C, D tiers)
+ * directly from OP.GG's meta trends React Server Component stream (v4 + legacy fallback).
  */
 async function fetchOpggTftWebDecks(): Promise<any[] | null> {
   const url = "https://op.gg/tft/meta-trends/comps";
@@ -1338,6 +1353,94 @@ async function fetchOpggTftWebDecks(): Promise<any[] | null> {
     if (!fullStream) return null;
 
     const lines = fullStream.split("\n");
+    const chunkMap = new Map<string, string>();
+    let curId: string | null = null;
+    let curContent: string[] = [];
+    for (const line of lines) {
+      const m = line.match(/^([0-9a-f]+):(.*)$/);
+      if (m) {
+        if (curId !== null) chunkMap.set(curId, curContent.join("\n"));
+        curId = m[1];
+        curContent = [m[2]];
+      } else if (curId !== null) {
+        curContent.push(line);
+      }
+    }
+    if (curId !== null) chunkMap.set(curId, curContent.join("\n"));
+
+    const parsedChunks = new Map<string, any>();
+    function getChunk(id: string): any {
+      if (parsedChunks.has(id)) return parsedChunks.get(id);
+      const raw = chunkMap.get(id);
+      if (!raw) return null;
+      try {
+        const val = JSON.parse(raw);
+        parsedChunks.set(id, val);
+        return val;
+      } catch {
+        return null;
+      }
+    }
+
+    // Resolve Next.js RSC references such as "$70:props:children:props:data:items:32" or "$L70"
+    function resolveReactRef(val: any, depth = 0): any {
+      if (depth > 25 || typeof val !== "string" || !val.startsWith("$")) return val;
+      const lazy = val.match(/^\$L([0-9a-f]+)$/);
+      if (lazy) return getChunk(lazy[1]);
+
+      const pathMatch = val.match(/^\$([0-9a-f]+):(.*)$/);
+      if (!pathMatch) return val;
+
+      let cur = getChunk(pathMatch[1]);
+      for (const part of pathMatch[2].split(":")) {
+        if (cur == null) return null;
+        if (part === "props" && Array.isArray(cur) && cur[0] === "$") {
+          cur = cur[3];
+        } else {
+          cur = cur[part];
+        }
+      }
+      if (typeof cur === "string" && cur.startsWith("$")) {
+        return resolveReactRef(cur, depth + 1);
+      }
+      return cur;
+    }
+
+    // 1) Try OP.GG TFT v4 stream payload (data.source === "v4" && Array.isArray(data.comps))
+    for (const [id, raw] of chunkMap.entries()) {
+      if (!raw.includes('"source":"v4"')) continue;
+      const parsed = getChunk(id);
+      if (!parsed) continue;
+
+      let v4Data: any = null;
+      function findV4Data(node: any) {
+        if (v4Data || !node || typeof node !== "object") return;
+        if (node.source === "v4" && Array.isArray(node.comps)) {
+          v4Data = node;
+          return;
+        }
+        if (Array.isArray(node)) {
+          for (const item of node) findV4Data(item);
+        } else {
+          for (const v of Object.values(node)) findV4Data(v);
+        }
+      }
+      findV4Data(parsed);
+
+      if (v4Data && v4Data.comps.length > 0) {
+        const resolvedComps = v4Data.comps.map((comp: any) => ({
+          ...comp,
+          units: (comp.units || []).map((u: any) => ({
+            ...u,
+            items: (u.items || []).map((it: any) => resolveReactRef(it)).filter(Boolean),
+          })),
+        }));
+        console.log(`[crawler] Extracted ${resolvedComps.length} TFT v4 meta decks directly from OP.GG web stream.`);
+        return resolvedComps;
+      }
+    }
+
+    // 2) Legacy RSC stream fallback
     const rawList: any[] = [];
     for (const line of lines) {
       if (line.includes('"name":{"') || line.includes('"opTier"')) {
@@ -1370,7 +1473,7 @@ async function fetchOpggTftWebDecks(): Promise<any[] | null> {
         seen.add(key);
         return true;
       });
-      console.log(`[crawler] Extracted ${unique.length} TFT meta decks directly from OP.GG web stream.`);
+      console.log(`[crawler] Extracted ${unique.length} TFT meta decks directly from OP.GG legacy web stream.`);
       return unique;
     }
     return null;
@@ -1386,7 +1489,7 @@ async function fetchOpggTftWebDecks(): Promise<any[] | null> {
 export async function crawlTftMeta(options: { dataDir: string }) {
   console.log("[crawler] Crawling TFT meta decks from OP.GG...");
 
-  // 1. Try pulling all 50 meta decks from the OP.GG web stream first
+  // 1. Try pulling all meta decks from the OP.GG web stream first
   let rawList = await fetchOpggTftWebDecks();
 
   // 2. Fall back to OP.GG MCP client if web stream returned no decks
@@ -1404,67 +1507,125 @@ export async function crawlTftMeta(options: { dataDir: string }) {
   }
 
   const decks = rawList.map((d: any, idx: number) => {
-    const opTier = d.stat?.opTier;
+    const rawTier = String(d.stats?.tier || d.stat?.opTier || "D").toUpperCase();
     let tier = "D";
-    if (opTier === "OP" || opTier === "S") {
+    if (rawTier === "OP" || rawTier === "S") {
       tier = "S";
-    } else if (opTier === "A") {
+    } else if (rawTier === "A") {
       tier = "A";
-    } else if (opTier === "B") {
+    } else if (rawTier === "B") {
       tier = "B";
-    } else if (opTier === "C") {
+    } else if (rawTier === "C") {
       tier = "C";
-    } else {
-      tier = "D";
     }
+
     const badges = Array.isArray(d.badge) ? d.badge : [];
     const diffBadge = badges.find((b: any) => b.key === "difficulty");
     const rerollBadge = badges.find((b: any) => b.key === "reroll");
+    const diffVal = d.difficulty ?? diffBadge?.value;
 
     let difficulty = "Medium";
-    if (diffBadge) {
-      if (diffBadge.value === 1) difficulty = "Easy";
-      else if (diffBadge.value === 3) difficulty = "Hard";
-    }
+    if (diffVal === 1 || diffVal === "Easy") difficulty = "Easy";
+    else if (diffVal === 3 || diffVal === "Hard") difficulty = "Hard";
 
     let playStyle = "Standard";
-    if (rerollBadge && rerollBadge.value) {
+    if (d.isReroll && d.strategyLevel) {
+      playStyle = `Slow Roll Lvl ${d.strategyLevel}`;
+    } else if (rerollBadge && rerollBadge.value) {
       playStyle = `Slow Roll Lvl ${rerollBadge.value}`;
-    } else if (d.cost >= 70) {
+    } else if ((d.strategyLevel ?? d.level) >= 9) {
+      playStyle = "Fast 9";
+    } else if ((d.strategyLevel ?? d.level) >= 8 || d.cost >= 70) {
       playStyle = "Fast 8";
     }
 
     const units = (d.units || []).map((u: any) => {
-      const info = TFT_SET18_CHAMPIONS[u.key] || {
-        name: u.meta?.name || u.key.replace(/^DA_18_|^DA_|_AD$|_AP$|18$/g, "").replace(/([a-z])([A-Z])/g, "$1 $2"),
-        cost: u.meta?.cost || 3,
+      const fallback = TFT_SET18_CHAMPIONS[u.key] || {
+        name:
+          u.name ||
+          u.meta?.name ||
+          (u.key || "").replace(/^DA_18_|^DA_|_AD$|_AP$|18$/g, "").replace(/([a-z])([A-Z])/g, "$1 $2"),
+        cost: u.cost || u.meta?.cost || 3,
       };
+      const mappedItems = (u.items || [])
+        .map((it: any) => {
+          if (it && typeof it === "object") {
+            const key = it.key || it.id || "";
+            return {
+              id: key,
+              name: it.name || key.replace(/^DA_/, "").replace(/([a-z])([A-Z])/g, "$1 $2"),
+              image_url: it.imageUrl || it.image_url || `https://c-tft-api.op.gg/img/set/18/tft-item/${key}.png`,
+            };
+          }
+          if (typeof it === "string" && !it.startsWith("$")) {
+            return {
+              id: it,
+              name: it.replace(/^DA_/, "").replace(/([a-z])([A-Z])/g, "$1 $2"),
+              image_url: `https://c-tft-api.op.gg/img/set/18/tft-item/${it}.png`,
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      const hasValidCell =
+        u.cell &&
+        typeof u.cell.x === "number" &&
+        typeof u.cell.y === "number" &&
+        u.cell.x >= 1 &&
+        u.cell.x <= 7 &&
+        u.cell.y >= 1 &&
+        u.cell.y <= 4;
+
       return {
         id: u.key,
-        name: info.name,
-        cost: info.cost,
-        star: u.tier || 2,
-        items: (u.items || []).map((itKey: string) => ({
-          id: itKey,
-          name: itKey.replace(/^DA_/, "").replace(/([a-z])([A-Z])/g, "$1 $2"),
-          image_url: `https://c-tft-api.op.gg/img/set/18/tft-item/${itKey}.png`,
-        })),
-        cell: { x: u.cell?.x ?? 1, y: u.cell?.y ?? 1 },
-        is_carry: Boolean(u.isCore || (u.items && u.items.length > 0)),
-        image_url: u.meta?.imageUrl || `https://assets.tftacademy.com/champions/champion_icons/${u.key}.webp`,
+        name: u.name || fallback.name,
+        cost: u.cost ?? fallback.cost,
+        star: u.star || u.tier || u.observedStar || 2,
+        items: mappedItems,
+        cell: hasValidCell ? { x: u.cell.x, y: u.cell.y } : null,
+        is_carry: Boolean(
+          u.role === "carry" ||
+            u.isCore ||
+            (mappedItems.length > 0 && u.role !== "tank")
+        ),
+        _roleHint: u.role || null,
+        image_url:
+          u.imageUrl ||
+          u.meta?.imageUrl ||
+          `https://assets.tftacademy.com/champions/champion_icons/${u.key}.webp`,
       };
     });
 
     // Ensure all units have distinct cell coordinates on the 4x7 grid
     const occupiedCells = new Set<string>();
+    const frontCols = [4, 3, 5, 2, 6, 1, 7];
+    const backCols = [1, 7, 2, 6, 3, 5, 4];
+
+    for (const u of units) {
+      if (u.cell) {
+        const key = `${u.cell.x},${u.cell.y}`;
+        if (!occupiedCells.has(key)) {
+          occupiedCells.add(key);
+        } else {
+          u.cell = null;
+        }
+      }
+    }
+
     units.forEach((u: any, uIdx: number) => {
-      const cellKey = ${u.cell.x},;
-      if (occupiedCells.has(cellKey)) {
-        const preferredY = uIdx < 4 ? 4 : 1;
+      if (!u.cell) {
+        const hasTankItem = u.items.some((it: any) => isTftTankItemKey(it.id || it.name));
+        const isTank =
+          u._roleHint === "tank" ||
+          hasTankItem ||
+          (!u.is_carry && u.items.length === 0 && uIdx % 2 === 0);
+        const rows = isTank ? [4, 3, 2, 1] : [1, 2, 3, 4];
+        const cols = isTank ? frontCols : backCols;
         let placed = false;
-        for (const y of [preferredY, 4, 3, 2, 1]) {
-          for (const x of [4, 3, 5, 2, 6, 1, 7]) {
-            const cand = ${x},;
+        for (const y of rows) {
+          for (const x of cols) {
+            const cand = `${x},${y}`;
             if (!occupiedCells.has(cand)) {
               u.cell = { x, y };
               occupiedCells.add(cand);
@@ -1474,35 +1635,43 @@ export async function crawlTftMeta(options: { dataDir: string }) {
           }
           if (placed) break;
         }
-      } else {
-        occupiedCells.add(cellKey);
       }
+      delete u._roleHint;
     });
 
     const traits = (d.traits || [])
       .filter((t: any) => t.style > 0)
       .map((t: any) => {
-        let tName = t.meta?.name || t.key.replace(/^DA_18_|^DA_|18$|UniqueTrait$/g, "");
-        tName = tName.replace(/([a-z])([A-Z])/g, "$1 $2");
+        let tName =
+          t.name ||
+          t.meta?.name ||
+          (t.key || "").replace(/^DA_18_|^DA_|18$|UniqueTrait$/g, "").replace(/([a-z])([A-Z])/g, "$1 $2");
         let tierStr = "bronze";
-        if (t.style === 2) tierStr = "silver";
-        if (t.style === 3) tierStr = "gold";
-        if (t.style === 4) tierStr = "prismatic";
+        if (t.style === 3) tierStr = "silver";
+        else if (t.style === 4) tierStr = "gold";
+        else if (t.style >= 5) tierStr = "prismatic";
         return {
           name: tName,
-          count: t.numUnits,
+          count: t.count ?? t.numUnits ?? 1,
           tier: tierStr,
-          icon_url: t.meta?.imageUrl || `https://assets.tftacademy.com/traits/${t.key}.svg`,
+          icon_url: t.imageUrl || t.meta?.imageUrl || `https://assets.tftacademy.com/traits/${t.key}.svg`,
         };
       });
 
+    const avgPlacement = d.stats?.avgPlacement ?? d.stat?.deck?.avgPlacement ?? d.stat?.label?.avgPlacement ?? 4.0;
+    const rawTop4 = d.stats?.top4Rate ?? d.stat?.deck?.top4Rate ?? 0.5;
+    const rawPick = d.stats?.pickRate ?? d.stat?.deck?.pickRate ?? 0.05;
+
     return {
       id: d.id || `opgg-tft-${idx}`,
-      name: d.name?.en_US || d.name?.en_GB || (typeof d.name === "string" ? d.name : Object.values(d.name || {})[0]) || "Meta Comp",
+      name:
+        typeof d.name === "string"
+          ? d.name
+          : d.name?.en_US || d.name?.en_GB || Object.values(d.name || {})[0] || "Meta Comp",
       tier,
-      avg_placement: d.stat?.deck?.avgPlacement || d.stat?.label?.avgPlacement || 4.0,
-      top4_rate: Math.round(((d.stat?.deck?.top4Rate ?? 0.5) * 100) * 10) / 10,
-      pick_rate: Math.round(((d.stat?.deck?.pickRate ?? 0.05) * 100) * 100) / 100,
+      avg_placement: Math.round(avgPlacement * 100) / 100,
+      top4_rate: Math.round(rawTop4 * 100 * 10) / 10,
+      pick_rate: Math.round(rawPick * 100 * 100) / 100,
       play_style: playStyle,
       difficulty,
       traits,

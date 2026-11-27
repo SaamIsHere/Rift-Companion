@@ -246,6 +246,20 @@ export const LATEST_PATCH_DATA: PatchNotesData = {
 
     // Rift Companion Updates
     {
+      id: "app-update-032",
+      type: "app",
+      category: "app",
+      title: "Rift Companion v0.3.2 - Build Stats, Ban History, TFT Meta & LCU Reconnect Fixes",
+      summary: "Restored item & summoner spell game counts and 4th/5th/6th item pick rates, hardened per-account ban history tracking, restored full TFT Set 18 tier lists, fixed TFT wallpaper & popover clipping, and improved LCU re-detection after League restarts.",
+      details: [
+        "Build Stats & Situational Pick Rates: Fixed OP.GG lowercase 'games' parsing to restore absolute game counts across Summoner Spells, Starter Items, Boots, Core Items, and 4th/5th/6th Item slots, along with 4th/5th/6th item pick rates.",
+        "Ban History Accuracy: Prevented LCU champ-select sub-events and missing cell IDs from recording duplicate or wrong champion bans, and isolated ban history per Riot account (PUUID).",
+        "Full TFT Set 18 Meta Comps: Updated the OP.GG TFT crawler to the new v4 schema, restoring all S, A, B, C, and D tier compositions with automatic UI updates after server sync.",
+        "TFT Wallpaper & Hover Popover Polish: Fixed the missing wallpaper background when entering TFT from the Home page, and made TFT comp hover popovers dynamically position above or below without clipping under top bars.",
+        "LCU Reconnect Reliability: Added periodic process/lockfile liveness checks and connection timeouts so restarting League of Legends while Rift Companion stays open is reliably re-detected.",
+      ],
+    },
+    {
       id: "app-update-031",
       type: "app",
       category: "app",

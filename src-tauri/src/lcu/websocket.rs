@@ -38,28 +38,37 @@ pub async fn connect(lock: &Lockfile) -> Result<WsStream> {
         .build()?;
     let connector = Connector::NativeTls(tls);
 
-    let (mut ws, _resp) =
-        connect_async_tls_with_config(request, None, false, Some(connector)).await?;
+    let (mut ws, _resp) = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        connect_async_tls_with_config(request, None, false, Some(connector)),
+    )
+    .await
+    .map_err(|_| anyhow::anyhow!("LCU websocket connect timed out"))??;
 
     // Subscribe to champ-select session, gameflow, end-of-game, summoner and login events.
     use futures_util::SinkExt;
-    let subscribe_cs = format!("[5, \"{CHAMP_SELECT_EVENT}\"]");
-    ws.send(Message::Text(subscribe_cs.into())).await?;
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        let subscribe_cs = format!("[5, \"{CHAMP_SELECT_EVENT}\"]");
+        ws.send(Message::Text(subscribe_cs.into())).await?;
 
-    let subscribe_gfp = format!("[5, \"{GAMEFLOW_PHASE_EVENT}\"]");
-    ws.send(Message::Text(subscribe_gfp.into())).await?;
+        let subscribe_gfp = format!("[5, \"{GAMEFLOW_PHASE_EVENT}\"]");
+        ws.send(Message::Text(subscribe_gfp.into())).await?;
 
-    let subscribe_gfs = format!("[5, \"{GAMEFLOW_SESSION_EVENT}\"]");
-    ws.send(Message::Text(subscribe_gfs.into())).await?;
+        let subscribe_gfs = format!("[5, \"{GAMEFLOW_SESSION_EVENT}\"]");
+        ws.send(Message::Text(subscribe_gfs.into())).await?;
 
-    let subscribe_eog = format!("[5, \"{EOG_STATS_EVENT}\"]");
-    ws.send(Message::Text(subscribe_eog.into())).await?;
+        let subscribe_eog = format!("[5, \"{EOG_STATS_EVENT}\"]");
+        ws.send(Message::Text(subscribe_eog.into())).await?;
 
-    let subscribe_sum = format!("[5, \"{CURRENT_SUMMONER_EVENT}\"]");
-    ws.send(Message::Text(subscribe_sum.into())).await?;
+        let subscribe_sum = format!("[5, \"{CURRENT_SUMMONER_EVENT}\"]");
+        ws.send(Message::Text(subscribe_sum.into())).await?;
 
-    let subscribe_login = format!("[5, \"{LOGIN_SESSION_EVENT}\"]");
-    ws.send(Message::Text(subscribe_login.into())).await?;
+        let subscribe_login = format!("[5, \"{LOGIN_SESSION_EVENT}\"]");
+        ws.send(Message::Text(subscribe_login.into())).await?;
+        anyhow::Ok(())
+    })
+    .await
+    .map_err(|_| anyhow::anyhow!("LCU websocket subscribe timed out"))??;
 
     Ok(ws)
 }

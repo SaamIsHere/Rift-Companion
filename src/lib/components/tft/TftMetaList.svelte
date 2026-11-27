@@ -18,8 +18,62 @@
   let expandedDeckId: string | null = null;
   // Which deck button in the row to insert the expansion card after
   let expandedAfterDeckId: string | null = null;
-  // Currently hovered comp for popover preview
+  // Currently hovered comp for portaled popover preview
   let hoveredDeck: TftMetaDeck | null = null;
+  let hoveredAnchorEl: HTMLElement | null = null;
+  let popoverEl: HTMLDivElement | null = null;
+  let popoverPos = { top: 0, left: 0, visible: false };
+
+  function portal(node: HTMLElement) {
+    document.body.appendChild(node);
+    return {
+      destroy() {
+        node.remove();
+      },
+    };
+  }
+
+  async function updatePopoverPosition() {
+    if (!hoveredDeck || !hoveredAnchorEl) return;
+    await tick();
+    if (!hoveredDeck || !hoveredAnchorEl || !popoverEl) return;
+
+    const anchor = hoveredAnchorEl.getBoundingClientRect();
+    const popWidth = popoverEl.offsetWidth || 288;
+    const popHeight = popoverEl.offsetHeight || 240;
+    const margin = 12;
+    const minTop = 52; // Always stay below TopNavBar (44px)
+
+    const spaceBelow = window.innerHeight - anchor.bottom - margin;
+    const spaceAbove = anchor.top - minTop;
+
+    let top: number;
+    if (spaceBelow >= popHeight || spaceBelow >= spaceAbove) {
+      top = Math.min(anchor.bottom + 10, window.innerHeight - popHeight - margin);
+    } else {
+      top = Math.max(minTop, anchor.top - popHeight - 10);
+    }
+    top = Math.max(minTop, top);
+
+    const idealLeft = anchor.left + anchor.width / 2 - popWidth / 2;
+    const left = Math.max(margin, Math.min(idealLeft, window.innerWidth - popWidth - margin));
+
+    popoverPos = { top, left, visible: true };
+  }
+
+  function showPopover(deck: TftMetaDeck, el: HTMLElement) {
+    hoveredDeck = deck;
+    hoveredAnchorEl = el;
+    popoverPos = { ...popoverPos, visible: false };
+    void updatePopoverPosition();
+  }
+
+  function hidePopover(deck?: TftMetaDeck) {
+    if (deck && hoveredDeck !== deck) return;
+    hoveredDeck = null;
+    hoveredAnchorEl = null;
+    popoverPos = { top: 0, left: 0, visible: false };
+  }
 
   function updateExpandedRowPosition() {
     if (!expandedDeckId) {
@@ -91,6 +145,7 @@
 
   onDestroy(() => {
     window.removeEventListener("resize", updateExpandedRowPosition);
+    hidePopover();
   });
 
   function getUnitCost(unit: TftUnit): number {
@@ -532,7 +587,15 @@
   }).filter((group) => group.decks.length > 0);
 </script>
 
-<svelte:window on:resize={updateExpandedRowPosition} />
+<svelte:window
+  on:resize={() => {
+    updateExpandedRowPosition();
+    if (hoveredDeck) void updatePopoverPosition();
+  }}
+  on:scroll|capture={() => {
+    if (hoveredDeck) hidePopover();
+  }}
+/>
 
 <div class="flex flex-col gap-6 w-full animate-fade-in select-none">
   {#if groupedTiers.length === 0}
@@ -572,19 +635,20 @@
               {@const isExpanded = expandedDeckId === deck.id}
 
               {#if compLead}
-                {@const carryUnit = getMainCarry(deck)}
-                {@const tankUnit = getPrioritizedUnits(deck).find((p) => p.roleType === 'tank')?.unit}
-                <!-- Champion Icon Button with Hover Tooltip Popover -->
+                <!-- Champion Icon Button -->
                 <div
                   id="deck-btn-{deck.id}"
-                  class="group relative hover:z-[70] focus-within:z-[70]"
-                  on:mouseenter={() => (hoveredDeck = deck)}
-                  on:mouseleave={() => { if (hoveredDeck === deck) hoveredDeck = null; }}
+                  class="group relative"
+                  on:mouseenter={(e) => showPopover(deck, e.currentTarget)}
+                  on:mouseleave={() => hidePopover(deck)}
                   role="presentation"
                 >
                   <button
                     type="button"
-                    on:click={() => toggleExpand(deck.id)}
+                    on:click={() => {
+                      hidePopover();
+                      toggleExpand(deck.id);
+                    }}
                     class="relative flex h-[76px] w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-xl border-4 {getCostBorderColor(
                       getUnitCost(compLead)
                     )} bg-transparent transition-transform duration-200 hover:-translate-y-1 hover:scale-105 focus:outline-none {isExpanded
@@ -604,89 +668,6 @@
                       }}
                     />
                   </button>
-
-                  <!-- HOVER TOOLTIP / POPOVER PREVIEW (100% Solid Opaque Background, statically centered without jumping) -->
-                  <div
-                    style="background-color: #0b071a; opacity: 1;"
-                    class="pointer-events-none absolute {group.tierKey === 'S' ? 'top-full mt-2.5' : 'bottom-full mb-2.5'} left-1/2 -translate-x-1/2 z-[100] w-72 rounded-xl border-2 border-purple-400/80 p-3.5 shadow-[0_20px_40px_rgba(0,0,0,0.98)] flex flex-col gap-2.5 opacity-0 invisible group-hover:visible group-hover:opacity-100 transition-opacity duration-150 ease-out"
-                  >
-                    <!-- Header: Title + Playstyle -->
-                    <div class="border-b border-purple-500/25 pb-2">
-                      <div class="flex items-center justify-between gap-1">
-                        <h4 class="text-xs font-black text-white truncate">{deck.name}</h4>
-                        <span class="rounded px-1.5 py-0.5 text-[9px] font-black uppercase {group.config.badgeBg}">
-                          Tier {deck.tier}
-                        </span>
-                      </div>
-                      <div class="flex items-center gap-2 mt-1">
-                        {#if deck.play_style}
-                          <span class="text-[10px] font-semibold text-purple-300">
-                            {deck.play_style}
-                          </span>
-                        {/if}
-                        {#if deck.difficulty}
-                          <span class="text-[9px] text-purple-300/70 font-medium">
-                            • {deck.difficulty}
-                          </span>
-                        {/if}
-                      </div>
-                    </div>
-
-                    <!-- Traits preview -->
-                    {#if deck.traits && deck.traits.length > 0}
-                      <div class="flex flex-wrap items-center gap-1">
-                        {#each deck.traits as trait}
-                          <div class="flex items-center gap-1 rounded bg-[#160e33] border border-purple-500/35 px-1.5 py-0.5 text-[9px] font-bold text-slate-100 shadow-sm">
-                            <span class="text-amber-300 font-extrabold">{trait.count}</span>
-                            <span>{trait.name}</span>
-                          </div>
-                        {/each}
-                      </div>
-                    {/if}
-
-                    <!-- Full comp units lineup (all units shown!) -->
-                    <div class="flex flex-wrap items-center gap-1.5 py-1">
-                      {#each deck.units as unit}
-                        {@const cost = getUnitCost(unit)}
-                        {@const isCarry = carryUnit && carryUnit.name === unit.name}
-                        {@const isTank = !isCarry && tankUnit && tankUnit.name === unit.name}
-                        <div class="relative flex flex-col items-center">
-                          <img
-                            src={unit.image_url || getTftChampionIcon(unit.id || unit.name)}
-                            alt={unit.name}
-                            title="{unit.name} ({cost}g){isCarry ? ' - Main Carry' : isTank ? ' - Main Tank' : ''}"
-                            class="h-7 w-7 rounded-md border-2 {getCostBorderColor(cost)} bg-[#160e33] object-cover"
-                            on:error={(e) => {
-                              const target = e.currentTarget as HTMLImageElement;
-                              target.src = getTftChampionFallback(unit.name);
-                            }}
-                          />
-                          {#if isCarry}
-                            <span
-                              class="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-400 border border-amber-200 text-[8px] font-black text-black shadow"
-                              title="Main Carry"
-                            >
-                              C
-                            </span>
-                          {:else if isTank}
-                            <span
-                              class="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-400 border border-emerald-200 text-[8px] font-black text-black shadow"
-                              title="Main Tank"
-                            >
-                              T
-                            </span>
-                          {/if}
-                        </div>
-                      {/each}
-                    </div>
-
-                    <!-- Placement Stats & Click hint footer -->
-                    <div class="flex items-center justify-between border-t border-purple-500/20 pt-1.5 text-[10px]">
-                      <span class="text-emerald-400 font-bold">Avg #{deck.avg_placement.toFixed(2)}</span>
-                      <span class="text-purple-200 font-semibold">{deck.top4_rate.toFixed(1)}% Top 4</span>
-                      <span class="text-[9px] text-purple-300/70 italic">Click to open</span>
-                    </div>
-                  </div>
                 </div>
               {/if}
 
@@ -928,3 +909,93 @@
     {/each}
   {/if}
 </div>
+
+<!-- Portaled Fixed Hover Preview (never clipped by scroll containers, sticky bars, or stacking contexts) -->
+{#if hoveredDeck}
+  {@const tierConfig = getTierConfig(hoveredDeck.tier)}
+  {@const carryUnit = getMainCarry(hoveredDeck)}
+  {@const tankUnit = getPrioritizedUnits(hoveredDeck).find((p) => p.roleType === 'tank')?.unit}
+  <div
+    use:portal
+    bind:this={popoverEl}
+    style="background-color: #0b071a; top: {popoverPos.top}px; left: {popoverPos.left}px; opacity: {popoverPos.visible ? 1 : 0};"
+    class="pointer-events-none fixed z-[9999] w-72 rounded-xl border-2 border-purple-400/80 p-3.5 shadow-[0_20px_40px_rgba(0,0,0,0.98)] flex flex-col gap-2.5 transition-opacity duration-100 ease-out"
+  >
+    <!-- Header: Title + Playstyle -->
+    <div class="border-b border-purple-500/25 pb-2">
+      <div class="flex items-center justify-between gap-1">
+        <h4 class="text-xs font-black text-white truncate">{hoveredDeck.name}</h4>
+        <span class="rounded px-1.5 py-0.5 text-[9px] font-black uppercase {tierConfig.badgeBg}">
+          Tier {hoveredDeck.tier}
+        </span>
+      </div>
+      <div class="flex items-center gap-2 mt-1">
+        {#if hoveredDeck.play_style}
+          <span class="text-[10px] font-semibold text-purple-300">
+            {hoveredDeck.play_style}
+          </span>
+        {/if}
+        {#if hoveredDeck.difficulty}
+          <span class="text-[9px] text-purple-300/70 font-medium">
+            • {hoveredDeck.difficulty}
+          </span>
+        {/if}
+      </div>
+    </div>
+
+    <!-- Traits preview -->
+    {#if hoveredDeck.traits && hoveredDeck.traits.length > 0}
+      <div class="flex flex-wrap items-center gap-1">
+        {#each hoveredDeck.traits as trait}
+          <div class="flex items-center gap-1 rounded bg-[#160e33] border border-purple-500/35 px-1.5 py-0.5 text-[9px] font-bold text-slate-100 shadow-sm">
+            <span class="text-amber-300 font-extrabold">{trait.count}</span>
+            <span>{trait.name}</span>
+          </div>
+        {/each}
+      </div>
+    {/if}
+
+    <!-- Full comp units lineup (all units shown!) -->
+    <div class="flex flex-wrap items-center gap-1.5 py-1">
+      {#each hoveredDeck.units as unit}
+        {@const cost = getUnitCost(unit)}
+        {@const isCarry = carryUnit && carryUnit.name === unit.name}
+        {@const isTank = !isCarry && tankUnit && tankUnit.name === unit.name}
+        <div class="relative flex flex-col items-center">
+          <img
+            src={unit.image_url || getTftChampionIcon(unit.id || unit.name)}
+            alt={unit.name}
+            title="{unit.name} ({cost}g){isCarry ? ' - Main Carry' : isTank ? ' - Main Tank' : ''}"
+            class="h-7 w-7 rounded-md border-2 {getCostBorderColor(cost)} bg-[#160e33] object-cover"
+            on:error={(e) => {
+              const target = e.currentTarget as HTMLImageElement;
+              target.src = getTftChampionFallback(unit.name);
+            }}
+          />
+          {#if isCarry}
+            <span
+              class="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-amber-400 border border-amber-200 text-[8px] font-black text-black shadow"
+              title="Main Carry"
+            >
+              C
+            </span>
+          {:else if isTank}
+            <span
+              class="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-emerald-400 border border-emerald-200 text-[8px] font-black text-black shadow"
+              title="Main Tank"
+            >
+              T
+            </span>
+          {/if}
+        </div>
+      {/each}
+    </div>
+
+    <!-- Placement Stats & Click hint footer -->
+    <div class="flex items-center justify-between border-t border-purple-500/20 pt-1.5 text-[10px]">
+      <span class="text-emerald-400 font-bold">Avg #{hoveredDeck.avg_placement.toFixed(2)}</span>
+      <span class="text-purple-200 font-semibold">{hoveredDeck.top4_rate.toFixed(1)}% Top 4</span>
+      <span class="text-[9px] text-purple-300/70 italic">Click to open</span>
+    </div>
+  </div>
+{/if}

@@ -26,6 +26,8 @@ fn http_client() -> Result<&'static reqwest::Client> {
     }
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
+        .connect_timeout(std::time::Duration::from_secs(2))
+        .timeout(std::time::Duration::from_secs(5))
         .build()?;
     Ok(CLIENT.get_or_init(|| client))
 }

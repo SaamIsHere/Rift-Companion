@@ -3,9 +3,13 @@
 
 use serde::Deserialize;
 
+fn default_missing_cell_id() -> i64 {
+    -1
+}
+
 #[derive(Debug, Default, Deserialize)]
 pub struct ChampSelectSession {
-    #[serde(default, rename = "localPlayerCellId")]
+    #[serde(default = "default_missing_cell_id", rename = "localPlayerCellId")]
     pub local_player_cell_id: i64,
     #[serde(default, rename = "myTeam")]
     pub my_team: Vec<PlayerSlot>,
@@ -61,7 +65,7 @@ pub struct PlayerSlot {
 pub struct Action {
     #[serde(default)]
     pub id: i64,
-    #[serde(default, rename = "actorCellId")]
+    #[serde(default = "default_missing_cell_id", rename = "actorCellId")]
     pub actor_cell_id: i64,
     #[serde(default, rename = "championId")]
     pub champion_id: i64,

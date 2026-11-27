@@ -9,6 +9,7 @@ import { preselectedChampionId } from "../stores/preselect";
 import { scoringMode } from "../stores/scoring";
 import { settings, activationOpen } from "../stores/settings";
 import { recentBans, banHistory } from "../stores/bans";
+import { tftMetaDecks, sanitizeDeckCells } from "../stores/tft";
 import { postGameMatch, loadPostGameFromRaw } from "../stores/postGame";
 import { updateLiveGameMode } from "../stores/liveGameMode";
 import type {
@@ -82,6 +83,11 @@ export async function initIpc(): Promise<void> {
   });
   await listen<number[]>("bans://updated", (e) => {
     recentBans.set(e.payload);
+  });
+  await listen<TftMetaDeck[]>("tft://updated", (e) => {
+    if (Array.isArray(e.payload) && e.payload.length > 0) {
+      tftMetaDecks.set(e.payload.map(sanitizeDeckCells));
+    }
   });
   await listen<ScoringMode>("scoring-mode://update", (e) =>
     scoringMode.set(e.payload),

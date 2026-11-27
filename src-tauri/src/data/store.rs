@@ -265,15 +265,23 @@ pub fn write_cached_profile(profile: &crate::lcu::client::Summoner) -> std::io::
 pub const MAX_BAN_HISTORY: usize = 20;
 pub const MAX_BAN_SUGGESTIONS: usize = 5;
 
-fn bans_path() -> PathBuf {
+fn bans_path_for(puuid: Option<&str>) -> PathBuf {
     let mut p = default_data_path();
-    p.set_file_name("recent_bans.json");
+    if let Some(id) = puuid.map(str::trim).filter(|s| !s.is_empty()) {
+        let safe: String = id
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+            .collect();
+        p.set_file_name(format!("recent_bans_{safe}.json"));
+    } else {
+        p.set_file_name("recent_bans.json");
+    }
     p
 }
 
-/// Read the recorded ban history (up to 20 recorded bans) from disk.
-pub fn read_ban_history() -> Vec<u32> {
-    if let Ok(data) = std::fs::read_to_string(bans_path()) {
+/// Read the recorded ban history (up to 20 recorded bans) from disk for a specific summoner (or fallback).
+pub fn read_ban_history_for(puuid: Option<&str>) -> Vec<u32> {
+    if let Ok(data) = std::fs::read_to_string(bans_path_for(puuid)) {
         if let Ok(bans) = serde_json::from_str::<Vec<u32>>(&data) {
             return bans;
         }
@@ -281,12 +289,23 @@ pub fn read_ban_history() -> Vec<u32> {
     Vec::new()
 }
 
-/// Persist the recorded ban history to disk.
-pub fn write_ban_history(bans: &[u32]) -> std::io::Result<()> {
-    if let Some(parent) = bans_path().parent() {
+/// Read the recorded ban history (up to 20 recorded bans) from disk.
+pub fn read_ban_history() -> Vec<u32> {
+    read_ban_history_for(None)
+}
+
+/// Persist the recorded ban history to disk for a specific summoner (or fallback).
+pub fn write_ban_history_for(puuid: Option<&str>, bans: &[u32]) -> std::io::Result<()> {
+    let path = bans_path_for(puuid);
+    if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).ok();
     }
-    std::fs::write(bans_path(), serde_json::to_string_pretty(bans).unwrap_or_default())
+    std::fs::write(path, serde_json::to_string_pretty(bans).unwrap_or_default())
+}
+
+/// Persist the recorded ban history to disk.
+pub fn write_ban_history(bans: &[u32]) -> std::io::Result<()> {
+    write_ban_history_for(None, bans)
 }
 
 /// Extract up to 5 most recent unique ban suggestions from the history.
@@ -310,35 +329,50 @@ pub fn extract_recent_suggestions(history: &[u32]) -> Vec<u32> {
     suggestions
 }
 
-/// Get the up to 5 most recent distinct ban suggestions.
-pub fn get_recent_ban_suggestions() -> Vec<u32> {
-    let history = read_ban_history();
+/// Get the up to 5 most recent distinct ban suggestions for a specific summoner (or fallback).
+pub fn get_recent_ban_suggestions_for(puuid: Option<&str>) -> Vec<u32> {
+    let history = read_ban_history_for(puuid);
     extract_recent_suggestions(&history)
 }
 
-/// Record a newly completed player ban into the FIFO history:
+/// Get the up to 5 most recent distinct ban suggestions.
+pub fn get_recent_ban_suggestions() -> Vec<u32> {
+    get_recent_ban_suggestions_for(None)
+}
+
+/// Record a newly completed player ban into the FIFO history for a specific summoner:
 /// - Appends to the end of the history.
 /// - If length exceeds 20, trims oldest items from the start (FIFO).
 /// - Persists to disk.
 /// - Returns updated top 5 unique ban suggestions.
-pub fn record_ban(champion_id: u32) -> Vec<u32> {
+pub fn record_ban_for(puuid: Option<&str>, champion_id: u32) -> Vec<u32> {
     if champion_id == 0 {
-        return get_recent_ban_suggestions();
+        return get_recent_ban_suggestions_for(puuid);
     }
-    let mut history = read_ban_history();
+    let mut history = read_ban_history_for(puuid);
     history.push(champion_id);
     if history.len() > MAX_BAN_HISTORY {
         let excess = history.len() - MAX_BAN_HISTORY;
         history.drain(0..excess);
     }
-    let _ = write_ban_history(&history);
+    let _ = write_ban_history_for(puuid, &history);
     extract_recent_suggestions(&history)
+}
+
+/// Record a newly completed player ban into the FIFO history.
+pub fn record_ban(champion_id: u32) -> Vec<u32> {
+    record_ban_for(None, champion_id)
+}
+
+/// Clear recorded ban history for a specific summoner (or fallback).
+pub fn clear_ban_history_for(puuid: Option<&str>) -> std::io::Result<()> {
+    let empty: Vec<u32> = Vec::new();
+    write_ban_history_for(puuid, &empty)
 }
 
 /// Clear recorded ban history.
 pub fn clear_ban_history() -> std::io::Result<()> {
-    let empty: Vec<u32> = Vec::new();
-    write_ban_history(&empty)
+    clear_ban_history_for(None)
 }
 
 
@@ -440,6 +474,20 @@ mod tests {
         let history = vec![1, 2, 3, 4, 5, 6, 7];
         let suggestions = extract_recent_suggestions(&history);
         assert_eq!(suggestions, vec![7, 6, 5, 4, 3]);
+    }
+
+    #[test]
+    fn test_bans_path_for_scopes_by_puuid() {
+        let global = bans_path_for(None);
+        let empty = bans_path_for(Some("  "));
+        let acc_a = bans_path_for(Some("puuid-account-a"));
+        let acc_b = bans_path_for(Some("puuid-account-b"));
+
+        assert_eq!(global.file_name().unwrap(), "recent_bans.json");
+        assert_eq!(empty.file_name().unwrap(), "recent_bans.json");
+        assert_eq!(acc_a.file_name().unwrap(), "recent_bans_puuid-account-a.json");
+        assert_eq!(acc_b.file_name().unwrap(), "recent_bans_puuid-account-b.json");
+        assert_ne!(acc_a, acc_b);
     }
 }
 

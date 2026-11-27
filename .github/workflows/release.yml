@@ -89,23 +89,19 @@ jobs:
             ## Rift Companion Release ${{ steps.get_version.outputs.tag }}
 
             ### Highlights
-            * **Automatic Game Mode & ARAM Mayhem Detection:**
-              * Replaced manual mode switching in the Live Match view with seamless automatic detection for Summoner's Rift, ARAM (Queue 450), and ARAM Mayhem (Queue 2400 / KIWI / MAYHEM).
-              * Direct real-time synchronization with LCU gameflow session, live client polling, and WebSocket events.
-            * **ARAM Mayhem Rune Suppression:**
-              * Automatically hides the runes column in Live Match when ARAM Mayhem is active, as runes are replaced by augments in Mayhem.
-              * Dynamically expands Summoner Spells and Item Sets across the entire container width with a clear `ARAM Mayhem (No Runes)` status badge.
-            * **Item Set Accumulation Fix & Automatic Replacement:**
-              * Fixed a persistent bug where companion item sets accumulated indefinitely across matches.
-              * Importing an item set (auto or manual) now automatically replaces previous Rift Companion item sets, keeping only the active champion's set while preserving all user-made custom sets.
-            * **Dedicated Item Sets Cleanup Tool:**
-              * Added a new **"Clean Up Item Sets"** action in Settings (under Item Sets Cleanup) to immediately purge all accumulated Rift Companion item sets from the League client via LCU API.
-            * **Settings UI Redesign:**
-              * Redesigned Auto-Import settings with overarching tabs for *Summoner's Rift* and *ARAM*, each containing three compact, unified buttons for *Runes*, *Summoners*, and *Item Sets*.
-              * Removed the obsolete manual ARAM Mayhem toggle since detection is now 100% automated.
-            * **Visual Polish & Complete English Localization:**
-              * Removed tree (🌲) and snowflake (❄️) emojis across settings tabs, live match badges, and post-game screens.
-              * Standardized all remaining German UI strings across settings, profile, and simulation views to clean, consistent English.
+            * **Item & Summoner Spell Game Counts + 4th/5th/6th Item Pick Rates Fixed:**
+              * Updated OP.GG build parsing for lowercase `"games"` labels, restoring absolute game counts for Summoner Spells, Starter Items, Boots, Core Items, Skill Order, and 4th/5th/6th item slots.
+              * Restored 4th, 5th, and 6th item pick rates from game counts and fixed sub-1% pick-rate scaling in the In-Game Dashboard.
+            * **Accurate Personal Ban History & Suggestions:**
+              * Fixed LCU champ-select sub-events resetting the ban-recording guard mid-draft and prevented missing `localPlayerCellId` values from defaulting to cell `0`.
+              * Scoped recorded ban history per Riot account (`puuid`) so each account maintains its own accurate ban suggestions.
+            * **Full TFT Set 18 Meta Comps Restoration:**
+              * Updated the TFT crawler to OP.GG's new `v4` schema, restoring all 46+ meta compositions across S, A, B, C, and D tiers with live UI sync on server refresh.
+            * **TFT Wallpaper & Hover Popover Clipping Fix:**
+              * Fixed the TFT tab displaying a black background when switching from the Home landing page when custom wallpapers are enabled.
+              * Portaled the TFT comp hover popover with dynamic viewport-aware positioning so it never clips underneath the TFT sub-tab bar or top navigation bar.
+            * **Reliable LCU Re-Detection Across League Restarts:**
+              * Added a 3-second process/lockfile liveness check, HTTP/WebSocket timeouts, and profile re-confirmation so closing and relaunching League of Legends while Rift Companion stays open is always detected.
 
             ### Download & Installation
             * **Windows Installer:** Download `Rift-Companion_${{ steps.get_version.outputs.version }}_x64-setup.exe` below and double-click to install.

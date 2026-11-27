@@ -220,18 +220,18 @@
 
   function getBootPickRate(boot: BootsStats, otherBoot?: BootsStats, idx = 0, totalGames?: number): number {
     if (boot.pick_rate && boot.pick_rate > 0) return boot.pick_rate;
-    if (boot.play && totalGames && totalGames > 0) return (boot.play / totalGames) * 100;
+    if (boot.play && totalGames && totalGames > 0) return boot.play / totalGames;
     if (boot.play && otherBoot?.play) {
       const sum = boot.play + otherBoot.play;
-      return (boot.play / sum) * 100;
+      return boot.play / sum;
     }
-    return idx === 0 ? 58.5 : 41.5;
+    return idx === 0 ? 0.585 : 0.415;
   }
 
   function getSituationalPickRate(item: DepthItemStats, totalGames?: number): number {
     if (item.pick_rate && item.pick_rate > 0) return item.pick_rate;
-    if (item.play && totalGames && totalGames > 0) return (item.play / totalGames) * 100;
-    return 15.2;
+    if (item.play && totalGames && totalGames > 0) return item.play / totalGames;
+    return 0.152;
   }
 
   function parseRiotId(raw?: string | null): { name: string; tag: string | null } | null {

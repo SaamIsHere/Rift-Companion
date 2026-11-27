@@ -375,9 +375,15 @@ pub fn run() {
                     // Synchronize TFT meta data alongside LoL dataset
                     let s_url_tft = s_url.clone();
                     let key_tft = key.clone();
+                    let handle_tft = handle.clone();
                     tauri::async_runtime::spawn(async move {
-                        if let Err(e) = tft::sync_from_server(&s_url_tft, Some(&key_tft)).await {
-                            tracing::debug!("TFT server sync not available ({e:#}); using local cached Set 18 data");
+                        match tft::sync_from_server(&s_url_tft, Some(&key_tft)).await {
+                            Ok(decks) => {
+                                let _ = handle_tft.emit("tft://updated", &decks);
+                            }
+                            Err(e) => {
+                                tracing::debug!("TFT server sync not available ({e:#}); using local cached Set 18 data");
+                            }
                         }
                     });
 

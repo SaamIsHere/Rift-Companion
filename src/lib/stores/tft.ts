@@ -26,7 +26,7 @@ export const tftError = writable<string | null>(null);
 
 let dataLoaded = false;
 
-function sanitizeDeckCells(deck: TftMetaDeck): TftMetaDeck {
+export function sanitizeDeckCells(deck: TftMetaDeck): TftMetaDeck {
   if (!deck.units || deck.units.length === 0) return deck;
   const used = new Set<string>();
   let needsRepair = false;

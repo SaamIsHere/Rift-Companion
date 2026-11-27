@@ -39,13 +39,22 @@ fn bring_window_to_foreground(app: &AppHandle, shared: &Shared) {
     }
 }
 
-async fn fetch_and_update_profile(app: &AppHandle, shared: &Shared, lock: &lockfile::Lockfile) {
+async fn fetch_and_update_profile(app: &AppHandle, shared: &Shared, lock: &lockfile::Lockfile) -> bool {
+    let mut confirmed = false;
     match client::get_current_summoner(lock).await {
         Ok(Some(profile)) => {
             let _ = crate::data::store::write_cached_profile(&profile);
+            let puuid = if profile.puuid.trim().is_empty() {
+                None
+            } else {
+                Some(profile.puuid.clone())
+            };
             *shared.profile.lock().unwrap() = Some(profile.clone());
             let _ = app.emit("lcu://profile", &profile);
+            let suggestions = crate::data::store::get_recent_ban_suggestions_for(puuid.as_deref());
+            let _ = app.emit("bans://updated", &suggestions);
             tracing::info!(name = %profile.display_name, "summoner profile updated");
+            confirmed = true;
         }
         Ok(None) => tracing::debug!("current summoner not available yet"),
         Err(e) => tracing::warn!("failed to fetch current summoner: {e}"),
@@ -104,6 +113,7 @@ async fn fetch_and_update_profile(app: &AppHandle, shared: &Shared, lock: &lockf
             }
         }
     }
+    confirmed
 }
 
 /// Runs forever: (re)discovers the client and processes events, reconnecting on drop.
@@ -138,7 +148,7 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                 }
 
                 // Initial attempt to fetch the active account's profile and rank
-                fetch_and_update_profile(&app, &shared, &lock).await;
+                let mut profile_confirmed = fetch_and_update_profile(&app, &shared, &lock).await;
 
                 // Check current gameflow phase first!
                 let initial_phase = match client::get_gameflow_phase(&lock).await {
@@ -217,178 +227,210 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
                     }
                 }
 
-                while let Some(msg) = ws.next().await {
-                    match msg {
-                        Ok(Message::Text(txt)) => {
-                            if let Some(ev) = parse_event(&txt) {
-                                if ev.uri.contains("current-summoner") || ev.uri.contains("login") {
-                                    tracing::info!("received summoner/login event; updating profile");
-                                    fetch_and_update_profile(&app, &shared, &lock).await;
-                                } else if ev.uri.contains("gameflow-phase") {
-                                    if let Some(phase) = ev.data.as_str() {
-                                        tracing::info!(phase, "gameflow phase update");
+                let mut liveness_tick = tokio::time::interval(Duration::from_secs(3));
+                liveness_tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                // Consume the immediate first tick so we start checking 3s after connect
+                liveness_tick.tick().await;
 
-                                        // If profile wasn't ready during initial handshake, update it now
-                                        if shared.profile.lock().unwrap().is_none() {
-                                            fetch_and_update_profile(&app, &shared, &lock).await;
-                                        }
+                loop {
+                    tokio::select! {
+                        _ = liveness_tick.tick() => {
+                            // Guard against half-open sockets or a restarted League client on a new PID/port.
+                            let still_alive = lockfile::is_league_process_alive(lock.pid);
+                            let lock_changed = match lockfile::find() {
+                                Some(current) => current.pid != lock.pid || current.port != lock.port,
+                                None => !still_alive,
+                            };
+                            if !still_alive || lock_changed {
+                                tracing::info!(pid = lock.pid, port = lock.port, "LCU process exited or lockfile changed; reconnecting");
+                                break;
+                            }
+                            if !profile_confirmed {
+                                profile_confirmed = fetch_and_update_profile(&app, &shared, &lock).await;
+                            }
+                        }
+                        maybe_msg = ws.next() => {
+                            let Some(msg) = maybe_msg else {
+                                break;
+                            };
+                            match msg {
+                                Ok(Message::Text(txt)) => {
+                                    if let Some(ev) = parse_event(&txt) {
+                                        if ev.uri.contains("current-summoner") || ev.uri.contains("login") {
+                                            tracing::info!("received summoner/login event; updating profile");
+                                            profile_confirmed = fetch_and_update_profile(&app, &shared, &lock).await;
+                                        } else if ev.uri.contains("gameflow-phase") {
+                                            if let Some(phase) = ev.data.as_str() {
+                                                tracing::info!(phase, "gameflow phase update");
 
-                                        if phase == "ChampSelect" {
-                                            *shared.gameflow_phase.lock().unwrap() = phase.to_string();
-                                            let _ = app.emit("gameflow://phase", phase);
-                                            tracing::info!(phase, "entered champ select");
-                                            // Reset post-game screen and active game ID when a new champ select starts
-                                            *shared.latest_post_game.lock().unwrap() = None;
-                                            *shared.active_game_id.lock().unwrap() = None;
-                                            let _ = app.emit("post-game://update", serde_json::Value::Null);
-
-                                            // Proactively pull active champ-select session from REST so we don't miss or delay display
-                                            if let Ok(Some(value)) = client::get_session(&lock).await {
-                                                handle_session(&app, &shared, value);
-                                            }
-                                        } else if phase == "GameStart" || phase == "InProgress" || phase == "Reconnect" {
-                                            let is_tft = if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
-                                                if let Ok(s) = serde_json::from_value::<models::GameflowSession>(gf_val) {
-                                                    is_tft_session(&s)
-                                                } else {
-                                                    false
+                                                // If profile wasn't confirmed during initial handshake, update it now
+                                                if !profile_confirmed || shared.profile.lock().unwrap().is_none() {
+                                                    profile_confirmed = fetch_and_update_profile(&app, &shared, &lock).await;
                                                 }
-                                            } else {
-                                                false
-                                            };
 
-                                            if is_tft {
-                                                tracing::info!(phase, "active match is TFT; filtering out from Live Match");
-                                                clear_session(&app, &shared);
-                                                *shared.gameflow_phase.lock().unwrap() = "None".to_string();
-                                                let _ = app.emit("gameflow://phase", "None");
-                                            } else {
-                                                *shared.gameflow_phase.lock().unwrap() = phase.to_string();
-                                                let _ = app.emit("gameflow://phase", phase);
-                                                tracing::info!(phase, "match active / in-progress; preserving match state");
-                                                let got_live = check_liveclient_data(&app, &shared).await;
-                                                if !got_live {
-                                                    if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
-                                                        handle_gameflow_session(&app, &shared, Some(&lock), gf_val).await;
+                                                if phase == "ChampSelect" {
+                                                    *shared.gameflow_phase.lock().unwrap() = phase.to_string();
+                                                    let _ = app.emit("gameflow://phase", phase);
+                                                    tracing::info!(phase, "entered champ select");
+                                                    // Reset post-game screen and active game ID when a new champ select starts
+                                                    *shared.latest_post_game.lock().unwrap() = None;
+                                                    *shared.active_game_id.lock().unwrap() = None;
+                                                    let _ = app.emit("post-game://update", serde_json::Value::Null);
+
+                                                    // Proactively pull active champ-select session from REST so we don't miss or delay display
+                                                    if let Ok(Some(value)) = client::get_session(&lock).await {
+                                                        handle_session(&app, &shared, value);
                                                     }
-                                                }
-                                                spawn_live_client_poller(&app, &shared);
-                                            }
-                                        } else if phase == "WaitingForStats" || phase == "PreEndOfGame" || phase == "EndOfGame" {
-                                            *shared.gameflow_phase.lock().unwrap() = phase.to_string();
-                                            let _ = app.emit("gameflow://phase", phase);
-                                            tracing::info!(phase, "entered post-game phase; fetching match results");
-                                            clear_session(&app, &shared);
+                                                } else if phase == "GameStart" || phase == "InProgress" || phase == "Reconnect" {
+                                                    let is_tft = if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
+                                                        if let Ok(s) = serde_json::from_value::<models::GameflowSession>(gf_val) {
+                                                            is_tft_session(&s)
+                                                        } else {
+                                                            false
+                                                        }
+                                                    } else {
+                                                        false
+                                                    };
 
+                                                    if is_tft {
+                                                        tracing::info!(phase, "active match is TFT; filtering out from Live Match");
+                                                        clear_session(&app, &shared);
+                                                        *shared.gameflow_phase.lock().unwrap() = "None".to_string();
+                                                        let _ = app.emit("gameflow://phase", "None");
+                                                    } else {
+                                                        *shared.gameflow_phase.lock().unwrap() = phase.to_string();
+                                                        let _ = app.emit("gameflow://phase", phase);
+                                                        tracing::info!(phase, "match active / in-progress; preserving match state");
+                                                        let got_live = check_liveclient_data(&app, &shared).await;
+                                                        if !got_live {
+                                                            if let Ok(Some(gf_val)) = client::get_gameflow_session(&lock).await {
+                                                                handle_gameflow_session(&app, &shared, Some(&lock), gf_val).await;
+                                                            }
+                                                        }
+                                                        spawn_live_client_poller(&app, &shared);
+                                                    }
+                                                } else if phase == "WaitingForStats" || phase == "PreEndOfGame" || phase == "EndOfGame" {
+                                                    *shared.gameflow_phase.lock().unwrap() = phase.to_string();
+                                                    let _ = app.emit("gameflow://phase", phase);
+                                                    tracing::info!(phase, "entered post-game phase; fetching match results");
+                                                    clear_session(&app, &shared);
+
+                                                    let app_clone = app.clone();
+                                                    let shared_clone = shared.clone();
+                                                    let lock_clone = lock.clone();
+                                                    tauri::async_runtime::spawn(async move {
+                                                        fetch_and_emit_post_game(app_clone, shared_clone, lock_clone, None).await;
+                                                    });
+                                                } else if !is_in_match(phase) {
+                                                    *shared.gameflow_phase.lock().unwrap() = phase.to_string();
+                                                    let _ = app.emit("gameflow://phase", phase);
+                                                    tracing::info!(phase, "gameflow phase is not an active match; clearing session");
+                                                    clear_session(&app, &shared);
+                                                }
+                                            }
+                                        } else if ev.uri.contains("eog-stats-block") {
+                                            tracing::info!("received eog-stats-block event; fetching latest finished match");
+                                            let hint_id = ev.data.get("gameId").and_then(|id| id.as_u64());
+                                            if let Some(id) = hint_id {
+                                                if id > 0 {
+                                                    *shared.active_game_id.lock().unwrap() = Some(id);
+                                                }
+                                            }
                                             let app_clone = app.clone();
                                             let shared_clone = shared.clone();
                                             let lock_clone = lock.clone();
                                             tauri::async_runtime::spawn(async move {
-                                                fetch_and_emit_post_game(app_clone, shared_clone, lock_clone, None).await;
+                                                fetch_and_emit_post_game(app_clone, shared_clone, lock_clone, hint_id).await;
                                             });
-                                        } else if !is_in_match(phase) {
-                                            *shared.gameflow_phase.lock().unwrap() = phase.to_string();
-                                            let _ = app.emit("gameflow://phase", phase);
-                                            tracing::info!(phase, "gameflow phase is not an active match; clearing session");
-                                            clear_session(&app, &shared);
-                                        }
-                                    }
-                                } else if ev.uri.contains("eog-stats-block") {
-                                    tracing::info!("received eog-stats-block event; fetching latest finished match");
-                                    let hint_id = ev.data.get("gameId").and_then(|id| id.as_u64());
-                                    if let Some(id) = hint_id {
-                                        if id > 0 {
-                                            *shared.active_game_id.lock().unwrap() = Some(id);
-                                        }
-                                    }
-                                    let app_clone = app.clone();
-                                    let shared_clone = shared.clone();
-                                    let lock_clone = lock.clone();
-                                    tauri::async_runtime::spawn(async move {
-                                        fetch_and_emit_post_game(app_clone, shared_clone, lock_clone, hint_id).await;
-                                    });
-                                } else if ev.uri.contains("gameflow") && ev.uri.contains("session") {
-                                    if let Ok(s) = serde_json::from_value::<models::GameflowSession>(ev.data.clone()) {
-                                        if is_tft_session(&s) {
-                                            tracing::debug!("ignoring TFT gameflow session update");
-                                            clear_session(&app, &shared);
-                                            *shared.gameflow_phase.lock().unwrap() = "None".to_string();
-                                            let _ = app.emit("gameflow://phase", "None");
-                                            continue;
-                                        }
+                                        } else if ev.uri.contains("gameflow") && ev.uri.contains("session") {
+                                            if let Ok(s) = serde_json::from_value::<models::GameflowSession>(ev.data.clone()) {
+                                                if is_tft_session(&s) {
+                                                    tracing::debug!("ignoring TFT gameflow session update");
+                                                    clear_session(&app, &shared);
+                                                    *shared.gameflow_phase.lock().unwrap() = "None".to_string();
+                                                    let _ = app.emit("gameflow://phase", "None");
+                                                    continue;
+                                                }
 
-                                        let q_id = s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map(|q| q.id);
-                                        let m_id = s.map.as_ref().map(|m| m.id);
-                                        let raw_mode = s.game_data.as_ref().map(|g| g.game_mode.clone())
-                                            .or_else(|| s.map.as_ref().map(|m| m.game_mode.clone()))
-                                            .or_else(|| s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map(|q| q.game_mode.clone()));
+                                                let q_id = s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map(|q| q.id);
+                                                let m_id = s.map.as_ref().map(|m| m.id);
+                                                let raw_mode = s.game_data.as_ref().map(|g| g.game_mode.clone())
+                                                    .or_else(|| s.map.as_ref().map(|m| m.game_mode.clone()))
+                                                    .or_else(|| s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map(|q| q.game_mode.clone()));
 
-                                        let is_mayhem = q_id == Some(2400)
-                                            || raw_mode.as_ref().map_or(false, |m| {
-                                                let u = m.to_uppercase();
-                                                u.contains("MAYHEM") || u.contains("KIWI")
-                                            })
-                                            || s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| {
-                                                let u = q.game_mode.to_uppercase();
-                                                u.contains("MAYHEM") || u.contains("KIWI") || q.id == 2400
-                                            });
+                                                let is_mayhem = q_id == Some(2400)
+                                                    || raw_mode.as_ref().map_or(false, |m| {
+                                                        let u = m.to_uppercase();
+                                                        u.contains("MAYHEM") || u.contains("KIWI")
+                                                    })
+                                                    || s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| {
+                                                        let u = q.game_mode.to_uppercase();
+                                                        u.contains("MAYHEM") || u.contains("KIWI") || q.id == 2400
+                                                    });
 
-                                        let is_aram = q_id == Some(450)
-                                            || q_id == Some(2400)
-                                            || m_id == Some(12)
-                                            || is_mayhem
-                                            || raw_mode.as_ref().map_or(false, |m| {
-                                                let u = m.to_uppercase();
-                                                u.contains("ARAM") || u.contains("KIWI") || u.contains("MAYHEM")
-                                            })
-                                            || s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| {
-                                                let u = q.game_mode.to_uppercase();
-                                                u.contains("ARAM") || u.contains("KIWI") || u.contains("MAYHEM") || q.id == 450 || q.id == 2400
-                                            });
+                                                let is_aram = q_id == Some(450)
+                                                    || q_id == Some(2400)
+                                                    || m_id == Some(12)
+                                                    || is_mayhem
+                                                    || raw_mode.as_ref().map_or(false, |m| {
+                                                        let u = m.to_uppercase();
+                                                        u.contains("ARAM") || u.contains("KIWI") || u.contains("MAYHEM")
+                                                    })
+                                                    || s.game_data.as_ref().and_then(|g| g.queue.as_ref()).map_or(false, |q| {
+                                                        let u = q.game_mode.to_uppercase();
+                                                        u.contains("ARAM") || u.contains("KIWI") || u.contains("MAYHEM") || q.id == 450 || q.id == 2400
+                                                    });
 
-                                        *shared.current_game_mode.lock().unwrap() = raw_mode.clone();
-                                        *shared.current_queue_id.lock().unwrap() = q_id;
+                                                *shared.current_game_mode.lock().unwrap() = raw_mode.clone();
+                                                *shared.current_queue_id.lock().unwrap() = q_id;
 
-                                        let mode_info = serde_json::json!({
-                                            "game_mode": raw_mode,
-                                            "queue_id": q_id,
-                                            "is_aram": is_aram,
-                                            "is_mayhem": is_mayhem,
-                                        });
-                                        let _ = app.emit("gameflow://game-mode", &mode_info);
-                                    }
-                                    if let Some(game_id) = ev.data.get("gameData").and_then(|g| g.get("gameId")).and_then(|id| id.as_u64()) {
-                                        if game_id > 0 {
-                                            *shared.active_game_id.lock().unwrap() = Some(game_id);
+                                                let mode_info = serde_json::json!({
+                                                    "game_mode": raw_mode,
+                                                    "queue_id": q_id,
+                                                    "is_aram": is_aram,
+                                                    "is_mayhem": is_mayhem,
+                                                });
+                                                let _ = app.emit("gameflow://game-mode", &mode_info);
+                                            }
+                                            if let Some(game_id) = ev.data.get("gameData").and_then(|g| g.get("gameId")).and_then(|id| id.as_u64()) {
+                                                if game_id > 0 {
+                                                    *shared.active_game_id.lock().unwrap() = Some(game_id);
+                                                }
+                                            }
+                                            let current_phase = shared.gameflow_phase.lock().unwrap().clone();
+                                            if is_in_match(&current_phase) {
+                                                let got_live = check_liveclient_data(&app, &shared).await;
+                                                if !got_live {
+                                                    handle_gameflow_session(&app, &shared, Some(&lock), ev.data).await;
+                                                }
+                                            }
+                                        } else if is_champ_select_session_uri(&ev.uri) {
+                                            let is_404 = ev.data.get("httpStatus").and_then(|s| s.as_i64()) == Some(404);
+                                            if ev.event_type == "Delete" || ev.data.is_null() || is_404 {
+                                                let current_phase = shared.gameflow_phase.lock().unwrap().clone();
+                                                if !is_in_match(&current_phase) {
+                                                    tracing::info!(current_phase, "champ-select session closed and not in match; clearing session");
+                                                    clear_session(&app, &shared);
+                                                } else {
+                                                    tracing::info!(current_phase, "champ-select session closed but match is starting/in-progress; preserving state");
+                                                }
+                                            } else {
+                                                handle_session(&app, &shared, ev.data);
+                                            }
                                         }
-                                    }
-                                    let current_phase = shared.gameflow_phase.lock().unwrap().clone();
-                                    if is_in_match(&current_phase) {
-                                        let got_live = check_liveclient_data(&app, &shared).await;
-                                        if !got_live {
-                                            handle_gameflow_session(&app, &shared, Some(&lock), ev.data).await;
-                                        }
-                                    }
-                                } else if ev.uri.contains("champ-select") {
-                                    let is_404 = ev.data.get("httpStatus").and_then(|s| s.as_i64()) == Some(404);
-                                    if ev.event_type == "Delete" || ev.data.is_null() || is_404 {
-                                        let current_phase = shared.gameflow_phase.lock().unwrap().clone();
-                                        if !is_in_match(&current_phase) {
-                                            tracing::info!(current_phase, "champ-select session closed and not in match; clearing session");
-                                            clear_session(&app, &shared);
-                                        } else {
-                                            tracing::info!(current_phase, "champ-select session closed but match is starting/in-progress; preserving state");
-                                        }
-                                    } else {
-                                        handle_session(&app, &shared, ev.data);
                                     }
                                 }
+                                Ok(Message::Close(_)) | Err(_) => break,
+                                _ => {}
                             }
                         }
-                        Ok(Message::Close(_)) | Err(_) => break,
-                        _ => {}
                     }
                 }
+
+                // Clear active match state on client disconnect so UI/pollers reset cleanly
+                clear_session(&app, &shared);
+                *shared.gameflow_phase.lock().unwrap() = "None".to_string();
+                let _ = app.emit("gameflow://phase", "None");
             }
             Err(e) => tracing::warn!("LCU websocket connect failed: {e}"),
         }
@@ -397,6 +439,10 @@ pub async fn run_watcher(app: AppHandle, shared: Shared) {
         tracing::info!("LCU disconnected; retrying");
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
+}
+
+pub fn is_champ_select_session_uri(uri: &str) -> bool {
+    uri.trim_end_matches('/') == "/lol-champ-select/v1/session"
 }
 
 pub fn is_in_match(phase: &str) -> bool {
@@ -702,28 +748,40 @@ fn handle_session(app: &AppHandle, shared: &Shared, data: serde_json::Value) {
         let _ = app.emit("scoring-mode://update", crate::engine::weights::ScoringMode::Default);
     }
 
-    // Track local player's ban if completed in this session
+    let active_puuid = shared
+        .profile
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|p| p.puuid.clone())
+        .filter(|p| !p.trim().is_empty());
+
+    // Track local player's ban if completed in this session.
+    // Guard against missing/spectator cell IDs (-1) and verify local_cell belongs to my_team.
     let local_cell = session.local_player_cell_id;
-    for round in &session.actions {
-        for a in round {
-            if a.actor_cell_id == local_cell && a.action_type == "ban" && a.completed && a.champion_id > 0 {
-                let action_id = a.id;
-                let already_recorded = {
-                    let last = shared.last_recorded_ban_action_id.lock().unwrap();
-                    *last == Some(action_id)
-                };
-                if !already_recorded {
-                    *shared.last_recorded_ban_action_id.lock().unwrap() = Some(action_id);
-                    tracing::info!(champion_id = a.champion_id, action_id, "recording completed player ban");
-                    let suggestions = crate::data::store::record_ban(a.champion_id as u32);
-                    let _ = app.emit("bans://updated", &suggestions);
+    let local_in_my_team = local_cell >= 0 && session.my_team.iter().any(|p| p.cell_id == local_cell);
+    if local_in_my_team {
+        for round in &session.actions {
+            for a in round {
+                if a.actor_cell_id == local_cell && a.action_type == "ban" && a.completed && a.champion_id > 0 {
+                    let action_id = a.id;
+                    let already_recorded = {
+                        let last = shared.last_recorded_ban_action_id.lock().unwrap();
+                        *last == Some(action_id)
+                    };
+                    if !already_recorded {
+                        *shared.last_recorded_ban_action_id.lock().unwrap() = Some(action_id);
+                        tracing::info!(champion_id = a.champion_id, action_id, local_cell, "recording completed player ban");
+                        let suggestions = crate::data::store::record_ban_for(active_puuid.as_deref(), a.champion_id as u32);
+                        let _ = app.emit("bans://updated", &suggestions);
+                    }
                 }
             }
         }
     }
 
     let repo = shared.repo.lock().unwrap().clone();
-    let mut state = draft::from_session(repo.as_ref(), &session);
+    let mut state = draft::from_session_for(repo.as_ref(), &session, active_puuid.as_deref());
     state.game_mode = shared.current_game_mode.lock().unwrap().clone();
     state.queue_id = *shared.current_queue_id.lock().unwrap();
 
@@ -972,6 +1030,33 @@ async fn fetch_and_emit_post_game(
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn champ_select_session_uri_ignores_sub_endpoints() {
+        assert!(is_champ_select_session_uri("/lol-champ-select/v1/session"));
+        assert!(is_champ_select_session_uri("/lol-champ-select/v1/session/"));
+        assert!(!is_champ_select_session_uri("/lol-champ-select/v1/session/timer"));
+        assert!(!is_champ_select_session_uri("/lol-champ-select/v1/sfx-notifications"));
+        assert!(!is_champ_select_session_uri("/lol-champ-select/v1/session/my-selection"));
+        assert!(!is_champ_select_session_uri("/lol-champ-select/v1/bannable-champion-ids"));
+    }
+
+    #[test]
+    fn missing_local_player_cell_id_defaults_to_minus_one() {
+        let session: models::ChampSelectSession = serde_json::from_str(
+            r#"{
+                "myTeam": [{"cellId": 0, "championId": 0}],
+                "actions": [[{"id": 1, "actorCellId": 0, "championId": 127, "completed": true, "type": "ban"}]]
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(session.local_player_cell_id, -1);
     }
 }
 

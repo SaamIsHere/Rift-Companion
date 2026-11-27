@@ -84,8 +84,8 @@
 <div
   class="relative flex h-screen w-screen flex-col overflow-hidden text-slate-100 bg-[var(--theme-bg-base)] transition-colors duration-500 border {$isMaximized ? 'border-transparent' : 'border-void-950'}"
 >
-  <!-- Optional subtle background for all tabs when enabled in settings -->
-  {#if $wallpaperScope === "all_tabs" && $activeTab !== "startseite"}
+  <!-- Optional subtle background for all tabs (and TFT mode) when enabled in settings -->
+  {#if $wallpaperScope === "all_tabs" && ($activeTab !== "startseite" || $activeGameMode === "tft")}
     <div class="pointer-events-none absolute inset-0 z-0 overflow-hidden">
       <div
         class="absolute inset-0 bg-center bg-no-repeat bg-cover opacity-[0.24] transition-all duration-700"
